@@ -1,0 +1,79 @@
+server:
+  servlet:
+    context-path: /challenger
+
+
+#eureka:
+#  instance:
+#    instance-id: ${eureka.instance.hostname}:${spring.application.name}:${server.port}
+
+spring:
+  banner:
+    location: banner.txt
+  mvc:
+    pathmatch:
+      matching-strategy: ant_path_matcher
+
+
+
+  sql:
+    init:
+      mode: always
+
+  h2:
+    console:
+      enabled: true
+
+      #  profiles:
+#    active: eureka, remotes, auth, security, datasource, broker
+#  application:
+#    name: ods-ek
+#  datasource:
+#    driver-class-name: org.postgresql.Driver
+#  config:
+#    import: optional:configserver:${CONFIGSERVER_URL}
+#  cloud:
+#    config:
+#      label: master
+
+#hibernate:
+#  dialect: org.hibernate.dialect.PostgreSQLDialect
+#
+#management:
+#  endpoints:
+#    web:
+#      exposure:
+#        include: health,info,refresh
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui
+
+#auth:
+#  roles:
+#    show-app:
+#      - ODS-009
+#    available-in-app:
+#  ant-patterns:
+#    basic:
+#      - /ek/ext/api/**
+#    oauth2:
+#      - /ek/ui/api/**
+#    permitAll:
+#
+#security:
+#  factory: bean
+#
+#logging:
+#  level:
+#    root: info
+#
+#opensearch-client:
+#  url: http://172.22.45.75:7017/search/ui/api/v1/open_search/document
+
+
+jwt:
+  secret: yourVeryLongSecretKeyHereMakeItAtLeast256BitsLongForSecurity
+  expiration: 86400000
+
+
