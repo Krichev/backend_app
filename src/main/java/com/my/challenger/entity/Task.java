@@ -1,11 +1,15 @@
 package com.my.challenger.entity;
 
+import com.my.challenger.entity.challenge.Challenge;
+import com.my.challenger.entity.enums.TaskStatus;
+import com.my.challenger.entity.enums.TaskType;
+import com.my.challenger.entity.enums.VerificationMethod;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
@@ -26,12 +30,17 @@ public class Task {
 
     private String description;
 
-    private String type; // DAILY, ONE_TIME, RECURRING, etc.
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private TaskType type;
 
-    private String status; // NOT_STARTED, IN_PROGRESS, COMPLETED, VERIFIED, FAILED
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private TaskStatus status;
 
-    @Column(name = "verification_method")
-    private String verificationMethod; // MANUAL, FITNESS_API, PHOTO, QUIZ, etc.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "verification_method", nullable = false)
+    private VerificationMethod verificationMethod;
 
     @Column(name = "start_date")
     private LocalDateTime startDate;
@@ -51,7 +60,14 @@ public class Task {
 
     @ManyToOne
     @JoinColumn(name = "assigned_to")
-    private User assignedTo;
+    private User assignedToUser;
+
+    @Column(name = "assigned_to", updatable = false, insertable = false)
+    private Long assignedTo;
+
+    @ManyToOne
+    @JoinColumn(name = "challenge_id")
+    private Challenge challenge;
 
     @OneToMany(mappedBy = "task", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<TaskCompletion> completions = new HashSet<>();

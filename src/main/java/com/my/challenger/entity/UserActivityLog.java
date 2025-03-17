@@ -1,5 +1,6 @@
 package com.my.challenger.entity;
 
+import com.my.challenger.entity.enums.ActivityType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,8 +24,9 @@ public class UserActivityLog {
     @JoinColumn(name = "user_id")
     private User user;
 
-    @Column(name = "activity_type")
-    private String activityType;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "activity_type", nullable = false)
+    private ActivityType activityType;
 
     private String description;
 

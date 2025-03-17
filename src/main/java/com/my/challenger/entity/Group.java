@@ -1,11 +1,13 @@
 package com.my.challenger.entity;
 
+import com.my.challenger.entity.enums.GroupType;
+import com.my.challenger.entity.enums.PrivacySetting;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
@@ -25,11 +27,6 @@ public class Group {
     private String name;
 
     private String description;
-
-    private String type; // CHALLENGE, SOCIAL, TEAM, etc.
-
-    @Column(name = "privacy_setting")
-    private String privacySetting; // PUBLIC, PRIVATE, INVITATION_ONLY
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -51,6 +48,14 @@ public class Group {
 
     @ManyToMany(mappedBy = "groups")
     private Set<Quest> quests = new HashSet<>();
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private GroupType type;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "privacy_setting", nullable = false)
+    private PrivacySetting privacySetting;
 
     @PrePersist
     protected void onCreate() {

@@ -1,5 +1,8 @@
 package com.my.challenger.entity;// Quest.java
 
+import com.my.challenger.entity.enums.QuestStatus;
+import com.my.challenger.entity.enums.QuestType;
+import com.my.challenger.entity.enums.VisibilityType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -26,11 +29,17 @@ public class Quest {
 
     private String description;
 
-    private String type; // CHALLENGE, QUIZ, ACTIVITY_PARTNER, etc.
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private QuestType type;
 
-    private String visibility; // PUBLIC, PRIVATE, GROUP_ONLY
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private VisibilityType visibility;
 
-    private String status; // OPEN, IN_PROGRESS, COMPLETED, CANCELLED
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private QuestStatus status;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

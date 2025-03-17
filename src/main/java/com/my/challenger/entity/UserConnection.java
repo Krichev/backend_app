@@ -1,5 +1,6 @@
 package com.my.challenger.entity;
 
+import com.my.challenger.entity.enums.ConnectionStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -27,7 +28,9 @@ public class UserConnection {
     @JoinColumn(name = "connected_user_id")
     private User connectedUser;
 
-    private String status; // PENDING, ACCEPTED, REJECTED, BLOCKED
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ConnectionStatus status;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

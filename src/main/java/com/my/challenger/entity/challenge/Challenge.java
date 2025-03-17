@@ -1,11 +1,18 @@
-package com.my.challenger.entity;
+package com.my.challenger.entity.challenge;
 
+import com.my.challenger.entity.ChallengeProgress;
+import com.my.challenger.entity.Group;
+import com.my.challenger.entity.Task;
+import com.my.challenger.entity.User;
+import com.my.challenger.entity.enums.*;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Entity
 @Table(name = "challenges")
@@ -21,11 +28,14 @@ public class Challenge {
 
     private String title;
 
-    private String description;
+//    private String description;
 
     @ManyToOne
     @JoinColumn(name = "creator_id")
     private User creator;
+
+    @OneToMany(mappedBy = "challenge")
+    private Set<Task> tasks = new HashSet<>();
 
 //    @ManyToMany(mappedBy = "challenges")
 //    private List<User> participants;
@@ -41,7 +51,7 @@ public class Challenge {
     private LocalDateTime endDate;
 
     @Enumerated(EnumType.STRING)
-    private Frequency frequency;
+    private FrequencyType frequency;
 
     @Enumerated(EnumType.STRING)
     private VerificationMethod verificationMethod;
@@ -59,52 +69,19 @@ public class Challenge {
     private ChallengeStatus status;
 }
 
-enum ChallengeType {
-    ACCOUNTABILITY, QUEST, EVENT
-}
+//enum ChallengeType {
+//    ACCOUNTABILITY, QUEST, EVENT
+//}
+//
+//enum Frequency {
+//    DAILY, WEEKLY, ONE_TIME
+//}
+//
+//enum VerificationMethod {
+//    ACTIVITY, PHOTO, LOCATION, MANUAL
+//}
+//
+//enum ChallengeStatus {
+//    PENDING, ACTIVE, COMPLETED, CANCELLED
+//}
 
-enum Frequency {
-    DAILY, WEEKLY, ONE_TIME
-}
-
-enum VerificationMethod {
-    ACTIVITY, PHOTO, LOCATION, MANUAL
-}
-
-enum ChallengeStatus {
-    PENDING, ACTIVE, COMPLETED, CANCELLED
-}
-
-@Embeddable
-@Getter
-@Setter
-class VerificationDetails {
-    private String activityType;
-
-    private Double targetValue;
-
-    @Embedded
-    private LocationCoordinates locationCoordinates;
-
-    private Double radius;
-}
-
-@Embeddable
-@Getter
-@Setter
-class LocationCoordinates {
-    private Double latitude;
-
-    private Double longitude;
-}
-
-@Embeddable
-@Getter
-@Setter
-class Stake {
-    private Double amount;
-
-    private String currency;
-
-    private boolean collectivePool;
-}

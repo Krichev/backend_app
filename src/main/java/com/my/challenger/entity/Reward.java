@@ -1,11 +1,14 @@
 package com.my.challenger.entity;
 
+import com.my.challenger.entity.enums.CurrencyType;
+import com.my.challenger.entity.enums.RewardSource;
+import com.my.challenger.entity.enums.RewardType;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -24,15 +27,19 @@ public class Reward {
 
     private String description;
 
-    private String type; // MONETARY, POINTS, BADGE, CUSTOM
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private RewardType type;
 
     @Column(precision = 10, scale = 2)
     private BigDecimal monetaryValue;
 
-    private String currency;
+    @Enumerated(EnumType.STRING)
+    private CurrencyType currency;
 
-    @Column(name = "reward_source")
-    private String rewardSource; // INDIVIDUAL, GROUP, SYSTEM
+    @Enumerated(EnumType.STRING)
+    @Column(name = "reward_source", nullable = false)
+    private RewardSource rewardSource;
 
     @ManyToOne
     @JoinColumn(name = "quest_id")
