@@ -4,7 +4,10 @@ import com.my.challenger.entity.ChallengeProgress;
 import com.my.challenger.entity.Group;
 import com.my.challenger.entity.Task;
 import com.my.challenger.entity.User;
-import com.my.challenger.entity.enums.*;
+import com.my.challenger.entity.enums.ChallengeStatus;
+import com.my.challenger.entity.enums.ChallengeType;
+import com.my.challenger.entity.enums.FrequencyType;
+import com.my.challenger.entity.enums.VerificationMethod;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -26,9 +29,11 @@ public class Challenge {
     @Enumerated(EnumType.STRING)
     private ChallengeType type;
 
+    @Column(name = "title")
     private String title;
 
-//    private String description;
+    @Column(name = "description", updatable = false, insertable = false)
+    private String description;
 
     @ManyToOne
     @JoinColumn(name = "creator_id")
@@ -44,6 +49,7 @@ public class Challenge {
     @JoinColumn(name = "group_id")
     private Group group;
 
+    @Column(name = "is_public")
     private boolean isPublic;
 
     private LocalDateTime startDate;
@@ -59,8 +65,8 @@ public class Challenge {
     @Embedded
     private VerificationDetails verificationDetails;
 
-    @Embedded
-    private Stake stake;
+    @OneToMany(mappedBy = "challenge")
+    private List<Stake> stake;
 
     @OneToMany(mappedBy = "challenge")
     private List<ChallengeProgress> progress;

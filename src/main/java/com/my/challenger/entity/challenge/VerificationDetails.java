@@ -1,22 +1,31 @@
 package com.my.challenger.entity.challenge;
 
-import jakarta.persistence.Embeddable;
-import jakarta.persistence.Embedded;
-import lombok.Getter;
-import lombok.Setter;
+import jakarta.persistence.*;
+import lombok.*;
 
-@Embeddable
-@Getter
-@Setter
+import java.util.List;
+
+@Data
+@Entity
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@Table(name = "verification_details")
 public class VerificationDetails {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
     private String activityType;
 
     private Double targetValue;
 
-    @Embedded
+    @OneToOne
+    @JoinColumn(name = "")
     private LocationCoordinates locationCoordinates;
 
-    @Embedded
+    @OneToOne(mappedBy = "locationCoordinates")
     private PhotoVerificationDetails photoDetails;
 
     private Double radius;

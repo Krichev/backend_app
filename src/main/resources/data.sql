@@ -114,4 +114,55 @@ VALUES
 INSERT INTO user_activity_logs (user_id, activity_type, description, created_at)
 VALUES
     (1, 'TASK_COMPLETION', 'Completed daily running task', DATEADD(DAY, -1, CURRENT_TIMESTAMP)),
-    (1, 'JOIN_GROUP', 'Joined Morning Runners group', DATEADD(DAY, -1, CURRENT_TIMESTAMP))
+    (1, 'JOIN_GROUP', 'Joined Morning Runners group', DATEADD(DAY, -1, CURRENT_TIMESTAMP));
+
+-- Add sample data for challenges
+INSERT INTO challenges (title, description, type, creator_id, is_public, start_date, end_date, frequency, verification_method, status)
+VALUES
+    ('30-Day Running Challenge', 'Run at least 5km every day for 30 days', 'ACCOUNTABILITY', 1, true, CURRENT_TIMESTAMP, DATEADD(DAY, 30, CURRENT_TIMESTAMP), 'DAILY', 'ACTIVITY', 'ACTIVE'),
+    ('Weekend Hiking Trip', 'Group hiking trip to the mountains', 'EVENT', 2, true, DATEADD(DAY, 10, CURRENT_TIMESTAMP), DATEADD(DAY, 12, CURRENT_TIMESTAMP), 'ONE_TIME', 'PHOTO', 'PENDING'),
+    ('Book Reading Club', 'Read one book per week and discuss', 'QUEST', 3, false, CURRENT_TIMESTAMP, DATEADD(MONTH, 3, CURRENT_TIMESTAMP), 'WEEKLY', 'MANUAL', 'ACTIVE');
+
+-- Add verification details
+INSERT INTO verification_details (challenge_id, activity_type, target_value)
+VALUES
+    (1, 'RUNNING', 5.0);
+
+INSERT INTO verification_details (challenge_id, latitude, longitude, radius)
+VALUES
+    (2, 37.7749, -122.4194, 5.0);
+
+-- Add stakes
+INSERT INTO stakes (challenge_id, amount, currency, collective_pool)
+VALUES
+    (1, 50.0, 'USD', true),
+    (3, 10.0, 'USD', false);
+
+-- Add participants
+INSERT INTO challenge_participants (challenge_id, user_id)
+VALUES
+    (1, 1), (1, 2), (1, 3),
+    (2, 2), (2, 4), (2, 5),
+    (3, 3), (3, 1), (3, 4);
+
+-- Add progress
+INSERT INTO challenge_progress (challenge_id, user_id, status, completion_percentage, verification_status)
+VALUES
+    (1, 1, 'IN_PROGRESS', 20.0, 'VERIFIED'),
+    (1, 2, 'IN_PROGRESS', 10.0, 'PENDING'),
+    (2, 2, 'IN_PROGRESS', 0.0, NULL),
+    (3, 3, 'IN_PROGRESS', 33.0, 'VERIFIED');
+
+-- Add example connections between tasks and challenges
+UPDATE tasks SET challenge_id = 1 WHERE id = 1; -- Associate "Run 1 mile" task with "30-Day Running Challenge"
+UPDATE tasks SET challenge_id = 3 WHERE id = 2; -- Associate "Movie Characters Quiz" task with "Book Reading Club"
+
+-- Add example tasks directly linked to challenges
+INSERT INTO tasks (title, description, type, status, verification_method, start_date, end_date, challenge_id, created_at, updated_at)
+VALUES
+    ('Complete Daily Run Tracking', 'Track your daily run with a fitness app', 'DAILY', 'NOT_STARTED', 'FITNESS_API',
+     CURRENT_TIMESTAMP, DATEADD(DAY, 30, CURRENT_TIMESTAMP), 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    ('Upload Hiking Photos', 'Take and upload at least 3 photos from the hiking trip', 'ONE_TIME', 'NOT_STARTED', 'PHOTO',
+     DATEADD(DAY, 10, CURRENT_TIMESTAMP), DATEADD(DAY, 12, CURRENT_TIMESTAMP), 2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    ('Submit Book Review', 'Write a 500-word review of the book you read', 'WEEKLY', 'NOT_STARTED', 'MANUAL',
+     CURRENT_TIMESTAMP, DATEADD(MONTH, 3, CURRENT_TIMESTAMP), 3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);

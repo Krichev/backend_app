@@ -40,8 +40,7 @@ public class AuthController {
         LoginResponse loginResponse = new LoginResponse();
         loginResponse.setAccessToken(jwt);
         UserDTO user = new UserDTO();
-        user.setUsername("ALen");
-        user.setEmail("mail.en");
+        user.setUsername(loginRequest.getUsername());
         loginResponse.setUser(user);
         return ResponseEntity.ok(loginResponse);
     }

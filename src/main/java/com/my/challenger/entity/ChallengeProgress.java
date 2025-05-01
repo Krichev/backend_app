@@ -4,10 +4,13 @@ import com.my.challenger.entity.challenge.Challenge;
 import com.my.challenger.entity.enums.ProgressStatus;
 import com.my.challenger.entity.enums.VerificationStatus;
 import jakarta.persistence.*;
+import lombok.Data;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Data
 @Entity
 @Table(name = "challenge_progress")
 public class ChallengeProgress {
