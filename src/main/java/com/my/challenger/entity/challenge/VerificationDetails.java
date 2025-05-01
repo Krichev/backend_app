@@ -22,10 +22,10 @@ public class VerificationDetails {
     private Double targetValue;
 
     @OneToOne
-    @JoinColumn(name = "")
+    @JoinColumn(name = "location_coordinates_id")
     private LocationCoordinates locationCoordinates;
 
-    @OneToOne(mappedBy = "locationCoordinates")
+    @OneToOne(mappedBy = "photo_details_id")
     private PhotoVerificationDetails photoDetails;
 
     private Double radius;
