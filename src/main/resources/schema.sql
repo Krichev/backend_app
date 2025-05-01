@@ -346,7 +346,7 @@ CREATE TYPE activity_type AS ENUM (
     );
 
 -- Challenge related types
-CREATE TYPE challenge_type AS ENUM ('ACCOUNTABILITY', 'QUEST', 'EVENT');
+CREATE TYPE challenge_type AS ENUM ('ACCOUNTABILITY', 'QUEST', 'EVENT', 'QUIZ');
 CREATE TYPE challenge_status_type AS ENUM ('PENDING', 'ACTIVE', 'COMPLETED', 'CANCELLED');
 CREATE TYPE frequency_type AS ENUM ('DAILY', 'WEEKLY', 'MONTHLY', 'ONE_TIME');
 CREATE TYPE progress_status_type AS ENUM ('IN_PROGRESS', 'COMPLETED', 'FAILED');

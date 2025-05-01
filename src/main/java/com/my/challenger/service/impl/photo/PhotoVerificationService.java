@@ -30,6 +30,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -84,9 +85,14 @@ public class PhotoVerificationService {
             if (challenge.getVerificationMethod() != VerificationMethod.PHOTO) {
                 throw new IllegalArgumentException("This challenge does not support photo verification");
             }
-
+            List<VerificationDetails> verificationDetailsList = challenge.getVerificationDetails();
+            Optional<VerificationDetails> verificationDetailsOptional = verificationDetailsList.stream()
+                    .filter(verificationDetails -> verificationDetails.getPhotoDetails() != null).findAny();
+            if(verificationDetailsOptional.isEmpty()){
+                return new HashMap<>();
+            }
             // 4. Get verification details from challenge
-            Map<String, Object> verificationDetails = parseVerificationDetails(challenge.getVerificationDetails());
+            Map<String, Object> verificationDetails = parseVerificationDetails(verificationDetailsOptional.get());
 
             // 4. Get previous photos for this challenge to compare (for recurring challenges)
             String previousPhotoPath = null;
@@ -234,9 +240,14 @@ public class PhotoVerificationService {
             if (challenge.getVerificationMethod() != VerificationMethod.PHOTO) {
                 throw new IllegalArgumentException("This challenge does not support photo verification");
             }
-
+            List<VerificationDetails> verificationDetailsList = challenge.getVerificationDetails();
+            Optional<VerificationDetails> verificationDetailsOptional = verificationDetailsList.stream()
+                    .filter(verificationDetails -> verificationDetails.getPhotoDetails() != null).findAny();
+            if(verificationDetailsOptional.isEmpty()){
+                return new HashMap<>();
+            }
             // 4. Get verification details from challenge
-            Map<String, Object> verificationDetails = parseVerificationDetails(challenge.getVerificationDetails());
+            Map<String, Object> verificationDetails = parseVerificationDetails(verificationDetailsOptional.get());
 
             // 5. Get previous photos for this challenge to compare (for recurring challenges)
             String previousPhotoPath = null;

@@ -12,7 +12,10 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 
 @RestController
@@ -26,7 +29,7 @@ public class AuthController {
     private final JwtTokenUtil jwtTokenUtil;
 
     @PostMapping("/signin")
-    public ResponseEntity<LoginResponse> authenticateUser(/*@Valid*/ @RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<LoginResponse> authenticateUser(@RequestBody LoginRequest loginRequest) {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         loginRequest.getUsername(),
@@ -38,10 +41,24 @@ public class AuthController {
 
         String jwt = jwtTokenUtil.generateToken(authentication);
         LoginResponse loginResponse = new LoginResponse();
-        loginResponse.setAccessToken(jwt);
-        UserDTO user = new UserDTO();
-        user.setUsername(loginRequest.getUsername());
-        loginResponse.setUser(user);
+//        loginResponse.setAccessToken("Bearer " + jwt);  // Add "Bearer " prefix to the token
+        loginResponse.setAccessToken(jwt);  // Add "Bearer " prefix to the token
+
+        // Get actual user data from repository instead of hardcoded values
+        User user = userRepository.findByUsername(loginRequest.getUsername())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        UserDTO userDTO = new UserDTO();
+        userDTO.setId(user.getId());
+        userDTO.setUsername(user.getUsername());
+        userDTO.setEmail(user.getEmail());
+        userDTO.setProfilePictureUrl(user.getProfilePictureUrl());
+        userDTO.setBio(user.getBio());
+        userDTO.setCreatedAt(user.getCreatedAt());
+        userDTO.setUpdatedAt(user.getUpdatedAt());
+
+        loginResponse.setUser(userDTO);
+
         return ResponseEntity.ok(loginResponse);
     }
 

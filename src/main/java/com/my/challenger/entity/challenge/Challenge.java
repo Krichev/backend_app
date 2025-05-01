@@ -62,8 +62,8 @@ public class Challenge {
     @Enumerated(EnumType.STRING)
     private VerificationMethod verificationMethod;
 
-    @Embedded
-    private VerificationDetails verificationDetails;
+    @OneToMany(mappedBy = "challenge")
+    private List<VerificationDetails> verificationDetails;
 
     @OneToMany(mappedBy = "challenge")
     private List<Stake> stake;

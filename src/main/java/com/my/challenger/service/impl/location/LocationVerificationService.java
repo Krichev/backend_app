@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -70,7 +71,13 @@ public class LocationVerificationService {
             }
 
             // 3. Parse verification details from challenge
-            Map<String, Object> verificationDetails = parseVerificationDetails(challenge.getVerificationDetails());
+            List<VerificationDetails> verificationDetailsList = challenge.getVerificationDetails();
+            Optional<VerificationDetails> verificationDetailsOptional = verificationDetailsList.stream().filter(verificationDetails -> verificationDetails.getLocationCoordinates() != null).findAny();
+            if(verificationDetailsOptional.isEmpty()){
+                return new HashMap<>();
+            }
+
+            Map<String, Object> verificationDetails = parseVerificationDetails(verificationDetailsOptional.get());
 
             // 4. Extract required location data with fallbacks for missing values
             double targetLatitude = getDoubleValue(verificationDetails, "latitude");

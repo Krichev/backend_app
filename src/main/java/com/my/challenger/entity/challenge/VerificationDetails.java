@@ -3,8 +3,6 @@ package com.my.challenger.entity.challenge;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.util.List;
-
 @Data
 @Entity
 @Builder
@@ -25,8 +23,12 @@ public class VerificationDetails {
     @JoinColumn(name = "location_coordinates_id")
     private LocationCoordinates locationCoordinates;
 
-    @OneToOne(mappedBy = "photo_details_id")
+    @OneToOne
+    @JoinColumn(name = "photo_details_id")
     private PhotoVerificationDetails photoDetails;
+
+    @Column(name = "challenge_id")
+    Long challenge;
 
     private Double radius;
 }

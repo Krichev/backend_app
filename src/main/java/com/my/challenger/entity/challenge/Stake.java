@@ -25,5 +25,5 @@ public class Stake {
     private boolean collectivePool;
 
     @Column(name = "challenge_id")
-    Long challengeId;
+    Long challenge;
 }

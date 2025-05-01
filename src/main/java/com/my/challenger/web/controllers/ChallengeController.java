@@ -12,8 +12,11 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Controller for handling challenge-related endpoints
@@ -41,19 +44,20 @@ public class ChallengeController {
             @RequestParam(required = false) String targetGroup,
             @RequestParam(required = false) Long participant_id) {
         
-        log.error("Getting challenges with filters: page={}, limit={}, type={}, visibility={}, status={}, creator_id={}, targetGroup={}, participant_id={}",
+        log.info("Getting challenges with filters: page={}, limit={}, type={}, visibility={}, status={}, creator_id={}, targetGroup={}, participant_id={}",
                 page, limit, type, visibility, status, creator_id, targetGroup, participant_id);
-        
-        Map<String, Object> filters = Map.of(
-                "page", page != null ? page : 0,
-                "limit", limit != null ? limit : 20,
-                "type", type,
-                "visibility", visibility,
-                "status", status,
-                "creator_id", creator_id,
-                "targetGroup", targetGroup,
-                "participant_id", participant_id
-        );
+
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("page", page != null ? page : 0);
+        filters.put("limit", limit != null ? limit : 20);
+        if (type != null) filters.put("type", type);
+        if (visibility != null) filters.put("visibility", visibility);
+        if (status != null) filters.put("status", status);
+        if (creator_id != null) filters.put("creator_id", creator_id);
+        if (targetGroup != null) filters.put("targetGroup", targetGroup);
+        if (participant_id != null) filters.put("participant_id", participant_id);
+
+        filters = Map.copyOf(filters);
         
         List<ChallengeDTO> challenges = challengeService.getChallenges(filters);
         return ResponseEntity.ok(challenges);

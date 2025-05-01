@@ -128,9 +128,9 @@ INSERT INTO verification_details (challenge_id, activity_type, target_value)
 VALUES
     (1, 'RUNNING', 5.0);
 
-INSERT INTO verification_details (challenge_id, latitude, longitude, radius)
-VALUES
-    (2, 37.7749, -122.4194, 5.0);
+-- INSERT INTO verification_details (challenge_id, latitude, longitude, radius)
+-- VALUES
+--     (2, 37.7749, -122.4194, 5.0);
 
 -- Add stakes
 INSERT INTO stakes (challenge_id, amount, currency, collective_pool)

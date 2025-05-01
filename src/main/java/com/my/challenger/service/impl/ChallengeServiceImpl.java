@@ -103,7 +103,7 @@ public class ChallengeServiceImpl implements ChallengeService {
             try {
                 // Just storing as string, would be parsed in a real implementation
                 // A real implementation would deserialize into VerificationDetails object
-                challenge.setVerificationDetails(new VerificationDetails());
+                challenge.setVerificationDetails(Collections.singletonList(new VerificationDetails()));
             } catch (Exception e) {
                 log.error("Error parsing verification method", e);
                 throw new IllegalArgumentException("Invalid verification method format");
@@ -160,7 +160,7 @@ public class ChallengeServiceImpl implements ChallengeService {
             try {
                 // Just storing as string, would be parsed in a real implementation
                 // A real implementation would deserialize into VerificationDetails object
-                challenge.setVerificationDetails(new VerificationDetails());
+                challenge.setVerificationDetails(Collections.singletonList(new VerificationDetails()));
             } catch (Exception e) {
                 log.error("Error parsing verification method", e);
                 throw new IllegalArgumentException("Invalid verification method format");

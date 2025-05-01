@@ -16,13 +16,12 @@ spring:
 
 
 
+  jpa:
+    hibernate:
+      ddl-auto: update
   sql:
     init:
-      mode: always
-
-  h2:
-    console:
-      enabled: true
+      mode: embedded
 
       #  profiles:
 #    active: eureka, remotes, auth, security, datasource, broker

@@ -1,9 +1,14 @@
 package com.my.challenger.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+
 import java.io.Serializable;
 import java.util.Objects;
 
+@Getter
+@Setter
 @Embeddable
 public class GroupUserId implements Serializable {
 
