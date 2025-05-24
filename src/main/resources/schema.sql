@@ -318,7 +318,7 @@ CREATE TYPE group_type AS ENUM ('CHALLENGE', 'SOCIAL', 'LEARNING', 'FITNESS', 'H
 CREATE TYPE privacy_setting_type AS ENUM ('PUBLIC', 'PRIVATE', 'INVITATION_ONLY');
 
 -- Quest related types
-CREATE TYPE quest_type AS ENUM ('CHALLENGE', 'QUIZ', 'ACTIVITY_PARTNER', 'LEARNING', 'CONTEST');
+CREATE TYPE quest_type AS ENUM ('CHALLENGE', 'ACTIVITY_PARTNER', 'LEARNING', 'CONTEST');
 CREATE TYPE visibility_type AS ENUM ('PUBLIC', 'PRIVATE', 'GROUP_ONLY');
 CREATE TYPE quest_status_type AS ENUM ('OPEN', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED');
 CREATE TYPE user_quest_status_type AS ENUM ('ACTIVE', 'COMPLETED', 'ABANDONED');
@@ -399,3 +399,18 @@ ALTER TABLE challenges ALTER COLUMN status TYPE challenge_status_type USING stat
 -- Modify challenge_progress table
 ALTER TABLE challenge_progress ALTER COLUMN status TYPE progress_status_type USING status::progress_status_type;
 ALTER TABLE challenge_progress ALTER COLUMN verification_status TYPE verification_status_type USING verification_status::verification_status_type;
+-- Add missing columns to the challenge_progress table
+ALTER TABLE challenge_progress ADD COLUMN IF NOT EXISTS streak INTEGER;
+ALTER TABLE challenge_progress ADD COLUMN IF NOT EXISTS total_rewards_earned DOUBLE PRECISION;
+
+-- Create the table for tracking completed days
+CREATE TABLE IF NOT EXISTS challenge_progress_completed_days (
+                                                                 challenge_progress_id BIGINT NOT NULL,
+                                                                 completed_day DATE NOT NULL,
+                                                                 PRIMARY KEY (challenge_progress_id, completed_day),
+                                                                 FOREIGN KEY (challenge_progress_id) REFERENCES challenge_progress(id) ON DELETE CASCADE
+);
+
+-- Add an index for faster queries
+CREATE INDEX IF NOT EXISTS idx_challenge_progress_completed_days
+    ON challenge_progress_completed_days(challenge_progress_id);

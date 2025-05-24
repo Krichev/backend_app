@@ -51,7 +51,7 @@ VALUES
 INSERT INTO quests (title, description, type, visibility, status, creator_id, created_at, updated_at)
 VALUES
     ('Daily Run Challenge', 'Run at least 1 mile every day for a month', 'CHALLENGE', 'GROUP_ONLY', 'OPEN', 2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-    ('Movie Trivia Night', 'Test your knowledge of classic movies', 'QUIZ', 'PUBLIC', 'OPEN', 3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    ('Movie Trivia Night', 'Test your knowledge of classic movies', 'CHALLENGE', 'PUBLIC', 'OPEN', 3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
     ('30-Day Fitness Challenge', 'Complete daily exercises for 30 days', 'CHALLENGE', 'GROUP_ONLY', 'IN_PROGRESS', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
     ('Skating Partner Needed', 'Looking for someone to go ice skating with this weekend', 'ACTIVITY_PARTNER', 'PUBLIC', 'OPEN', 5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
     ('Walking Buddies', 'Need a walking partner for daily morning walks', 'ACTIVITY_PARTNER', 'PUBLIC', 'OPEN', 4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);

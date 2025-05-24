@@ -1,9 +1,6 @@
 package com.my.challenger.dto;
 
-import com.my.challenger.entity.enums.ChallengeStatus;
-import com.my.challenger.entity.enums.ChallengeType;
-import com.my.challenger.entity.enums.FrequencyType;
-import com.my.challenger.entity.enums.VisibilityType;
+import com.my.challenger.entity.enums.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
@@ -34,7 +31,7 @@ public class CreateChallengeRequest {
     
     private String penalty;
     
-    private String verificationMethod; // JSON string of verification methods
+    private VerificationMethod verificationMethod; // JSON string of verification methods
     
     private String targetGroup;
     

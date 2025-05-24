@@ -75,19 +75,3 @@ public class Challenge {
     private ChallengeStatus status;
 }
 
-//enum ChallengeType {
-//    ACCOUNTABILITY, QUEST, EVENT
-//}
-//
-//enum Frequency {
-//    DAILY, WEEKLY, ONE_TIME
-//}
-//
-//enum VerificationMethod {
-//    ACTIVITY, PHOTO, LOCATION, MANUAL
-//}
-//
-//enum ChallengeStatus {
-//    PENDING, ACTIVE, COMPLETED, CANCELLED
-//}
-

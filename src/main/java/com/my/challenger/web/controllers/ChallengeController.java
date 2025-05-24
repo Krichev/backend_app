@@ -42,12 +42,15 @@ public class ChallengeController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) Long creator_id,
             @RequestParam(required = false) String targetGroup,
-            @RequestParam(required = false) Long participant_id) {
+            @RequestParam(required = false) Long participant_id,
+            @AuthenticationPrincipal UserDetails userDetails) {
         
         log.info("Getting challenges with filters: page={}, limit={}, type={}, visibility={}, status={}, creator_id={}, targetGroup={}, participant_id={}",
                 page, limit, type, visibility, status, creator_id, targetGroup, participant_id);
+        User user = getUserFromUserDetails(userDetails);
 
         Map<String, Object> filters = new HashMap<>();
+        filters.put("requestUserId", user.getId());
         filters.put("page", page != null ? page : 0);
         filters.put("limit", limit != null ? limit : 20);
         if (type != null) filters.put("type", type);
@@ -67,9 +70,11 @@ public class ChallengeController {
      * Get a specific challenge by ID
      */
     @GetMapping("/{id}")
-    public ResponseEntity<ChallengeDTO> getChallengeById(@PathVariable Long id) {
+    public ResponseEntity<ChallengeDTO> getChallengeById(@PathVariable Long id,
+                                                         @AuthenticationPrincipal UserDetails userDetails) {
         log.info("Getting challenge by ID: {}", id);
-        ChallengeDTO challenge = challengeService.getChallengeById(id);
+        User user = getUserFromUserDetails(userDetails);
+        ChallengeDTO challenge = challengeService.getChallengeById(id, user.getId());
         return ResponseEntity.ok(challenge);
     }
 
@@ -83,7 +88,7 @@ public class ChallengeController {
         
         log.info("Creating new challenge: {}", request.getTitle());
         User user = getUserFromUserDetails(userDetails);
-        
+
         ChallengeDTO createdChallenge = challengeService.createChallenge(request, user.getId());
         return ResponseEntity.ok(createdChallenge);
     }
@@ -96,17 +101,31 @@ public class ChallengeController {
             @PathVariable Long id,
             @Valid @RequestBody UpdateChallengeRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
-        
+
         log.info("Updating challenge ID: {}", id);
         User user = getUserFromUserDetails(userDetails);
-        
+
         // Check if user is the creator or has admin rights
         challengeService.validateChallengeOwnership(id, user.getId());
-        
-        ChallengeDTO updatedChallenge = challengeService.updateChallenge(id, request);
+
+        ChallengeDTO updatedChallenge = challengeService.updateChallenge(id, request, user.getId());
         return ResponseEntity.ok(updatedChallenge);
     }
 
+    /**
+     * Search challenges by keyword
+     */
+    @GetMapping("/search")
+    public ResponseEntity<List<ChallengeDTO>> searchChallenges(
+            @RequestParam String q,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        log.info("Searching challenges with query: {}", q);
+        User user = getUserFromUserDetails(userDetails);
+
+        List<ChallengeDTO> challenges = challengeService.searchChallenges(q, user.getId());
+        return ResponseEntity.ok(challenges);
+    }
     /**
      * Delete a challenge
      */
@@ -181,18 +200,6 @@ public class ChallengeController {
         
         challengeService.verifyChallengeCompletion(id, userId, approved);
         return ResponseEntity.ok(new MessageResponse("Challenge verification updated"));
-    }
-
-    /**
-     * Search challenges by keyword
-     */
-    @GetMapping("/search")
-    public ResponseEntity<List<ChallengeDTO>> searchChallenges(
-            @RequestParam String q) {
-        
-        log.info("Searching challenges with query: {}", q);
-        List<ChallengeDTO> challenges = challengeService.searchChallenges(q);
-        return ResponseEntity.ok(challenges);
     }
 
     /**

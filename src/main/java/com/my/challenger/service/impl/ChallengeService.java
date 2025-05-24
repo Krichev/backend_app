@@ -21,7 +21,7 @@ public interface ChallengeService {
     /**
      * Get a specific challenge by ID
      */
-    ChallengeDTO getChallengeById(Long id);
+    ChallengeDTO getChallengeById(Long id, Long requestUserId);
     
     /**
      * Create a new challenge
@@ -31,7 +31,7 @@ public interface ChallengeService {
     /**
      * Update an existing challenge
      */
-    ChallengeDTO updateChallenge(Long id, UpdateChallengeRequest request);
+    ChallengeDTO updateChallenge(Long id, UpdateChallengeRequest request, Long creatorId);
     
     /**
      * Delete a challenge
@@ -56,7 +56,7 @@ public interface ChallengeService {
     /**
      * Search challenges by keyword
      */
-    List<ChallengeDTO> searchChallenges(String query);
+    List<ChallengeDTO> searchChallenges(String query, Long requestUserId);
     
     /**
      * Get verification history for a challenge

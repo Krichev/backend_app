@@ -38,6 +38,8 @@ public class ChallengeDTO {
     private LocalDateTime startDate;
     private LocalDateTime endDate;
     private Integer participantCount;
+    private Boolean userIsCreator; // Flag to indicate if the current user is the creator
+    private String userRole;
     private Boolean userHasJoined; // Flag to indicate if the requesting user has joined
     private List<String> tags;
 }

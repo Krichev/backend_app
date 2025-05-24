@@ -1,10 +1,8 @@
 package com.my.challenger.repository;
 
 import com.my.challenger.entity.challenge.Challenge;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
-
-import com.my.challenger.entity.challenge.Challenge;
+import com.my.challenger.entity.enums.ChallengeStatus;
+import com.my.challenger.entity.enums.ChallengeType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -29,22 +27,26 @@ public interface ChallengeRepository extends JpaRepository<Challenge, Long> {
      */
     @Query("SELECT c FROM Challenge c WHERE " +
             "(:type IS NULL OR c.type = :type) AND " +
-            "(:visibility IS NULL OR c.isPublic = :visibility) AND " +
+            "(:visibility IS NULL OR (c.isPublic = :visibility)) AND " +
             "(:status IS NULL OR c.status = :status) AND " +
             "(:targetGroup IS NULL OR c.group.name = :targetGroup)")
     List<Challenge> findWithFilters(
-            @Param("type") String type,
-            @Param("visibility") String visibility,
-            @Param("status") String status,
+            @Param("type") ChallengeType type,
+            @Param("visibility") Boolean visibility,
+            @Param("status") ChallengeStatus status,
             @Param("targetGroup") String targetGroup,
             Pageable pageable);
 
     /**
      * Find challenges by participant ID
      */
-    @Query("SELECT c FROM Challenge c JOIN ChallengeProgress cp ON c.id = cp.challenge.id " +
-            "WHERE cp.user.id = :participantId")
+    @Query("SELECT DISTINCT c FROM Challenge c JOIN c.progress cp WHERE cp.user.id = :participantId")
     List<Challenge> findChallengesByParticipantId(@Param("participantId") Long participantId, Pageable pageable);
+
+    @Query("SELECT c FROM Challenge c WHERE " +
+            "c.creator.id = :userId OR EXISTS (SELECT cp FROM ChallengeProgress cp " +
+            "WHERE cp.challenge.id = c.id AND cp.user.id = :userId)")
+    List<Challenge> findChallengesByUserIdAsCreatorOrParticipant(@Param("userId") Long userId, Pageable pageable);
 
     /**
      * Search challenges by keyword in title, description

@@ -8,6 +8,7 @@ import lombok.Data;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
@@ -53,11 +54,33 @@ public class ChallengeProgress {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    @ElementCollection
-    @CollectionTable(name = "challenge_progress_completed_days")
-    private List<LocalDate> completedDays;
+    // The following fields need to be added to your schema if you want to keep them
+    // Or you can remove them from the entity if you don't need them
 
+    // Option 1: Create a separate table for completed days (recommended)
+    @ElementCollection
+    @CollectionTable(
+            name = "challenge_progress_completed_days",
+            joinColumns = @JoinColumn(name = "challenge_progress_id")
+    )
+    @Column(name = "completed_day")
+    private List<LocalDate> completedDays = new ArrayList<>();
+
+    // Option 2: Add these columns to your challenge_progress table
+    @Column(name = "streak")
     private Integer streak;
 
+    @Column(name = "total_rewards_earned")
     private Double totalRewardsEarned;
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
 }
