@@ -1,0 +1,38 @@
+package com.my.challenger.dto.quiz;
+
+import com.my.challenger.entity.enums.QuizDifficulty;
+import com.my.challenger.entity.enums.QuizSessionStatus;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class QuizSessionDTO {
+    private Long id;
+    private Long challengeId;
+    private String challengeTitle;
+    private Long hostUserId;
+    private String hostUsername;
+    private String teamName;
+    private List<String> teamMembers;
+    private QuizDifficulty difficulty;
+    private Integer roundTimeSeconds;
+    private Integer totalRounds;
+    private Integer completedRounds;
+    private Integer correctAnswers;
+    private Double scorePercentage;
+    private Boolean enableAiHost;
+    private String questionSource;
+    private QuizSessionStatus status;
+    private LocalDateTime startedAt;
+    private LocalDateTime completedAt;
+    private Integer totalDurationSeconds;
+    private LocalDateTime createdAt;
+}
