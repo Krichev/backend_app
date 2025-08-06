@@ -419,11 +419,12 @@ ALTER TABLE quiz_questions ADD CONSTRAINT check_quiz_difficulty
 ALTER TABLE quiz_sessions ADD CONSTRAINT check_quiz_session_difficulty
     CHECK (difficulty IN ('EASY', 'MEDIUM', 'HARD'));
 
-ALTER TABLE quiz_sessions ADD CONSTRAINT check_quiz_session_status
-    CHECK (status IN ('CREATED', 'IN_PROGRESS', 'COMPLETED', 'ABANDONED', 'CANCELLED'));
-
 ALTER TABLE quiz_sessions ADD CONSTRAINT check_quiz_session_question_source
     CHECK (question_source IN ('app', 'user'));
+
+-- Add the new constraint with ARCHIVED status
+ALTER TABLE quiz_sessions ADD CONSTRAINT check_quiz_session_status
+    CHECK (status IN ('CREATED', 'IN_PROGRESS', 'COMPLETED', 'ABANDONED', 'CANCELLED', 'ARCHIVED'));
 
 -- Additional constraints for existing tables
 ALTER TABLE groups ADD CONSTRAINT check_group_type

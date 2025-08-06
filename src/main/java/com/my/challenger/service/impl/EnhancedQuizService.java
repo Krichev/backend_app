@@ -297,7 +297,7 @@ public class EnhancedQuizService extends QuizService {
     }
 
     /**
-     * Archive completed quiz session
+     * Archive completed quiz session - FINAL VERSION
      */
     @Transactional
     public void archiveQuizSession(Long sessionId, Long hostUserId) {
@@ -308,11 +308,8 @@ public class EnhancedQuizService extends QuizService {
             throw new IllegalStateException("You can only archive your own quiz sessions");
         }
 
-        if (session.getStatus() != QuizSessionStatus.COMPLETED) {
-            throw new IllegalStateException("Can only archive completed sessions");
-        }
-
-        session.setStatus(QuizSessionStatus.ARCHIVED);
+        // Use the helper method on the entity (if you added it)
+        session.archiveSession();
         quizSessionRepository.save(session);
     }
 
@@ -399,19 +396,20 @@ public class EnhancedQuizService extends QuizService {
     private QuizRoundDTO convertRoundToDTO(QuizRound round) {
         return QuizRoundDTO.builder()
                 .id(round.getId())
-                .sessionId(round.getQuizSession().getId())
-                .questionId(round.getQuestion().getId())
+                .quizSessionId(round.getQuizSession().getId())  // FIXED: was .sessionId()
+                .question(convertQuestionToDTO(round.getQuestion()))  // FIXED: was .questionId() and .question()
                 .roundNumber(round.getRoundNumber())
-                .question(round.getQuestion().getQuestion())
-                .correctAnswer(round.getQuestion().getAnswer())
                 .teamAnswer(round.getTeamAnswer())
-                .playerWhoAnswered(round.getPlayerWhoAnswered())
                 .isCorrect(round.getIsCorrect())
+                .playerWhoAnswered(round.getPlayerWhoAnswered())
                 .discussionNotes(round.getDiscussionNotes())
+                .roundStartedAt(round.getRoundStartedAt())  // FIXED: was missing
+                .answerSubmittedAt(round.getAnswerSubmittedAt())
+                .discussionDurationSeconds(round.getDiscussionDurationSeconds())  // FIXED: was missing
+                .totalRoundDurationSeconds(round.getTotalRoundDurationSeconds())  // FIXED: was missing
                 .hintUsed(round.getHintUsed())
                 .voiceRecordingUsed(round.getVoiceRecordingUsed())
                 .aiFeedback(round.getAiFeedback())
-                .answerSubmittedAt(round.getAnswerSubmittedAt())
                 .build();
     }
 }

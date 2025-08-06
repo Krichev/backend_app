@@ -42,4 +42,6 @@ public class ChallengeDTO {
     private String userRole;
     private Boolean userHasJoined; // Flag to indicate if the requesting user has joined
     private List<String> tags;
+
+    private String quizConfig; // JSON string of quiz configuration
 }

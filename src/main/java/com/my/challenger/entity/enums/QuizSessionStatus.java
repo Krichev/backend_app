@@ -6,5 +6,6 @@ public enum QuizSessionStatus {
     IN_PROGRESS,   // Session is currently being played
     COMPLETED,     // Session finished normally
     ABANDONED,     // Session was abandoned before completion
-    CANCELLED      // Session was cancelled
+    CANCELLED,     // Session was cancelled
+    ARCHIVED       // Session completed and archived for historical purposes
 }

@@ -117,4 +117,15 @@ public class QuizSession {
         }
         return (correctAnswers.doubleValue() / totalRounds.doubleValue()) * 100.0;
     }
+
+    /**
+     * Archive the quiz session (can only archive completed sessions)
+     */
+    public void archiveSession() {
+        if (this.status != QuizSessionStatus.COMPLETED) {
+            throw new IllegalStateException("Can only archive completed quiz sessions");
+        }
+        this.status = QuizSessionStatus.ARCHIVED;
+        this.updatedAt = LocalDateTime.now();
+    }
 }
