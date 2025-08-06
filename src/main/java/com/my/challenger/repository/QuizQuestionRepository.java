@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -59,5 +60,29 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
      * Find most used questions
      */
     List<QuizQuestion> findTop10ByOrderByUsageCountDesc();
+
+    /**
+     * Find questions by creator and question text to avoid duplicates
+     */
+    @Query("SELECT q FROM QuizQuestion q WHERE q.creator.id = :creatorId AND q.question = :questionText")
+    List<QuizQuestion> findByCreatorIdAndQuestionText(@Param("creatorId") Long creatorId,
+                                                      @Param("questionText") String questionText);
+
+    /**
+     * Find user questions by source (to get questions created for specific challenges)
+     */
+    @Query("SELECT q FROM QuizQuestion q WHERE q.creator.id = :creatorId AND q.source LIKE %:sourcePattern%")
+    List<QuizQuestion> findByCreatorIdAndSourceContaining(@Param("creatorId") Long creatorId,
+                                                          @Param("sourcePattern") String sourcePattern);
+
+    /**
+     * Get questions by multiple difficulties for mixed quizzes
+     */
+    @Query("SELECT q FROM QuizQuestion q WHERE q.difficulty IN :difficulties " +
+            "AND (q.lastUsed IS NULL OR q.lastUsed < :cutoffTime) " +
+            "ORDER BY FUNCTION('RANDOM')")
+    List<QuizQuestion> findRandomQuestionsByDifficulties(@Param("difficulties") List<QuizDifficulty> difficulties,
+                                                         @Param("cutoffTime") LocalDateTime cutoffTime,
+                                                         Pageable pageable);
 }
 
