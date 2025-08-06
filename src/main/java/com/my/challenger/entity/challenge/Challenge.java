@@ -73,5 +73,9 @@ public class Challenge {
 
     @Enumerated(EnumType.STRING)
     private ChallengeStatus status;
+
+    @Column(name = "quiz_config", columnDefinition = "TEXT")
+    private String quizConfig; // JSON string of quiz configuration
+
 }
 

@@ -489,14 +489,21 @@ ALTER TABLE challenge_progress ADD CONSTRAINT check_progress_status
 ALTER TABLE challenge_progress ADD CONSTRAINT check_verification_status
     CHECK (verification_status IN ('PENDING', 'VERIFIED', 'REJECTED'));
 
-ALTER TABLE quiz_questions ADD CONSTRAINT unique_creator_question
-    UNIQUE (creator_id, question);
+-- Add quiz_config column to challenges table
+ALTER TABLE challenges ADD COLUMN IF NOT EXISTS quiz_config TEXT;
 
-CREATE INDEX IF NOT EXISTS idx_quiz_questions_source
-    ON quiz_questions(source);
+-- Add constraint to ensure quiz challenges have proper verification method
+ALTER TABLE challenges ADD CONSTRAINT check_quiz_verification
+    CHECK (type != 'QUIZ' OR verification_method = 'QUIZ');
+
+-- Add indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_challenges_type_verification
+    ON challenges(type, verification_method);
 
 CREATE INDEX IF NOT EXISTS idx_quiz_questions_creator_source
     ON quiz_questions(creator_id, source);
 
--- Ensure challenge entity has quiz config field
-ALTER TABLE challenges ADD COLUMN IF NOT EXISTS quiz_config TEXT;
+-- Add unique constraint to prevent duplicate questions (optional)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_quiz_questions_unique
+    ON quiz_questions(creator_id, question, answer)
+    WHERE is_user_created = true;

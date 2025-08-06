@@ -84,15 +84,3 @@ public class QuizChallengeController {
         return ResponseEntity.ok(questions);
     }
 }
-
-public class QuizSessionConfig {
-    private String teamName;
-    private List<String> teamMembers;
-    private QuizDifficulty difficulty;
-    private Integer roundTimeSeconds;
-    private Integer totalRounds;
-    private Boolean enableAiHost;
-    private String questionSource; // "user" or "app"
-    
-    // getters/setters
-}

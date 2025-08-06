@@ -20,23 +20,23 @@ import java.util.List;
 public class CreateQuizChallengeRequest {
     @NotBlank(message = "Title is required")
     private String title;
-    
+
     private String description;
-    
+
     @NotBlank(message = "Type is required")
     private String type;  // Should be "QUIZ"
-    
+
     @NotBlank(message = "Visibility is required")
     private String visibility;  // "PUBLIC" or "PRIVATE"
-    
+
     private LocalDateTime startDate;
     private LocalDateTime endDate;
-    
+
     private FrequencyType frequency;
-    
+
     @Valid
     private QuizConfig quizConfig;
-    
+
     @Valid
     private List<CreateQuizQuestionRequest> userQuestions;
 }
