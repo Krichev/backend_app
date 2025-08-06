@@ -280,7 +280,7 @@ public class QuizService {
     }
 
     // DTO Conversion methods
-    private QuizQuestionDTO convertQuestionToDTO(QuizQuestion question) {
+    protected QuizQuestionDTO convertQuestionToDTO(QuizQuestion question) {
         return QuizQuestionDTO.builder()
                 .id(question.getId())
                 .question(question.getQuestion())
@@ -298,7 +298,7 @@ public class QuizService {
                 .build();
     }
 
-    private QuizSessionDTO convertSessionToDTO(QuizSession session) {
+    protected QuizSessionDTO convertSessionToDTO(QuizSession session) {
         List<String> teamMembers = session.getTeamMembers() != null ? 
                 List.of(session.getTeamMembers().split(",")) : List.of();
 

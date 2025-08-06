@@ -1,18 +1,16 @@
+// CreateQuizChallengeRequest.java
 package com.my.challenger.dto.quiz;
 
-
 import com.my.challenger.entity.enums.FrequencyType;
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
 import java.util.List;
-
 
 @Data
 @Builder
@@ -30,7 +28,7 @@ public class CreateQuizChallengeRequest {
 
     private LocalDateTime startDate;
     private LocalDateTime endDate;
-    private ChallengeFrequency frequency;
+    private FrequencyType frequency;
 
     private QuizChallengeConfig quizConfig;
     private List<CreateQuizQuestionRequest> customQuestions;

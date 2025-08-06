@@ -2,9 +2,11 @@ package com.my.challenger.repository;
 
 import com.my.challenger.entity.quiz.QuizRound;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -60,4 +62,13 @@ public interface QuizRoundRepository extends JpaRepository<QuizRound, Long> {
     @Query("SELECT AVG(qr.discussionDurationSeconds) FROM QuizRound qr " +
             "WHERE qr.quizSession.id = :sessionId AND qr.discussionDurationSeconds IS NOT NULL")
     Double getAverageDiscussionTimeForSession(@Param("sessionId") Long sessionId);
+
+    /**
+     * Delete all rounds for a quiz session (for updating session configuration)
+     */
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM QuizRound qr WHERE qr.quizSession.id = :sessionId")
+    void deleteByQuizSessionId(@Param("sessionId") Long sessionId);
+
 }

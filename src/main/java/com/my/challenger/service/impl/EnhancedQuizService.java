@@ -27,7 +27,6 @@ public class EnhancedQuizService extends QuizService {
     private final ObjectMapper objectMapper;
     private final QuizRoundRepository quizRoundRepository;
 
-
     public EnhancedQuizService(
             QuizQuestionRepository quizQuestionRepository,
             QuizSessionRepository quizSessionRepository,
@@ -368,7 +367,7 @@ public class EnhancedQuizService extends QuizService {
         Challenge challenge = challengeRepository.findById(challengeId)
                 .orElseThrow(() -> new IllegalArgumentException("Challenge not found"));
 
-        return challenge.getIsPublic() || challenge.getCreator().getId().equals(userId);
+        return challenge.isPublic() || challenge.getCreator().getId().equals(userId);
     }
 
     /**
@@ -380,17 +379,17 @@ public class EnhancedQuizService extends QuizService {
                 .title(challenge.getTitle())
                 .description(challenge.getDescription())
                 .type(challenge.getType())
-                .creatorId(challenge.getCreator().getId())
+                .creator_id(challenge.getCreator().getId())
                 .creatorUsername(challenge.getCreator().getUsername())
-                .isPublic(challenge.getIsPublic())
-                .verificationMethod(challenge.getVerificationMethod())
+                .visibility(challenge.isPublic() ?
+                        VisibilityType.PUBLIC : VisibilityType.PRIVATE)
+                .verificationMethod(challenge.getVerificationMethod() != null ?
+                        challenge.getVerificationMethod().toString() : null)
                 .startDate(challenge.getStartDate())
                 .endDate(challenge.getEndDate())
                 .frequency(challenge.getFrequency())
                 .status(challenge.getStatus())
                 .quizConfig(challenge.getQuizConfig())
-                .createdAt(challenge.getCreatedAt())
-                .updatedAt(challenge.getUpdatedAt())
                 .build();
     }
 

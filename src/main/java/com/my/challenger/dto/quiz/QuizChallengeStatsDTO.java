@@ -1,4 +1,3 @@
-// QuizChallengeStatsDTO.java
 package com.my.challenger.dto.quiz;
 
 import lombok.AllArgsConstructor;
