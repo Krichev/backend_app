@@ -11,6 +11,8 @@ import com.my.challenger.entity.Task;
 import com.my.challenger.entity.TaskCompletion;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.challenge.Challenge;
+import com.my.challenger.entity.challenge.LocationCoordinates;
+import com.my.challenger.entity.challenge.PhotoVerificationDetails;
 import com.my.challenger.entity.challenge.VerificationDetails;
 import com.my.challenger.entity.enums.*;
 import com.my.challenger.repository.*;
@@ -92,41 +94,77 @@ public class ChallengeServiceImpl implements ChallengeService {
     @Override
     @Transactional
     public ChallengeDTO createChallenge(CreateChallengeRequest request, Long creatorId) {
-        User creator = userRepository.findById(creatorId)
-                .orElseThrow(() -> new IllegalArgumentException("Creator not found"));
+        User creator = findUserById(creatorId);
 
         Challenge challenge = new Challenge();
+        challenge.setType(ChallengeType.valueOf(request.getType()));
         challenge.setTitle(request.getTitle());
         challenge.setDescription(request.getDescription());
-        challenge.setType(request.getType());
-        challenge.setVerificationMethod(request.getVerificationMethod());
         challenge.setCreator(creator);
-        challenge.setPublic(request.getVisibility().toString().equals("PUBLIC"));
-        challenge.setStartDate(request.getStartDate() != null ? request.getStartDate() : LocalDateTime.now());
+        challenge.setPublic(request.getVisibility().equals("PUBLIC"));
+        challenge.setStartDate(request.getStartDate() != null ?
+                request.getStartDate() : LocalDateTime.now());
         challenge.setEndDate(request.getEndDate());
         challenge.setFrequency(request.getFrequency());
         challenge.setStatus(request.getStatus() != null ? request.getStatus() : ChallengeStatus.ACTIVE);
 
-        // Parse verification method details if available
+        // Handle verification method - NO VerificationDetails needed for QUIZ type
         if (request.getVerificationMethod() != null) {
-            try {
-                // Just storing as string, would be parsed in a real implementation
-                // A real implementation would deserialize into VerificationDetails object
-                challenge.setVerificationDetails(Collections.singletonList(new VerificationDetails()));
-            } catch (Exception e) {
-                log.error("Error parsing verification method", e);
-                throw new IllegalArgumentException("Invalid verification method format");
+            VerificationMethod verificationMethod = VerificationMethod.valueOf(request.getVerificationMethod());
+            challenge.setVerificationMethod(verificationMethod);
+
+            // Only create VerificationDetails for challenges that need them
+            if (verificationMethod == VerificationMethod.PHOTO ||
+                    verificationMethod == VerificationMethod.LOCATION) {
+
+                VerificationDetails verificationDetails = createVerificationDetails(
+                        request.getVerificationDetails(), verificationMethod);
+                verificationDetails.setChallenge(challenge.getId());
+                challenge.setVerificationDetails(Collections.singletonList(verificationDetails));
             }
+            // For QUIZ, MANUAL, FITNESS_API, ACTIVITY - no VerificationDetails needed
         }
 
         Challenge savedChallenge = challengeRepository.save(challenge);
-
-        // Create initial task for the challenge
         createInitialTask(savedChallenge, creator);
-        log.error("Created task");
 
         return convertToDTO(savedChallenge, creatorId);
     }
+
+    /**
+     * Create VerificationDetails only when needed (PHOTO/LOCATION verification)
+     */
+    private VerificationDetails createVerificationDetails(
+            Map<String, Object> verificationData,
+            VerificationMethod method) {
+
+        VerificationDetails.VerificationDetailsBuilder builder = VerificationDetails.builder();
+
+        if (method == VerificationMethod.PHOTO) {
+            PhotoVerificationDetails photoDetails = new PhotoVerificationDetails();
+            photoDetails.setDescription((String) verificationData.get("description"));
+            photoDetails.setRequiresPhotoComparison(
+                    (Boolean) verificationData.getOrDefault("requiresComparison", false));
+            photoDetails.setVerificationMode(
+                    (String) verificationData.getOrDefault("verificationMode", "standard"));
+
+            builder.photoDetails(photoDetails);
+            builder.activityType("PHOTO_VERIFICATION");
+        }
+
+        if (method == VerificationMethod.LOCATION) {
+            LocationCoordinates coordinates = new LocationCoordinates();
+            coordinates.setLatitude((Double) verificationData.get("latitude"));
+            coordinates.setLongitude((Double) verificationData.get("longitude"));
+
+            builder.locationCoordinates(coordinates);
+            builder.radius((Double) verificationData.getOrDefault("radius", 100.0));
+            builder.activityType("LOCATION_VERIFICATION");
+        }
+
+        return builder.build();
+    }
+
 
     @Override
     @Transactional

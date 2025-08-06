@@ -478,7 +478,7 @@ ALTER TABLE challenges ADD CONSTRAINT check_challenge_type
     CHECK (type IN ('ACCOUNTABILITY', 'QUEST', 'EVENT', 'QUIZ'));
 
 ALTER TABLE challenges ADD CONSTRAINT check_challenge_status
-    CHECK (status IN ('PENDING', 'ACTIVE', 'COMPLETED', 'CANCELLED'));
+    CHECK (status IN ('PENDING', 'ACTIVE', 'COMPLETED', 'CANCELLED', 'OPEN'));
 
 ALTER TABLE challenges ADD CONSTRAINT check_challenge_frequency
     CHECK (frequency IN ('DAILY', 'WEEKLY', 'MONTHLY', 'ONE_TIME'));
@@ -488,3 +488,15 @@ ALTER TABLE challenge_progress ADD CONSTRAINT check_progress_status
 
 ALTER TABLE challenge_progress ADD CONSTRAINT check_verification_status
     CHECK (verification_status IN ('PENDING', 'VERIFIED', 'REJECTED'));
+
+ALTER TABLE quiz_questions ADD CONSTRAINT unique_creator_question
+    UNIQUE (creator_id, question);
+
+CREATE INDEX IF NOT EXISTS idx_quiz_questions_source
+    ON quiz_questions(source);
+
+CREATE INDEX IF NOT EXISTS idx_quiz_questions_creator_source
+    ON quiz_questions(creator_id, source);
+
+-- Ensure challenge entity has quiz config field
+ALTER TABLE challenges ADD COLUMN IF NOT EXISTS quiz_config TEXT;

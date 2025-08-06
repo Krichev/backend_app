@@ -57,7 +57,7 @@ public interface QuizSessionRepository extends JpaRepository<QuizSession, Long> 
     /**
      * Find top scoring sessions for a challenge
      */
-    @Query("SELECT qs FROM QuizSession qs WHERE qs.challengeId = :challengeId " +
+    @Query("SELECT qs FROM QuizSession qs WHERE qs.challenge.id = :challengeId " +
             "AND qs.status = 'COMPLETED' " +
             "ORDER BY (CAST(qs.correctAnswers AS double) / qs.totalRounds) DESC")
     List<QuizSession> findTopScoringSessionsForChallenge(@Param("challengeId") Long challengeId, Pageable pageable);
@@ -66,6 +66,6 @@ public interface QuizSessionRepository extends JpaRepository<QuizSession, Long> 
      * Get average score for a challenge
      */
     @Query("SELECT AVG(CAST(qs.correctAnswers AS double) / qs.totalRounds * 100) " +
-            "FROM QuizSession qs WHERE qs.challengeId = :challengeId AND qs.status = 'COMPLETED'")
+            "FROM QuizSession qs WHERE qs.challenge.id = :challengeId AND qs.status = 'COMPLETED'")
     Double getAverageScorePercentageForChallenge(@Param("challengeId") Long challengeId);
 }

@@ -18,10 +18,10 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create-drop
   sql:
     init:
-      mode: embedded
+      mode: always
 
       #  profiles:
 #    active: eureka, remotes, auth, security, datasource, broker
