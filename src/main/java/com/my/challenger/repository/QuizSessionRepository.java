@@ -1,9 +1,11 @@
 package com.my.challenger.repository;
 
 import com.my.challenger.entity.enums.QuizSessionStatus;
+import com.my.challenger.entity.quiz.QuizQuestion;
 import com.my.challenger.entity.quiz.QuizSession;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -68,4 +70,32 @@ public interface QuizSessionRepository extends JpaRepository<QuizSession, Long> 
     @Query("SELECT AVG(CAST(qs.correctAnswers AS double) / qs.totalRounds * 100) " +
             "FROM QuizSession qs WHERE qs.challenge.id = :challengeId AND qs.status = 'COMPLETED'")
     Double getAverageScorePercentageForChallenge(@Param("challengeId") Long challengeId);
+
+    /**
+     * Find sessions by challenge ID (without ordering)
+     */
+    List<QuizSession> findByChallengeId(Long challengeId);
+
+// Additional methods to add to QuizRoundRepository
+// Add this method to your existing QuizRoundRepository interface:
+
+    /**
+     * Delete all rounds for a quiz session (for updating session configuration)
+     */
+    @Modifying
+    @Query("DELETE FROM QuizRound qr WHERE qr.quizSession.id = :sessionId")
+    void deleteByQuizSessionId(@Param("sessionId") Long sessionId);
+
+// Additional methods to add to QuizQuestionRepository
+// Add this method to your existing QuizQuestionRepository interface:
+
+    /**
+     * Count questions by creator and source containing specific text
+     */
+    long countByCreatorIdAndSourceContaining(Long creatorId, String sourceText);
+
+    /**
+     * Find questions by creator and source containing specific text
+     */
+    List<QuizQuestion> findByCreatorIdAndSourceContaining(Long creatorId, String sourceText);
 }

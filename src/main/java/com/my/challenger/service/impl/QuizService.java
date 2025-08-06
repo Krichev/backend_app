@@ -21,17 +21,17 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class QuizService {
 
-    private final QuizQuestionRepository quizQuestionRepository;
-    private final QuizSessionRepository quizSessionRepository;
-    private final QuizRoundRepository quizRoundRepository;
-    private final ChallengeRepository challengeRepository;
-    private final UserRepository userRepository;
-    private final WWWGameService gameService;
+    protected final QuizQuestionRepository quizQuestionRepository;
+    protected final QuizSessionRepository quizSessionRepository;
+    protected final QuizRoundRepository quizRoundRepository;
+    protected final ChallengeRepository challengeRepository;
+    protected final UserRepository userRepository;
+    protected final WWWGameService gameService;
 
     // Question Management
     @Transactional
