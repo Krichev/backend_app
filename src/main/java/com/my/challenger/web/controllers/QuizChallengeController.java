@@ -7,6 +7,8 @@ import com.my.challenger.dto.quiz.SaveQuestionsRequest;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.challenge.Challenge;
 import com.my.challenger.entity.enums.QuizDifficulty;
+import com.my.challenger.repository.ChallengeRepository;
+import com.my.challenger.repository.UserRepository;
 import com.my.challenger.service.impl.EnhancedQuizService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,8 @@ import java.util.List;
 public class QuizChallengeController {
 
     private final EnhancedQuizService quizService;
+    private final UserRepository userRepository;
+    private final ChallengeRepository challengeRepository;
 
     /**
      * Create a quiz challenge with question saving
@@ -33,10 +37,10 @@ public class QuizChallengeController {
     public ResponseEntity<ChallengeDTO> createQuizChallenge(
             @Valid @RequestBody CreateQuizChallengeRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
-        
+
         User user = getUserFromUserDetails(userDetails);
         ChallengeDTO challenge = quizService.createQuizChallenge(request, user.getId());
-        
+
         return ResponseEntity.ok(challenge);
     }
 
@@ -48,20 +52,20 @@ public class QuizChallengeController {
             @PathVariable Long challengeId,
             @RequestBody SaveQuestionsRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
-        
+
         User user = getUserFromUserDetails(userDetails);
-        
+
         // Validate challenge ownership
         Challenge challenge = challengeRepository.findById(challengeId)
                 .orElseThrow(() -> new IllegalArgumentException("Challenge not found"));
-        
+
         if (!challenge.getCreator().getId().equals(user.getId())) {
             throw new IllegalStateException("Only challenge creator can add questions");
         }
 
-        List<QuizQuestionDTO> savedQuestions = quizService.saveQuizQuestions(
-            request.getQuestions(), user, challenge);
-        
+        List<QuizQuestionDTO> savedQuestions = quizService.saveCustomQuestionsForChallenge(
+                request.getQuestions(), user, challengeId);
+
         return ResponseEntity.ok(savedQuestions);
     }
 
@@ -74,13 +78,25 @@ public class QuizChallengeController {
             @RequestParam(required = false) String difficulty,
             @RequestParam(defaultValue = "10") int count,
             @AuthenticationPrincipal UserDetails userDetails) {
-        
+
         QuizDifficulty quizDifficulty = difficulty != null ?
-            QuizDifficulty.valueOf(difficulty.toUpperCase()) : QuizDifficulty.MEDIUM;
-        
+                QuizDifficulty.valueOf(difficulty.toUpperCase()) : QuizDifficulty.MEDIUM;
+
         List<QuizQuestionDTO> questions = quizService.getQuestionsForChallenge(
-            challengeId, quizDifficulty, count);
-        
+                challengeId, quizDifficulty, count);
+
         return ResponseEntity.ok(questions);
+    }
+
+    /**
+     * Helper method to get User entity from UserDetails
+     */
+    private User getUserFromUserDetails(UserDetails userDetails) {
+        if (userDetails == null) {
+            throw new IllegalArgumentException("User not authenticated");
+        }
+
+        return userRepository.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
     }
 }
