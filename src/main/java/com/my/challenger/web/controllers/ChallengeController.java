@@ -1,7 +1,7 @@
 package com.my.challenger.web.controllers;
+
 import com.my.challenger.dto.*;
 import com.my.challenger.entity.User;
-import com.my.challenger.entity.challenge.Challenge;
 import com.my.challenger.repository.UserRepository;
 import com.my.challenger.service.impl.ChallengeService;
 import jakarta.validation.Valid;
@@ -15,8 +15,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Controller for handling challenge-related endpoints
@@ -44,7 +42,7 @@ public class ChallengeController {
             @RequestParam(required = false) String targetGroup,
             @RequestParam(required = false) Long participant_id,
             @AuthenticationPrincipal UserDetails userDetails) {
-        
+
         log.info("Getting challenges with filters: page={}, limit={}, type={}, visibility={}, status={}, creator_id={}, targetGroup={}, participant_id={}",
                 page, limit, type, visibility, status, creator_id, targetGroup, participant_id);
         User user = getUserFromUserDetails(userDetails);
@@ -61,7 +59,7 @@ public class ChallengeController {
         if (participant_id != null) filters.put("participant_id", participant_id);
 
         filters = Map.copyOf(filters);
-        
+
         List<ChallengeDTO> challenges = challengeService.getChallenges(filters);
         return ResponseEntity.ok(challenges);
     }
@@ -85,7 +83,7 @@ public class ChallengeController {
     public ResponseEntity<ChallengeDTO> createChallenge(
             @Valid @RequestBody CreateChallengeRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
-        
+
         log.info("Creating new challenge: {}", request.getTitle());
         User user = getUserFromUserDetails(userDetails);
 
@@ -113,6 +111,24 @@ public class ChallengeController {
     }
 
     /**
+     * Delete a challenge
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<MessageResponse> deleteChallenge(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        log.info("Deleting challenge ID: {}", id);
+        User user = getUserFromUserDetails(userDetails);
+
+        // Check if user is the creator or has admin rights
+        challengeService.validateChallengeOwnership(id, user.getId());
+
+        challengeService.deleteChallenge(id);
+        return ResponseEntity.ok(new MessageResponse("Challenge deleted successfully"));
+    }
+
+    /**
      * Search challenges by keyword
      */
     @GetMapping("/search")
@@ -126,23 +142,6 @@ public class ChallengeController {
         List<ChallengeDTO> challenges = challengeService.searchChallenges(q, user.getId());
         return ResponseEntity.ok(challenges);
     }
-    /**
-     * Delete a challenge
-     */
-    @DeleteMapping("/{id}")
-    public ResponseEntity<MessageResponse> deleteChallenge(
-            @PathVariable Long id,
-            @AuthenticationPrincipal UserDetails userDetails) {
-        
-        log.info("Deleting challenge ID: {}", id);
-        User user = getUserFromUserDetails(userDetails);
-        
-        // Check if user is the creator or has admin rights
-        challengeService.validateChallengeOwnership(id, user.getId());
-        
-        challengeService.deleteChallenge(id);
-        return ResponseEntity.ok(new MessageResponse("Challenge deleted successfully"));
-    }
 
     /**
      * Join a challenge
@@ -151,29 +150,29 @@ public class ChallengeController {
     public ResponseEntity<MessageResponse> joinChallenge(
             @PathVariable Long id,
             @AuthenticationPrincipal UserDetails userDetails) {
-        
-        log.info("User joining challenge ID: {}", id);
+
+        log.info("Joining challenge ID: {}", id);
         User user = getUserFromUserDetails(userDetails);
-        
+
         challengeService.joinChallenge(id, user.getId());
-        return ResponseEntity.ok(new MessageResponse("Successfully joined the challenge"));
+        return ResponseEntity.ok(new MessageResponse("Successfully joined challenge"));
     }
 
     /**
-     * Submit challenge completion
+     * Submit challenge completion/proof
      */
     @PostMapping("/{id}/complete")
     public ResponseEntity<MessageResponse> submitChallengeCompletion(
             @PathVariable Long id,
             @RequestBody(required = false) ChallengeCompletionRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
-        
-        log.info("User submitting challenge completion for ID: {}", id);
+
+        log.info("Submitting challenge completion for challenge ID: {}", id);
         User user = getUserFromUserDetails(userDetails);
-        
+
         Map<String, Object> proofData = request != null ? request.getVerificationData() : null;
         String notes = request != null ? request.getNotes() : null;
-        
+
         challengeService.submitChallengeCompletion(id, user.getId(), proofData, notes);
         return ResponseEntity.ok(new MessageResponse("Challenge completion submitted"));
     }
@@ -186,18 +185,18 @@ public class ChallengeController {
             @PathVariable Long id,
             @RequestBody Map<String, Object> request,
             @AuthenticationPrincipal UserDetails userDetails) {
-        
+
         Long userId = Long.valueOf(request.get("userId").toString());
         boolean approved = Boolean.parseBoolean(request.get("approved").toString());
-        
-        log.info("Verifying challenge completion for challenge ID: {}, user ID: {}, approved: {}", 
+
+        log.info("Verifying challenge completion for challenge ID: {}, user ID: {}, approved: {}",
                 id, userId, approved);
-        
+
         User user = getUserFromUserDetails(userDetails);
-        
+
         // Check if user is the creator or has admin rights
         challengeService.validateChallengeVerificationRights(id, user.getId());
-        
+
         challengeService.verifyChallengeCompletion(id, userId, approved);
         return ResponseEntity.ok(new MessageResponse("Challenge verification updated"));
     }
@@ -210,13 +209,13 @@ public class ChallengeController {
             @PathVariable Long id,
             @RequestParam(required = false) Long userId,
             @AuthenticationPrincipal UserDetails userDetails) {
-        
+
         log.info("Getting verification history for challenge ID: {}, user ID: {}", id, userId);
         User user = getUserFromUserDetails(userDetails);
-        
+
         // If userId is not provided, use the authenticated user's ID
         Long targetUserId = userId != null ? userId : user.getId();
-        
+
         List<Map<String, Object>> history = challengeService.getVerificationHistory(id, targetUserId);
         return ResponseEntity.ok(history);
     }
@@ -228,7 +227,7 @@ public class ChallengeController {
         if (userDetails == null) {
             throw new IllegalArgumentException("User not authenticated");
         }
-        
+
         return userRepository.findByUsername(userDetails.getUsername())
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
     }

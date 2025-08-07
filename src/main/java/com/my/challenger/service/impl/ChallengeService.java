@@ -3,7 +3,6 @@ package com.my.challenger.service.impl;
 import com.my.challenger.dto.ChallengeDTO;
 import com.my.challenger.dto.CreateChallengeRequest;
 import com.my.challenger.dto.UpdateChallengeRequest;
-import com.my.challenger.entity.challenge.Challenge;
 
 import java.util.List;
 import java.util.Map;
