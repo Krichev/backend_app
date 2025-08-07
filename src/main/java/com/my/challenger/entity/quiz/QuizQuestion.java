@@ -22,6 +22,9 @@ public class QuizQuestion {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "challenge_id")
+    private Long challengeId;
+
     @Column(nullable = false, length = 1000)
     private String question;
 

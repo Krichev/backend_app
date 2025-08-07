@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class QuizQuestionDTO {
     private Long id;
+    private Long challengeId;
     private String question;
     private String answer;
     private QuizDifficulty difficulty;
