@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 public class QuizRoundDTO {
     private Long id;
     private Long quizSessionId;
+    private Long creatorId;
     private QuizQuestionDTO question;
     private Integer roundNumber;
     private String teamAnswer;

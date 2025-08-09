@@ -564,8 +564,8 @@ CREATE INDEX IF NOT EXISTS idx_quiz_questions_creator_source
 
 -- Add unique constraint to prevent duplicate questions (optional)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_quiz_questions_unique
-    ON quiz_questions (creator_id, question, answer)
-    WHERE is_user_created = true;
+    ON quiz_questions (creator_id, question, answer);
+--     WHERE is_user_created = true;
 
 ALTER TABLE quiz_questions
     ADD COLUMN challenge_id BIGINT;
@@ -573,3 +573,11 @@ ALTER TABLE quiz_questions
 ALTER TABLE quiz_questions
     ADD CONSTRAINT fk_quiz_challenge
         FOREIGN KEY (challenge_id) REFERENCES challenges (id);
+
+
+ALTER TABLE quiz_sessions ADD COLUMN creator_id BIGINT NOT NULL;
+
+ALTER TABLE quiz_sessions ADD CONSTRAINT fk_session_creator
+FOREIGN KEY (creator_id) REFERENCES users(id);
+
+CREATE INDEX idx_quiz_sessions_creator_id ON quiz_sessions(creator_id);

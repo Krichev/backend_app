@@ -30,6 +30,9 @@ public class QuizSession {
     @JoinColumn(name = "challenge_id", nullable = false)
     private Challenge challenge;
 
+    @Column(name = "creator_id")
+    private Long creatorId;
+
     @ManyToOne
     @JoinColumn(name = "host_user_id", nullable = false)
     private User hostUser;
