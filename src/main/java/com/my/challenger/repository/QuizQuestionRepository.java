@@ -18,6 +18,16 @@ import java.util.List;
 @Repository
 public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long> {
 
+
+
+
+    // Alternative if FUNCTION('RANDOM') doesn't work in your DB:
+    @Query(value = "SELECT * FROM quiz_questions q WHERE q.difficulty = :difficulty " +
+            "ORDER BY RAND() LIMIT :limit", nativeQuery = true)
+    List<QuizQuestion> findRandomQuestionsByDifficultyNative(@Param("difficulty") String difficulty,
+                                                             @Param("limit") int limit);
+
+
     /**
      * Find questions by difficulty
      */

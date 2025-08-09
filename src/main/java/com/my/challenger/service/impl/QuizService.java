@@ -1,4 +1,3 @@
-// src/main/java/com/my/challenger/service/impl/QuizService.java
 package com.my.challenger.service.impl;
 
 import com.my.challenger.dto.quiz.*;
@@ -19,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -26,16 +26,21 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class QuizService {
 
-    protected final QuizQuestionRepository quizQuestionRepository;
-    protected final QuizSessionRepository quizSessionRepository;
-    protected final QuizRoundRepository quizRoundRepository;
-    protected final ChallengeRepository challengeRepository;
-    protected final UserRepository userRepository;
-    protected final WWWGameService gameService;
+    private final QuizQuestionRepository quizQuestionRepository;
+    private final QuizSessionRepository quizSessionRepository;
+    private final QuizRoundRepository quizRoundRepository;
+    private final ChallengeRepository challengeRepository;
+    private final UserRepository userRepository;
+    private final WWWGameService gameService;
 
-    // Question Management
+    // =============================================================================
+    // QUESTION MANAGEMENT METHODS
+    // =============================================================================
+
     @Transactional
     public QuizQuestionDTO createUserQuestion(CreateQuizQuestionRequest request, Long creatorId) {
+        log.info("Creating user question for creator: {}", creatorId);
+
         User creator = userRepository.findById(creatorId)
                 .orElseThrow(() -> new IllegalArgumentException("Creator not found"));
 
@@ -52,11 +57,16 @@ public class QuizService {
                 .build();
 
         QuizQuestion saved = quizQuestionRepository.save(question);
+        log.info("Created question with ID: {}", saved.getId());
         return convertQuestionToDTO(saved);
     }
 
     public List<QuizQuestionDTO> getUserQuestions(Long userId) {
-        List<QuizQuestion> questions = quizQuestionRepository.findByCreatorIdAndIsUserCreatedTrueOrderByCreatedAtDesc(userId);
+        log.info("Getting user questions for user: {}", userId);
+
+        List<QuizQuestion> questions = quizQuestionRepository
+                .findByCreatorIdAndIsUserCreatedTrueOrderByCreatedAtDesc(userId);
+
         return questions.stream()
                 .map(this::convertQuestionToDTO)
                 .collect(Collectors.toList());
@@ -64,6 +74,8 @@ public class QuizService {
 
     @Transactional
     public void deleteUserQuestion(Long questionId, Long userId) {
+        log.info("Deleting question {} for user: {}", questionId, userId);
+
         QuizQuestion question = quizQuestionRepository.findById(questionId)
                 .orElseThrow(() -> new IllegalArgumentException("Question not found"));
 
@@ -79,24 +91,35 @@ public class QuizService {
     }
 
     public List<QuizQuestionDTO> getQuestionsByDifficulty(QuizDifficulty difficulty, int count) {
-        List<QuizQuestion> questions = quizQuestionRepository.findRandomQuestionsByDifficulty(
-                difficulty.name(), count);
+        log.info("Getting {} questions by difficulty: {}", count, difficulty);
+
+        List<QuizQuestion> questions = quizQuestionRepository
+                .findByDifficultyOrderByUsageCountAsc(difficulty, PageRequest.of(0, count));
+
         return questions.stream()
                 .map(this::convertQuestionToDTO)
                 .collect(Collectors.toList());
     }
 
     public List<QuizQuestionDTO> searchQuestions(String keyword, int limit) {
-        List<QuizQuestion> questions = quizQuestionRepository.searchByKeyword(
-                keyword, PageRequest.of(0, limit));
+        log.info("Searching questions with keyword: {} (limit: {})", keyword, limit);
+
+        List<QuizQuestion> questions = quizQuestionRepository
+                .searchByKeyword(keyword, PageRequest.of(0, limit));
+
         return questions.stream()
                 .map(this::convertQuestionToDTO)
                 .collect(Collectors.toList());
     }
 
-    // Quiz Session Management
+    // =============================================================================
+    // QUIZ SESSION MANAGEMENT METHODS
+    // =============================================================================
+
     @Transactional
     public QuizSessionDTO startQuizSession(StartQuizSessionRequest request, Long hostUserId) {
+        log.info("Starting quiz session for host: {}", hostUserId);
+
         // Validate challenge exists
         Challenge challenge = challengeRepository.findById(request.getChallengeId())
                 .orElseThrow(() -> new IllegalArgumentException("Challenge not found"));
@@ -107,14 +130,15 @@ public class QuizService {
         // Create quiz session
         QuizSession session = QuizSession.builder()
                 .challenge(challenge)
+                .creatorId(hostUserId)
                 .hostUser(hostUser)
                 .teamName(request.getTeamName())
-                .teamMembers(String.join(",", request.getTeamMembers())) // Store as comma-separated string
+                .teamMembers(String.join(",", request.getTeamMembers()))
                 .difficulty(request.getDifficulty())
                 .roundTimeSeconds(request.getRoundTimeSeconds())
                 .totalRounds(request.getTotalRounds())
                 .enableAiHost(request.getEnableAiHost())
-                .questionSource(request.getQuestionSource())
+                .questionSource(request.getQuestionSource()) // FIXED: Using correct property name
                 .status(QuizSessionStatus.CREATED)
                 .build();
 
@@ -123,49 +147,60 @@ public class QuizService {
         // Create quiz rounds with questions
         createQuizRounds(savedSession, request);
 
+        log.info("Created quiz session with ID: {}", savedSession.getId());
         return convertSessionToDTO(savedSession);
     }
 
     @Transactional
-    public QuizSessionDTO beginQuizSession(Long sessionId, Long hostUserId) {
-        QuizSession session = quizSessionRepository.findById(sessionId)
-                .orElseThrow(() -> new IllegalArgumentException("Quiz session not found"));
+    public QuizSessionDTO beginQuizSession(Long sessionId, Long userId) {
+        log.info("Beginning quiz session {} for user: {}", sessionId, userId);
 
-        if (!session.getHostUser().getId().equals(hostUserId)) {
-            throw new IllegalStateException("You can only start your own quiz sessions");
-        }
+        QuizSession session = findUserSession(sessionId, userId);
 
         if (session.getStatus() != QuizSessionStatus.CREATED) {
-            throw new IllegalStateException("Quiz session is not in created state");
+            throw new IllegalStateException("Session must be in CREATED status to begin");
         }
 
-        session.startSession();
-        QuizSession savedSession = quizSessionRepository.save(session);
+        session.setStatus(QuizSessionStatus.IN_PROGRESS);
+        session.setStartedAt(LocalDateTime.now());
 
-        return convertSessionToDTO(savedSession);
+        QuizSession updated = quizSessionRepository.save(session);
+        return convertSessionToDTO(updated);
     }
 
     @Transactional
-    public QuizRoundDTO submitRoundAnswer(Long sessionId, SubmitRoundAnswerRequest request, Long hostUserId) {
-        QuizSession session = quizSessionRepository.findById(sessionId)
-                .orElseThrow(() -> new IllegalArgumentException("Quiz session not found"));
+    public QuizRoundDTO submitRoundAnswer(Long sessionId, SubmitRoundAnswerRequest request, Long userId) {
+        log.info("Submitting answer for session {} round {} by user: {}",
+                sessionId, request.getRoundNumber(), userId);
 
-        if (!session.getHostUser().getId().equals(hostUserId)) {
-            throw new IllegalStateException("You can only submit answers for your own quiz sessions");
+        QuizSession session = findUserSession(sessionId, userId);
+
+        if (session.getStatus() != QuizSessionStatus.IN_PROGRESS) {
+            throw new IllegalStateException("Session must be in progress to submit answers");
         }
 
-        QuizRound round = quizRoundRepository.findByQuizSessionIdAndRoundNumber(sessionId, request.getRoundNumber())
-                .orElseThrow(() -> new IllegalArgumentException("Quiz round not found"));
+        QuizRound round = quizRoundRepository
+                .findByQuizSessionIdAndRoundNumber(sessionId, request.getRoundNumber())
+                .orElseThrow(() -> new IllegalArgumentException("Round not found"));
 
-        // Validate answer using game service
-        boolean isCorrect = gameService.validateAnswer(request.getTeamAnswer(), round.getQuestion().getAnswer());
+        if (round.getAnswerSubmittedAt() != null) {
+            throw new IllegalStateException("Answer already submitted for this round");
+        }
 
-        // Update round with answer
-        round.submitAnswer(request.getTeamAnswer(), request.getPlayerWhoAnswered());
+        // Validate answer
+        boolean isCorrect = gameService.validateAnswer(
+                request.getTeamAnswer(),
+                round.getQuestion().getAnswer()
+        );
+
+        // Update round
+        round.setTeamAnswer(request.getTeamAnswer());
         round.setIsCorrect(isCorrect);
+        round.setPlayerWhoAnswered(request.getPlayerWhoAnswered());
         round.setDiscussionNotes(request.getDiscussionNotes());
-        round.setHintUsed(request.getHintUsed());
-        round.setVoiceRecordingUsed(request.getVoiceRecordingUsed());
+        round.setHintUsed(request.getHintUsed() != null ? request.getHintUsed() : false);
+        round.setVoiceRecordingUsed(request.getVoiceRecordingUsed() != null ? request.getVoiceRecordingUsed() : false);
+        round.setAnswerSubmittedAt(LocalDateTime.now());
 
         // Generate AI feedback if enabled
         if (session.getEnableAiHost()) {
@@ -175,67 +210,169 @@ public class QuizService {
 
         QuizRound savedRound = quizRoundRepository.save(round);
 
-        // Update session statistics
+        // Update session progress
         updateSessionProgress(session);
-
-        // Update question usage count
-        round.getQuestion().setUsageCount(round.getQuestion().getUsageCount() + 1);
-        round.getQuestion().setLastUsed(LocalDateTime.now());
-        quizQuestionRepository.save(round.getQuestion());
 
         return convertRoundToDTO(savedRound);
     }
 
     @Transactional
-    public QuizSessionDTO completeQuizSession(Long sessionId, Long hostUserId) {
-        QuizSession session = quizSessionRepository.findById(sessionId)
-                .orElseThrow(() -> new IllegalArgumentException("Quiz session not found"));
+    public QuizSessionDTO completeQuizSession(Long sessionId, Long userId) {
+        log.info("Completing quiz session {} for user: {}", sessionId, userId);
 
-        if (!session.getHostUser().getId().equals(hostUserId)) {
-            throw new IllegalStateException("You can only complete your own quiz sessions");
+        QuizSession session = findUserSession(sessionId, userId);
+
+        if (session.getStatus() == QuizSessionStatus.COMPLETED) {
+            throw new IllegalStateException("Session is already completed");
         }
 
-        session.completeSession();
-        QuizSession savedSession = quizSessionRepository.save(session);
+        session.setStatus(QuizSessionStatus.COMPLETED);
+        session.setCompletedAt(LocalDateTime.now());
 
-        return convertSessionToDTO(savedSession);
+        // Calculate total duration if started
+        if (session.getStartedAt() != null) {
+            long durationSeconds = java.time.Duration
+                    .between(session.getStartedAt(), session.getCompletedAt())
+                    .getSeconds();
+            session.setTotalDurationSeconds((int) durationSeconds);
+        }
+
+        QuizSession updated = quizSessionRepository.save(session);
+        return convertSessionToDTO(updated);
     }
 
     public QuizSessionDTO getQuizSession(Long sessionId, Long userId) {
-        QuizSession session = quizSessionRepository.findById(sessionId)
-                .orElseThrow(() -> new IllegalArgumentException("Quiz session not found"));
+        log.info("Getting quiz session {} for user: {}", sessionId, userId);
 
-        if (!session.getHostUser().getId().equals(userId)) {
-            throw new IllegalStateException("You can only view your own quiz sessions");
-        }
-
+        QuizSession session = findUserSession(sessionId, userId);
         return convertSessionToDTO(session);
     }
 
     public List<QuizSessionDTO> getUserQuizSessions(Long userId, int limit) {
-        List<QuizSession> sessions = quizSessionRepository.findByHostUserIdOrderByCreatedAtDesc(
-                userId, PageRequest.of(0, limit));
+        log.info("Getting user quiz sessions for user: {} (limit: {})", userId, limit);
+
+        List<QuizSession> sessions = quizSessionRepository.findByCreatorId(userId);
+
         return sessions.stream()
+                .limit(limit)
                 .map(this::convertSessionToDTO)
                 .collect(Collectors.toList());
     }
 
     public List<QuizRoundDTO> getQuizRounds(Long sessionId, Long userId) {
-        QuizSession session = quizSessionRepository.findById(sessionId)
-                .orElseThrow(() -> new IllegalArgumentException("Quiz session not found"));
+        log.info("Getting quiz rounds for session {} by user: {}", sessionId, userId);
 
-        if (!session.getHostUser().getId().equals(userId)) {
-            throw new IllegalStateException("You can only view rounds for your own quiz sessions");
-        }
+        // Verify user has access to this session
+        findUserSession(sessionId, userId);
 
-        List<QuizRound> rounds = quizRoundRepository.findByQuizSessionIdOrderByRoundNumber(sessionId);
+        List<QuizRound> rounds = quizRoundRepository
+                .findByQuizSessionIdOrderByRoundNumber(sessionId);
+
         return rounds.stream()
                 .map(this::convertRoundToDTO)
                 .collect(Collectors.toList());
     }
 
-    // Helper methods
+    // =============================================================================
+    // ENHANCED SEARCH METHODS (Fixed repository calls)
+    // =============================================================================
+
+    public List<QuizSessionDTO> getSessionsByQuestionSourceContaining(Long creatorId, String questionSource) {
+        log.info("Getting sessions by creator {} with questionSource containing: {}", creatorId, questionSource);
+
+        // FIXED: Now uses correct repository method name
+        List<QuizSession> sessions = quizSessionRepository
+                .findByCreatorIdAndQuestionSourceContaining(creatorId, questionSource);
+
+        return sessions.stream()
+                .map(this::convertSessionToDTO)
+                .collect(Collectors.toList());
+    }
+
+    public List<QuizSessionDTO> getSessionsByExactQuestionSource(Long creatorId, String questionSource) {
+        log.info("Getting sessions by creator {} with exact questionSource: {}", creatorId, questionSource);
+
+        // FIXED: Now uses correct repository method name
+        List<QuizSession> sessions = quizSessionRepository
+                .findByCreatorIdAndQuestionSource(creatorId, questionSource);
+
+        return sessions.stream()
+                .map(this::convertSessionToDTO)
+                .collect(Collectors.toList());
+    }
+
+    public List<QuizSessionDTO> getRecentSessions(Long creatorId, int daysBack) {
+        log.info("Getting recent sessions for creator {} ({} days back)", creatorId, daysBack);
+
+        LocalDateTime since = LocalDateTime.now().minusDays(daysBack);
+        List<QuizSession> sessions = quizSessionRepository
+                .findRecentSessionsByCreator(creatorId, since);
+
+        return sessions.stream()
+                .map(this::convertSessionToDTO)
+                .collect(Collectors.toList());
+    }
+
+    public List<QuizSessionDTO> searchSessions(QuizSessionSearchCriteria criteria) {
+        log.info("Searching sessions with criteria: {}", criteria);
+
+        PageRequest pageRequest = PageRequest.of(0, criteria.getLimit());
+        List<QuizSession> sessions = quizSessionRepository.findSessionsWithCriteria(
+                criteria.getCreatorId(),
+                criteria.getQuestionSource(),
+                criteria.getStatus(),
+                pageRequest
+        );
+
+        return sessions.stream()
+                .map(this::convertSessionToDTO)
+                .collect(Collectors.toList());
+    }
+
+    public QuizSessionStatsDTO getSessionStats(Long creatorId) {
+        log.info("Getting session stats for creator: {}", creatorId);
+
+        long totalSessions = quizSessionRepository.countByCreatorIdAndStatus(creatorId, null);
+        long completedSessions = quizSessionRepository.countByCreatorIdAndStatus(creatorId, QuizSessionStatus.COMPLETED);
+        long activeSessions = quizSessionRepository.countByCreatorIdAndStatus(creatorId, QuizSessionStatus.IN_PROGRESS);
+
+        return QuizSessionStatsDTO.builder()
+                .totalSessions(totalSessions)
+                .completedSessions(completedSessions)
+                .activeSessions(activeSessions)
+                .completionRate(totalSessions > 0 ? (double) completedSessions / totalSessions * 100 : 0)
+                .build();
+    }
+
+    @Transactional
+    public void updateSessionStatus(Long sessionId, QuizSessionStatus status, Long userId) {
+        log.info("Updating session {} status to {} for user: {}", sessionId, status, userId);
+
+        QuizSession session = findUserSession(sessionId, userId);
+        session.setStatus(status);
+        session.setUpdatedAt(LocalDateTime.now());
+
+        quizSessionRepository.save(session);
+    }
+
+    // =============================================================================
+    // HELPER METHODS
+    // =============================================================================
+
+    private QuizSession findUserSession(Long sessionId, Long userId) {
+        QuizSession session = quizSessionRepository.findById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Session not found"));
+
+        if (!session.getCreatorId().equals(userId)) {
+            throw new IllegalStateException("You can only access your own sessions");
+        }
+
+        return session;
+    }
+
     private void createQuizRounds(QuizSession session, StartQuizSessionRequest request) {
+        log.info("Creating quiz rounds for session: {}", session.getId());
+
         List<QuizQuestion> questions;
 
         if ("user".equals(request.getQuestionSource()) && request.getCustomQuestionIds() != null) {
@@ -246,8 +383,8 @@ public class QuizService {
             }
         } else {
             // Use random questions by difficulty
-            questions = quizQuestionRepository.findRandomQuestionsByDifficulty(
-                    request.getDifficulty().name(), request.getTotalRounds());
+            questions = quizQuestionRepository.findByDifficultyOrderByUsageCountAsc(
+                    request.getDifficulty(), PageRequest.of(0, request.getTotalRounds()));
             if (questions.size() < request.getTotalRounds()) {
                 throw new IllegalStateException("Not enough questions available for the selected difficulty");
             }
@@ -259,28 +396,36 @@ public class QuizService {
                     .quizSession(session)
                     .question(questions.get(i))
                     .roundNumber(i + 1)
+                    .hintUsed(false)
+                    .voiceRecordingUsed(false)
                     .build();
             quizRoundRepository.save(round);
         }
     }
 
     private void updateSessionProgress(QuizSession session) {
-        long completedRounds = quizRoundRepository.countByQuizSessionIdAndAnswerSubmittedAtIsNotNull(session.getId());
-        long correctAnswers = quizRoundRepository.countByQuizSessionIdAndIsCorrectTrue(session.getId());
+        long completedRounds = quizRoundRepository
+                .countByQuizSessionIdAndAnswerSubmittedAtIsNotNull(session.getId());
+        long correctAnswers = quizRoundRepository
+                .countByQuizSessionIdAndIsCorrectTrue(session.getId());
 
         session.setCompletedRounds((int) completedRounds);
         session.setCorrectAnswers((int) correctAnswers);
 
         // If all rounds completed, mark session as complete
         if (completedRounds >= session.getTotalRounds()) {
-            session.completeSession();
+            session.setStatus(QuizSessionStatus.COMPLETED);
+            session.setCompletedAt(LocalDateTime.now());
         }
 
         quizSessionRepository.save(session);
     }
 
-    // DTO Conversion methods
-    protected QuizQuestionDTO convertQuestionToDTO(QuizQuestion question) {
+    // =============================================================================
+    // DTO CONVERSION METHODS
+    // =============================================================================
+
+    private QuizQuestionDTO convertQuestionToDTO(QuizQuestion question) {
         return QuizQuestionDTO.builder()
                 .id(question.getId())
                 .question(question.getQuestion())
@@ -298,8 +443,8 @@ public class QuizService {
                 .build();
     }
 
-    protected QuizSessionDTO convertSessionToDTO(QuizSession session) {
-        List<String> teamMembers = session.getTeamMembers() != null ? 
+    private QuizSessionDTO convertSessionToDTO(QuizSession session) {
+        List<String> teamMembers = session.getTeamMembers() != null ?
                 List.of(session.getTeamMembers().split(",")) : List.of();
 
         return QuizSessionDTO.builder()
@@ -315,7 +460,7 @@ public class QuizService {
                 .totalRounds(session.getTotalRounds())
                 .completedRounds(session.getCompletedRounds())
                 .correctAnswers(session.getCorrectAnswers())
-                .scorePercentage(session.getScorePercentage())
+                .scorePercentage(calculateScorePercentage(session))
                 .enableAiHost(session.getEnableAiHost())
                 .questionSource(session.getQuestionSource())
                 .status(session.getStatus())
@@ -344,5 +489,12 @@ public class QuizService {
                 .voiceRecordingUsed(round.getVoiceRecordingUsed())
                 .aiFeedback(round.getAiFeedback())
                 .build();
+    }
+
+    private Double calculateScorePercentage(QuizSession session) {
+        if (session.getTotalRounds() == null || session.getTotalRounds() == 0) {
+            return 0.0;
+        }
+        return (double) session.getCorrectAnswers() / session.getTotalRounds() * 100;
     }
 }

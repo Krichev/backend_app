@@ -18,6 +18,26 @@ import java.util.Optional;
 @Repository
 public interface QuizSessionRepository extends JpaRepository<QuizSession, Long> {
 
+    /**
+     * Count all sessions by creator
+     */
+    long countByCreatorId(Long creatorId);
+
+    /**
+     * Find sessions by exact question source
+     */
+    List<QuizSession> findByCreatorIdAndQuestionSource(Long creatorId, String questionSource);
+
+    /**
+     * Find sessions by question source containing text
+     */
+    List<QuizSession> findByCreatorIdAndQuestionSourceContaining(Long creatorId, String questionSource);
+
+    /**
+     * FIXED: Replace the incorrectly named method with the correct creatorId-based method
+     */
+    @Query("SELECT s FROM QuizSession s WHERE s.creatorId = :creatorId ORDER BY s.createdAt DESC")
+    List<QuizSession> findByCreatorIdOrderByCreatedAtDesc(@Param("creatorId") Long creatorId, Pageable pageable);
     // Using the creatorId property
     List<QuizSession> findByCreatorId(Long creatorId);
 
@@ -35,85 +55,48 @@ public interface QuizSessionRepository extends JpaRepository<QuizSession, Long> 
     @Query("SELECT s FROM QuizSession s JOIN FETCH s.quiz WHERE s.creatorId = :creatorId")
     List<QuizSession> findByCreatorIdWithQuiz(@Param("creatorId") Long creatorId);
 
-    /**
-     * Find sessions by challenge ID
-     */
-    List<QuizSession> findByChallengeIdOrderByCreatedAtDesc(Long challengeId);
+    // Additional useful methods for quiz session management
+    List<QuizSession> findByStatus(QuizSessionStatus status);
 
-    /**
-     * Find sessions by host user
-     */
-    List<QuizSession> findByHostUserIdOrderByCreatedAtDesc(Long hostUserId, Pageable pageable);
+    List<QuizSession> findByCreatorIdAndStatus(Long creatorId, QuizSessionStatus status);
 
-    /**
-     * Find sessions by status
-     */
-    List<QuizSession> findByStatusOrderByCreatedAtDesc(QuizSessionStatus status);
+    @Query("SELECT s FROM QuizSession s WHERE s.creatorId = :creatorId AND s.status = :status ORDER BY s.createdAt DESC")
+    List<QuizSession> findByCreatorIdAndStatusOrderByCreatedAtDesc(@Param("creatorId") Long creatorId,
+                                                                   @Param("status") QuizSessionStatus status);
 
-    /**
-     * Find active sessions for a challenge
-     */
-    List<QuizSession> findByChallengeIdAndStatus(Long challengeId, QuizSessionStatus status);
+    // Find sessions by question source (app or user)
+    List<QuizSession> findByQuestionSource(String questionSource);
 
-    /**
-     * Find the most recent session for a challenge by a user
-     */
-    Optional<QuizSession> findFirstByChallengeIdAndHostUserIdOrderByCreatedAtDesc(Long challengeId, Long hostUserId);
+    // Find recent sessions for a creator
+    @Query("SELECT s FROM QuizSession s WHERE s.creatorId = :creatorId AND s.createdAt >= :since ORDER BY s.createdAt DESC")
+    List<QuizSession> findRecentSessionsByCreator(@Param("creatorId") Long creatorId,
+                                                  @Param("since") LocalDateTime since);
 
-    /**
-     * Count completed sessions for a challenge
-     */
-    long countByChallengeIdAndStatus(Long challengeId, QuizSessionStatus status);
+    // Count sessions by creator and status
+    long countByCreatorIdAndStatus(Long creatorId, QuizSessionStatus status);
 
-    /**
-     * Find sessions completed in a date range
-     */
-    @Query("SELECT qs FROM QuizSession qs WHERE qs.status = 'COMPLETED' " +
-            "AND qs.completedAt BETWEEN :startDate AND :endDate " +
-            "ORDER BY qs.completedAt DESC")
-    List<QuizSession> findCompletedSessionsInDateRange(@Param("startDate") LocalDateTime startDate,
-                                                       @Param("endDate") LocalDateTime endDate);
+    // Find sessions with team name containing text
+    List<QuizSession> findByCreatorIdAndTeamNameContainingIgnoreCase(Long creatorId, String teamName);
 
-    /**
-     * Find top scoring sessions for a challenge
-     */
-    @Query("SELECT qs FROM QuizSession qs WHERE qs.challenge.id = :challengeId " +
-            "AND qs.status = 'COMPLETED' " +
-            "ORDER BY (CAST(qs.correctAnswers AS double) / qs.totalRounds) DESC")
-    List<QuizSession> findTopScoringSessionsForChallenge(@Param("challengeId") Long challengeId, Pageable pageable);
+    // Custom query for finding sessions with specific criteria
+    @Query("SELECT s FROM QuizSession s WHERE s.creatorId = :creatorId " +
+            "AND (:questionSource IS NULL OR s.questionSource = :questionSource) " +
+            "AND (:status IS NULL OR s.status = :status) " +
+            "ORDER BY s.createdAt DESC")
+    List<QuizSession> findSessionsWithCriteria(@Param("creatorId") Long creatorId,
+                                               @Param("questionSource") String questionSource,
+                                               @Param("status") QuizSessionStatus status,
+                                               Pageable pageable);
 
-    /**
-     * Get average score for a challenge
-     */
-    @Query("SELECT AVG(CAST(qs.correctAnswers AS double) / qs.totalRounds * 100) " +
-            "FROM QuizSession qs WHERE qs.challenge.id = :challengeId AND qs.status = 'COMPLETED'")
-    Double getAverageScorePercentageForChallenge(@Param("challengeId") Long challengeId);
-
-    /**
-     * Find sessions by challenge ID (without ordering)
-     */
-    List<QuizSession> findByChallengeId(Long challengeId);
-
-// Additional methods to add to QuizRoundRepository
-// Add this method to your existing QuizRoundRepository interface:
-
-    /**
-     * Delete all rounds for a quiz session (for updating session configuration)
-     */
+    // Delete sessions older than specified date
     @Modifying
-    @Query("DELETE FROM QuizRound qr WHERE qr.quizSession.id = :sessionId")
-    void deleteByQuizSessionId(@Param("sessionId") Long sessionId);
+    @Query("DELETE FROM QuizSession s WHERE s.createdAt < :cutoffDate")
+    void deleteOldSessions(@Param("cutoffDate") LocalDateTime cutoffDate);
 
-// Additional methods to add to QuizQuestionRepository
-// Add this method to your existing QuizQuestionRepository interface:
-
-    /**
-     * Count questions by creator and source containing specific text
-     */
-    long countByCreatorIdAndSourceContaining(Long creatorId, String sourceText);
-
-    /**
-     * Find questions by creator and source containing specific text
-     */
-    List<QuizQuestion> findByCreatorIdAndSourceContaining(Long creatorId, String sourceText);
+    // Update session status
+    @Modifying
+    @Query("UPDATE QuizSession s SET s.status = :newStatus, s.updatedAt = :updateTime WHERE s.id = :sessionId")
+    void updateSessionStatus(@Param("sessionId") Long sessionId,
+                             @Param("newStatus") QuizSessionStatus newStatus,
+                             @Param("updateTime") LocalDateTime updateTime);
 }
