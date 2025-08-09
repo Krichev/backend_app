@@ -7,12 +7,10 @@ import com.my.challenger.entity.enums.QuizSessionStatus;
 import com.my.challenger.repository.UserRepository;
 import com.my.challenger.service.impl.QuizService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -260,12 +258,12 @@ public class QuizController {
 
     @GetMapping("/sessions/{sessionId}/rounds")
     @Operation(summary = "Get all rounds for a session")
-    public ResponseEntity<List<QuizRoundDTO>> getSessionRounds(
+    public ResponseEntity<List<QuizRoundDTO>> getQuizRounds(
             @PathVariable Long sessionId,
             @AuthenticationPrincipal UserDetails userDetails) {
 
         User user = getUserFromUserDetails(userDetails);
-        List<QuizRoundDTO> rounds = quizService.getSessionRounds(sessionId, user.getId());
+        List<QuizRoundDTO> rounds = quizService.getQuizRounds(sessionId, user.getId());
         return ResponseEntity.ok(rounds);
     }
 

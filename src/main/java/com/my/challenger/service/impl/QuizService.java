@@ -251,10 +251,11 @@ public class QuizService {
     public List<QuizSessionDTO> getUserQuizSessions(Long userId, int limit) {
         log.info("Getting user quiz sessions for user: {} (limit: {})", userId, limit);
 
-        List<QuizSession> sessions = quizSessionRepository.findByCreatorId(userId);
+        // FIXED: Use correct repository method based on creatorId
+        List<QuizSession> sessions = quizSessionRepository
+                .findByCreatorIdOrderByCreatedAtDesc(userId, PageRequest.of(0, limit));
 
         return sessions.stream()
-                .limit(limit)
                 .map(this::convertSessionToDTO)
                 .collect(Collectors.toList());
     }
@@ -332,7 +333,7 @@ public class QuizService {
     public QuizSessionStatsDTO getSessionStats(Long creatorId) {
         log.info("Getting session stats for creator: {}", creatorId);
 
-        long totalSessions = quizSessionRepository.countByCreatorIdAndStatus(creatorId, null);
+        long totalSessions = quizSessionRepository.countByCreatorId(creatorId);
         long completedSessions = quizSessionRepository.countByCreatorIdAndStatus(creatorId, QuizSessionStatus.COMPLETED);
         long activeSessions = quizSessionRepository.countByCreatorIdAndStatus(creatorId, QuizSessionStatus.IN_PROGRESS);
 
@@ -342,6 +343,57 @@ public class QuizService {
                 .activeSessions(activeSessions)
                 .completionRate(totalSessions > 0 ? (double) completedSessions / totalSessions * 100 : 0)
                 .build();
+    }
+
+    public QuizRoundDTO getCurrentRound(Long sessionId, Long userId) {
+        log.info("Getting current round for session {} by user: {}", sessionId, userId);
+
+        // Verify user has access to this session
+        findUserSession(sessionId, userId);
+
+        // Find the first round that hasn't been submitted yet
+        List<QuizRound> rounds = quizRoundRepository
+                .findByQuizSessionIdOrderByRoundNumber(sessionId);
+
+        Optional<QuizRound> currentRound = rounds.stream()
+                .filter(round -> round.getAnswerSubmittedAt() == null)
+                .findFirst();
+
+        if (currentRound.isEmpty()) {
+            throw new IllegalStateException("No current round found - all rounds may be completed");
+        }
+
+        return convertRoundToDTO(currentRound.get());
+    }
+
+    @Transactional
+    public QuizSessionDTO updateSessionConfig(Long sessionId, UpdateQuizSessionConfigRequest request, Long userId) {
+        log.info("Updating session {} config for user: {}", sessionId, userId);
+
+        QuizSession session = findUserSession(sessionId, userId);
+
+        if (session.getStatus() != QuizSessionStatus.CREATED) {
+            throw new IllegalStateException("Can only update configuration for sessions that haven't started");
+        }
+
+        // Update configurable fields
+        if (request.getRoundTimeSeconds() != null) {
+            session.setRoundTimeSeconds(request.getRoundTimeSeconds());
+        }
+        if (request.getEnableAiHost() != null) {
+            session.setEnableAiHost(request.getEnableAiHost());
+        }
+        if (request.getTeamName() != null) {
+            session.setTeamName(request.getTeamName());
+        }
+        if (request.getTeamMembers() != null) {
+            session.setTeamMembers(request.getTeamMembers());
+        }
+
+        session.setUpdatedAt(LocalDateTime.now());
+        QuizSession updated = quizSessionRepository.save(session);
+
+        return convertSessionToDTO(updated);
     }
 
     @Transactional
