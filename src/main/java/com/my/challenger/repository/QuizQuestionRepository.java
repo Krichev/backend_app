@@ -14,13 +14,30 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long> {
 
 
+    List<QuizQuestion> findByCreatorIdAndIsActiveTrue(Long creatorId);
 
+    List<QuizQuestion> findByDifficultyAndIsActiveTrue(QuizDifficulty difficulty);
 
+    @Query("SELECT q FROM QuizQuestion q WHERE q.difficulty = :difficulty AND q.isActive = true ORDER BY RANDOM()")
+    List<QuizQuestion> findByDifficultyOrderByRandom(@Param("difficulty") QuizDifficulty difficulty);
+
+    @Query("SELECT q FROM QuizQuestion q WHERE q.question LIKE %:keyword% OR q.topic LIKE %:keyword% AND q.isActive = true")
+    List<QuizQuestion> findByKeywordContaining(@Param("keyword") String keyword);
+
+    List<QuizQuestion> findByCreatorIdAndDifficultyAndIsActiveTrue(Long creatorId, QuizDifficulty difficulty);
+
+    List<QuizQuestion> findBySourceAndIsActiveTrue(String source);
+
+    List<QuizQuestion> findByExternalIdAndIsActiveTrue(String externalId);
+
+    @Query("SELECT COUNT(q) FROM QuizQuestion q WHERE q.creator.id = :creatorId AND q.isActive = true")
+    Long countByCreatorIdAndIsActiveTrue(@Param("creatorId") Long creatorId);
     // Alternative if FUNCTION('RANDOM') doesn't work in your DB:
     @Query(value = "SELECT * FROM quiz_questions q WHERE q.difficulty = :difficulty " +
             "ORDER BY RAND() LIMIT :limit", nativeQuery = true)

@@ -41,19 +41,16 @@ public interface QuizSessionRepository extends JpaRepository<QuizSession, Long> 
     // Using the creatorId property
     List<QuizSession> findByCreatorId(Long creatorId);
 
-    // Using the creator relationship
-    List<QuizSession> findByCreator(User creator);
-
     // Using both approaches (this works with either)
     @Query("SELECT s FROM QuizSession s WHERE s.creatorId = :creatorId")
     List<QuizSession> findSessionsByCreatorId(@Param("creatorId") Long creatorId);
 
-    // Join fetch for better performance
-    @Query("SELECT s FROM QuizSession s JOIN FETCH s.creator WHERE s.creatorId = :creatorId")
-    List<QuizSession> findByCreatorIdWithCreator(@Param("creatorId") Long creatorId);
+//    // Join fetch for better performance
+//    @Query("SELECT s FROM QuizSession s JOIN FETCH s.creator WHERE s.creatorId = :creatorId")
+//    List<QuizSession> findByCreatorIdWithCreator(@Param("creatorId") Long creatorId);
 
-    @Query("SELECT s FROM QuizSession s JOIN FETCH s.quiz WHERE s.creatorId = :creatorId")
-    List<QuizSession> findByCreatorIdWithQuiz(@Param("creatorId") Long creatorId);
+//    @Query("SELECT s FROM QuizSession s JOIN FETCH s.quiz WHERE s.creatorId = :creatorId")
+//    List<QuizSession> findByCreatorIdWithQuiz(@Param("creatorId") Long creatorId);
 
     // Additional useful methods for quiz session management
     List<QuizSession> findByStatus(QuizSessionStatus status);
@@ -99,4 +96,21 @@ public interface QuizSessionRepository extends JpaRepository<QuizSession, Long> 
     void updateSessionStatus(@Param("sessionId") Long sessionId,
                              @Param("newStatus") QuizSessionStatus newStatus,
                              @Param("updateTime") LocalDateTime updateTime);
+
+
+    /**
+     * Find all quiz sessions for a specific challenge
+     */
+    List<QuizSession> findByChallengeId(Long challengeId);
+
+    /**
+     * Find quiz sessions for a challenge ordered by creation date (descending)
+     */
+    List<QuizSession> findByChallengeIdOrderByCreatedAtDesc(Long challengeId);
+
+    /**
+     * Find quiz sessions for a challenge with pagination
+     */
+    List<QuizSession> findByChallengeIdOrderByCreatedAtDesc(Long challengeId, Pageable pageable);
+
 }

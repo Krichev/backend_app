@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.my.challenger.dto.ChallengeDTO;
 import com.my.challenger.dto.quiz.*;
+import com.my.challenger.entity.Task;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.challenge.Challenge;
 import com.my.challenger.entity.enums.*;
@@ -34,55 +35,145 @@ public class EnhancedQuizService extends QuizService {
             ChallengeRepository challengeRepository,
             UserRepository userRepository,
             WWWGameService gameService,
+            TaskRepository taskRepository,
             ObjectMapper objectMapper) {
 
         super(quizQuestionRepository, quizSessionRepository, quizRoundRepository,
-                challengeRepository, userRepository, gameService);
+                challengeRepository, userRepository, gameService, taskRepository);
 
         this.objectMapper = objectMapper;
         this.quizRoundRepository = quizRoundRepository;
     }
 
     /**
-     * Create a quiz challenge with automatic question saving
+     * Create a quiz challenge with proper verification method setup
+     * FIXED: Ensures verificationMethod is always set before task creation
      */
     @Transactional
     public ChallengeDTO createQuizChallenge(CreateQuizChallengeRequest request, Long creatorId) {
-        User creator = userRepository.findById(creatorId)
-                .orElseThrow(() -> new IllegalArgumentException("Creator not found"));
+        try {
+            log.info("Creating quiz challenge for user: {}", creatorId);
 
-        // 1. Create the quiz challenge
-        Challenge challenge = new Challenge();
-        challenge.setType(ChallengeType.QUIZ);
-        challenge.setTitle(request.getTitle());
-        challenge.setDescription(request.getDescription());
-        challenge.setCreator(creator);
-        challenge.setPublic(request.getVisibility().equals("PUBLIC"));
-        challenge.setVerificationMethod(VerificationMethod.QUIZ);
-        challenge.setStartDate(request.getStartDate() != null ?
-                request.getStartDate() : LocalDateTime.now());
-        challenge.setEndDate(request.getEndDate());
-        challenge.setFrequency(request.getFrequency());
-        challenge.setStatus(ChallengeStatus.ACTIVE);
+            User creator = userRepository.findById(creatorId)
+                    .orElseThrow(() -> new IllegalArgumentException("Creator not found"));
 
-        // 2. Save quiz configuration
-        if (request.getQuizConfig() != null) {
-            try {
-                String quizConfigJson = objectMapper.writeValueAsString(request.getQuizConfig());
-                challenge.setQuizConfig(quizConfigJson);
-            } catch (JsonProcessingException e) {
-                throw new IllegalArgumentException("Invalid quiz configuration", e);
+            // 1. Create the quiz challenge with MANDATORY verification method
+            Challenge challenge = new Challenge();
+            challenge.setType(ChallengeType.QUIZ);
+            challenge.setTitle(request.getTitle());
+            challenge.setDescription(request.getDescription());
+            challenge.setCreator(creator);
+            challenge.setPublic(request.getVisibility().equals("PUBLIC"));
+
+            // CRITICAL: Set verification method BEFORE saving
+            challenge.setVerificationMethod(VerificationMethod.QUIZ);
+
+            challenge.setStartDate(request.getStartDate() != null ?
+                    request.getStartDate() : LocalDateTime.now());
+            challenge.setEndDate(request.getEndDate());
+            challenge.setFrequency(request.getFrequency() != null ?
+                    request.getFrequency() : FrequencyType.ONE_TIME);
+            challenge.setStatus(ChallengeStatus.ACTIVE);
+
+            // 2. Save quiz configuration if provided
+            if (request.getQuizConfig() != null) {
+                try {
+                    String quizConfigJson = objectMapper.writeValueAsString(request.getQuizConfig());
+                    challenge.setQuizConfig(quizConfigJson);
+                    log.debug("Saved quiz config: {}", quizConfigJson);
+                } catch (JsonProcessingException e) {
+                    log.error("Error serializing quiz config", e);
+                    throw new RuntimeException("Invalid quiz configuration", e);
+                }
             }
+
+            // 3. Save challenge FIRST (this ensures ID is generated)
+            Challenge savedChallenge = challengeRepository.save(challenge);
+            log.info("Saved challenge with ID: {} and verification method: {}",
+                    savedChallenge.getId(), savedChallenge.getVerificationMethod());
+
+            // 4. Save custom questions if provided
+            if (request.getCustomQuestions() != null && !request.getCustomQuestions().isEmpty()) {
+                saveCustomQuestionsForChallenge(request.getCustomQuestions(), creator, savedChallenge.getId());
+            }
+
+            // 5. Create initial task with proper verification method
+            createQuizTask(savedChallenge, creator);
+
+            // 6. Convert to DTO and return
+            return convertChallengeToDTO(savedChallenge);
+
+        } catch (Exception e) {
+            log.error("Error creating quiz challenge", e);
+            throw new RuntimeException("Failed to create quiz challenge: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Save questions to an existing challenge
+     */
+    @Transactional
+    public void saveQuestionsToChallenge(Long challengeId, List<CreateQuizQuestionRequest> questions, Long creatorId) {
+        try {
+            log.info("Saving {} questions to challenge {} by user {}", questions.size(), challengeId, creatorId);
+
+            // Validate challenge exists and user has permission
+            Challenge challenge = challengeRepository.findById(challengeId)
+                    .orElseThrow(() -> new IllegalArgumentException("Challenge not found"));
+
+            if (!challenge.getCreator().getId().equals(creatorId)) {
+                throw new IllegalArgumentException("Only challenge creator can add questions");
+            }
+
+            User creator = userRepository.findById(creatorId)
+                    .orElseThrow(() -> new IllegalArgumentException("Creator not found"));
+
+            // Save the questions
+            saveCustomQuestionsForChallenge(questions, creator, challenge.getId());
+
+            log.info("Successfully saved {} questions to challenge {}", questions.size(), challengeId);
+
+        } catch (Exception e) {
+            log.error("Error saving questions to challenge {}: {}", challengeId, e.getMessage(), e);
+            throw new RuntimeException("Failed to save questions to challenge: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * FIXED: Create quiz-specific task with proper validation
+     */
+    private void createQuizTask(Challenge challenge, User creator) {
+        // Validate that challenge has verification method set
+        if (challenge.getVerificationMethod() == null) {
+            log.error("Challenge {} has null verification method, setting to QUIZ", challenge.getId());
+            challenge.setVerificationMethod(VerificationMethod.QUIZ);
+            challengeRepository.save(challenge); // Save the fix
         }
 
-        Challenge savedChallenge = challengeRepository.save(challenge);
+        Task task = new Task();
+        task.setTitle(challenge.getTitle());
+        task.setDescription(challenge.getDescription());
 
-        // 3. Save custom questions if provided
-        if (request.getCustomQuestions() != null && !request.getCustomQuestions().isEmpty()) {
-            saveCustomQuestionsForChallenge(request.getCustomQuestions(), creator, savedChallenge.getId());
-        }
+        // Set task type based on frequency
+        task.setType(challenge.getFrequency() != null ?
+                TaskType.valueOf(challenge.getFrequency().name()) : TaskType.ONE_TIME);
 
-        return convertChallengeToDTO(savedChallenge);
+        task.setStatus(TaskStatus.NOT_STARTED);
+
+        // CRITICAL: Ensure verification method is set
+        task.setVerificationMethod(challenge.getVerificationMethod());
+
+        task.setStartDate(challenge.getStartDate());
+        task.setEndDate(challenge.getEndDate());
+        task.setChallenge(challenge);
+        task.setAssignedToUser(creator);
+        task.setAssignedTo(creator.getId());
+        task.setCreatedAt(LocalDateTime.now());
+        task.setUpdatedAt(LocalDateTime.now());
+
+        Task savedTask = taskRepository.save(task);
+        log.info("Created quiz task with ID: {} and verification method: {}",
+                savedTask.getId(), savedTask.getVerificationMethod());
     }
 
     /**

@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -25,7 +24,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class QuizService {
+public class QuestionService {
 
     protected final QuizQuestionRepository quizQuestionRepository;
     protected final QuizSessionRepository quizSessionRepository;
@@ -33,46 +32,11 @@ public class QuizService {
     protected final ChallengeRepository challengeRepository;
     protected final UserRepository userRepository;
     protected final WWWGameService gameService;
-    protected final TaskRepository taskRepository;
+
 
     // =============================================================================
     // QUESTION MANAGEMENT METHODS
     // =============================================================================
-
-    @Transactional
-    public QuizSessionDTO startQuizSession(StartQuizSessionRequest request, Long hostUserId) {
-        log.info("Starting quiz session for host: {} with question source: {}", hostUserId, request.getQuestionSource());
-
-        // Validate challenge exists
-        Challenge challenge = challengeRepository.findById(request.getChallengeId())
-                .orElseThrow(() -> new IllegalArgumentException("Challenge not found"));
-
-        User hostUser = userRepository.findById(hostUserId)
-                .orElseThrow(() -> new IllegalArgumentException("Host user not found"));
-
-        // Create quiz session
-        QuizSession session = QuizSession.builder()
-                .challenge(challenge)
-                .creatorId(hostUserId)
-                .hostUser(hostUser)
-                .teamName(request.getTeamName())
-                .teamMembers(String.join(",", request.getTeamMembers()))
-                .difficulty(request.getDifficulty())
-                .roundTimeSeconds(request.getRoundTimeSeconds())
-                .totalRounds(request.getTotalRounds())
-                .enableAiHost(request.getEnableAiHost())
-                .questionSource(request.getQuestionSource())
-                .status(QuizSessionStatus.CREATED)
-                .build();
-
-        QuizSession savedSession = quizSessionRepository.save(session);
-
-        // Create quiz rounds with questions - ENHANCED VERSION
-        createQuizRounds(savedSession, request);
-
-        log.info("Created quiz session with ID: {} and {} rounds", savedSession.getId(), savedSession.getTotalRounds());
-        return convertSessionToDTO(savedSession);
-    }
 
     @Transactional
     public QuizQuestionDTO createUserQuestion(CreateQuizQuestionRequest request, Long creatorId) {
@@ -97,174 +61,6 @@ public class QuizService {
         log.info("Created question with ID: {}", saved.getId());
         return convertQuestionToDTO(saved);
     }
-
-    /**
-     * Enhanced createQuizRounds method that handles all question sources and saves them
-     */
-    @Transactional
-    protected void createQuizRounds(QuizSession session, StartQuizSessionRequest request) {
-        log.info("Creating quiz rounds for session {} with source: {}", session.getId(), request.getQuestionSource());
-
-        List<QuizQuestion> questionsToUse = new ArrayList<>();
-
-        switch (request.getQuestionSource()) {
-            case "app":
-                questionsToUse = handleAppQuestions(request, session.getHostUser());
-                break;
-            case "user":
-                questionsToUse = handleUserQuestions(request, session.getHostUser());
-                break;
-            default:
-                throw new IllegalArgumentException("Invalid question source: " + request.getQuestionSource());
-        }
-
-        // Create rounds from the selected/created questions
-        createRoundsFromQuestions(session, questionsToUse);
-
-        log.info("Successfully created {} rounds for session {}", questionsToUse.size(), session.getId());
-    }
-    /**
-     * Handle app-generated questions - save them to database
-     */
-    private List<QuizQuestion> handleAppQuestions(StartQuizSessionRequest request, User hostUser) {
-        List<QuizQuestion> questions = new ArrayList<>();
-
-        if (request.getAppQuestions() != null && !request.getAppQuestions().isEmpty()) {
-            log.info("Saving {} app-generated questions to database", request.getAppQuestions().size());
-
-            for (AppQuestionData appQuestion : request.getAppQuestions()) {
-                // Create and save the question
-                QuizQuestion question = QuizQuestion.builder()
-                        .question(appQuestion.getQuestion())
-                        .answer(appQuestion.getAnswer())
-                        .difficulty(appQuestion.getDifficulty())
-                        .topic(appQuestion.getTopic())
-                        .additionalInfo(appQuestion.getAdditionalInfo())
-                        .creator(hostUser) // Mark the user as creator
-                        .isUserCreated(false) // It's an app question, but saved by user
-                        .externalId(appQuestion.getExternalId()) // Track original ID
-                        .source(appQuestion.getSource() != null ? appQuestion.getSource() : "APP_GENERATED")
-                        .build();
-
-                QuizQuestion savedQuestion = quizQuestionRepository.save(question);
-                questions.add(savedQuestion);
-
-                log.debug("Saved app question: {} (ID: {})", question.getQuestion(), savedQuestion.getId());
-            }
-        } else {
-            log.warn("No app questions provided, using random questions instead");
-            // Fallback to random questions if no app questions provided
-            questions = getRandomQuestionsByDifficulty(request.getDifficulty(), request.getTotalRounds());
-        }
-
-        return questions;
-    }
-
-    /**
-     * Handle user questions - mix of existing and new ones
-     */
-    private List<QuizQuestion> handleUserQuestions(StartQuizSessionRequest request, User hostUser) {
-        List<QuizQuestion> questions = new ArrayList<>();
-
-        // Add existing user questions
-        if (request.getCustomQuestionIds() != null && !request.getCustomQuestionIds().isEmpty()) {
-            log.info("Loading {} existing user questions", request.getCustomQuestionIds().size());
-
-            List<QuizQuestion> existingQuestions = quizQuestionRepository.findAllById(request.getCustomQuestionIds());
-
-            // Validate ownership
-            for (QuizQuestion question : existingQuestions) {
-                if (!question.getCreator().getId().equals(hostUser.getId())) {
-                    throw new IllegalStateException("User can only use their own questions");
-                }
-            }
-
-            questions.addAll(existingQuestions);
-        }
-
-        // Create and add new custom questions
-        if (request.getNewCustomQuestions() != null && !request.getNewCustomQuestions().isEmpty()) {
-            log.info("Creating {} new custom questions", request.getNewCustomQuestions().size());
-
-            for (CreateQuestionRequest newQuestion : request.getNewCustomQuestions()) {
-                QuizQuestion question = QuizQuestion.builder()
-                        .question(newQuestion.getQuestion())
-                        .answer(newQuestion.getAnswer())
-                        .difficulty(newQuestion.getDifficulty())
-                        .topic(newQuestion.getTopic())
-                        .additionalInfo(newQuestion.getAdditionalInfo())
-                        .creator(hostUser)
-                        .isUserCreated(true)
-                        .source("USER_CREATED")
-                        .build();
-
-                QuizQuestion savedQuestion = quizQuestionRepository.save(question);
-                questions.add(savedQuestion);
-
-                log.debug("Created new user question: {} (ID: {})", question.getQuestion(), savedQuestion.getId());
-            }
-        }
-
-        // If no questions provided, throw error
-        if (questions.isEmpty()) {
-            throw new IllegalArgumentException("No questions provided for user question source");
-        }
-
-        return questions;
-    }
-
-    /**
-     * Create quiz rounds from a list of questions
-     */
-    private void createRoundsFromQuestions(QuizSession session, List<QuizQuestion> questions) {
-        for (int i = 0; i < questions.size() && i < session.getTotalRounds(); i++) {
-            QuizQuestion question = questions.get(i);
-
-            QuizRound round = QuizRound.builder()
-                    .quizSession(session)
-                    .question(question)
-                    .roundNumber(i + 1)
-                    .isCorrect(false)
-                    .hintUsed(false)
-                    .voiceRecordingUsed(false)
-                    .build();
-
-            quizRoundRepository.save(round);
-        }
-    }
-
-    /**
-     * Fallback method to get random questions by difficulty
-     */
-    private List<QuizQuestion> getRandomQuestionsByDifficulty(QuizDifficulty difficulty, int count) {
-        return quizQuestionRepository.findByDifficultyOrderByRandom(difficulty)
-                .stream()
-                .limit(count)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Convert QuizSession entity to DTO
-     */
-    protected QuizSessionDTO convertSessionToDTO(QuizSession session) {
-        // Implementation of conversion logic
-        return QuizSessionDTO.builder()
-                .id(session.getId())
-                .challengeId(session.getChallenge().getId())
-                .teamName(session.getTeamName())
-                .teamMembers(List.of(session.getTeamMembers().split(",")))
-                .difficulty(session.getDifficulty())
-                .roundTimeSeconds(session.getRoundTimeSeconds())
-                .totalRounds(session.getTotalRounds())
-                .enableAiHost(session.getEnableAiHost())
-                .questionSource(session.getQuestionSource())
-                .status(session.getStatus())
-                .createdAt(session.getCreatedAt())
-                .startedAt(session.getStartedAt())
-                .completedAt(session.getCompletedAt())
-                .build();
-    }
-
 
     public List<QuizQuestionDTO> getUserQuestions(Long userId) {
         log.info("Getting user questions for user: {}", userId);
@@ -320,6 +116,41 @@ public class QuizService {
     // =============================================================================
     // QUIZ SESSION MANAGEMENT METHODS
     // =============================================================================
+
+    @Transactional
+    public QuizSessionDTO startQuizSession(StartQuizSessionRequest request, Long hostUserId) {
+        log.info("Starting quiz session for host: {}", hostUserId);
+
+        // Validate challenge exists
+        Challenge challenge = challengeRepository.findById(request.getChallengeId())
+                .orElseThrow(() -> new IllegalArgumentException("Challenge not found"));
+
+        User hostUser = userRepository.findById(hostUserId)
+                .orElseThrow(() -> new IllegalArgumentException("Host user not found"));
+
+        // Create quiz session
+        QuizSession session = QuizSession.builder()
+                .challenge(challenge)
+                .creatorId(hostUserId)
+                .hostUser(hostUser)
+                .teamName(request.getTeamName())
+                .teamMembers(String.join(",", request.getTeamMembers()))
+                .difficulty(request.getDifficulty())
+                .roundTimeSeconds(request.getRoundTimeSeconds())
+                .totalRounds(request.getTotalRounds())
+                .enableAiHost(request.getEnableAiHost())
+                .questionSource(request.getQuestionSource()) // FIXED: Using correct property name
+                .status(QuizSessionStatus.CREATED)
+                .build();
+
+        QuizSession savedSession = quizSessionRepository.save(session);
+
+        // Create quiz rounds with questions
+        createQuizRounds(savedSession, request);
+
+        log.info("Created quiz session with ID: {}", savedSession.getId());
+        return convertSessionToDTO(savedSession);
+    }
 
     @Transactional
     public QuizSessionDTO beginQuizSession(Long sessionId, Long userId) {
@@ -592,6 +423,39 @@ public class QuizService {
         return session;
     }
 
+    private void createQuizRounds(QuizSession session, StartQuizSessionRequest request) {
+        log.info("Creating quiz rounds for session: {}", session.getId());
+
+        List<QuizQuestion> questions;
+
+        if ("user".equals(request.getQuestionSource()) && request.getCustomQuestionIds() != null) {
+            // Use user-specified questions
+            questions = quizQuestionRepository.findAllById(request.getCustomQuestionIds());
+            if (questions.size() < request.getTotalRounds()) {
+                throw new IllegalArgumentException("Not enough custom questions selected");
+            }
+        } else {
+            // Use random questions by difficulty
+            questions = quizQuestionRepository.findByDifficultyOrderByUsageCountAsc(
+                    request.getDifficulty(), PageRequest.of(0, request.getTotalRounds()));
+            if (questions.size() < request.getTotalRounds()) {
+                throw new IllegalStateException("Not enough questions available for the selected difficulty");
+            }
+        }
+
+        // Create rounds
+        for (int i = 0; i < request.getTotalRounds(); i++) {
+            QuizRound round = QuizRound.builder()
+                    .quizSession(session)
+                    .question(questions.get(i))
+                    .roundNumber(i + 1)
+                    .hintUsed(false)
+                    .voiceRecordingUsed(false)
+                    .build();
+            quizRoundRepository.save(round);
+        }
+    }
+
     private void updateSessionProgress(QuizSession session) {
         long completedRounds = quizRoundRepository
                 .countByQuizSessionIdAndAnswerSubmittedAtIsNotNull(session.getId());
@@ -629,6 +493,34 @@ public class QuizService {
                 .usageCount(question.getUsageCount())
                 .createdAt(question.getCreatedAt())
                 .lastUsed(question.getLastUsed())
+                .build();
+    }
+
+    QuizSessionDTO convertSessionToDTO(QuizSession session) {
+        List<String> teamMembers = session.getTeamMembers() != null ?
+                List.of(session.getTeamMembers().split(",")) : List.of();
+
+        return QuizSessionDTO.builder()
+                .id(session.getId())
+                .challengeId(session.getChallenge().getId())
+                .challengeTitle(session.getChallenge().getTitle())
+                .hostUserId(session.getHostUser().getId())
+                .hostUsername(session.getHostUser().getUsername())
+                .teamName(session.getTeamName())
+                .teamMembers(teamMembers)
+                .difficulty(session.getDifficulty())
+                .roundTimeSeconds(session.getRoundTimeSeconds())
+                .totalRounds(session.getTotalRounds())
+                .completedRounds(session.getCompletedRounds())
+                .correctAnswers(session.getCorrectAnswers())
+                .scorePercentage(calculateScorePercentage(session))
+                .enableAiHost(session.getEnableAiHost())
+                .questionSource(session.getQuestionSource())
+                .status(session.getStatus())
+                .startedAt(session.getStartedAt())
+                .completedAt(session.getCompletedAt())
+                .totalDurationSeconds(session.getTotalDurationSeconds())
+                .createdAt(session.getCreatedAt())
                 .build();
     }
 

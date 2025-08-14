@@ -467,31 +467,31 @@ public class ChallengeServiceImpl implements ChallengeService {
                 .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + id));
     }
 
-    /**
-     * Helper method to create initial task for a challenge creator
-     */
     private void createInitialTask(Challenge challenge, User creator) {
-        Task task = new Task();
-        task.setTitle(challenge.getTitle());
-        task.setDescription(challenge.getDescription());
-        task.setType(challenge.getFrequency() != null ?
-                TaskType.valueOf(challenge.getFrequency().name()) :
-                TaskType.ONE_TIME);
-        task.setStatus(TaskStatus.NOT_STARTED);
-        task.setVerificationMethod(challenge.getVerificationMethod());
-        task.setStartDate(challenge.getStartDate());
-        task.setEndDate(challenge.getEndDate());
-        task.setChallenge(challenge);
-        task.setAssignedToUser(creator);
-        task.setAssignedTo(creator.getId());
-        task.setCreatedAt(LocalDateTime.now());
-        task.setUpdatedAt(LocalDateTime.now());
+        // Safety check for verification method
+        if (challenge.getVerificationMethod() == null) {
+            log.warn("Challenge {} has null verification method, setting default", challenge.getId());
+            challenge.setVerificationMethod(VerificationMethod.MANUAL);
+            challengeRepository.save(challenge);
+        }
+
+        Task task = Task.builder()
+                .title(challenge.getTitle())
+                .description(challenge.getDescription())
+                .type(challenge.getFrequency() != null ?
+                        TaskType.valueOf(challenge.getFrequency().name()) : TaskType.ONE_TIME)
+                .status(TaskStatus.NOT_STARTED)
+                .verificationMethod(challenge.getVerificationMethod()) // Now guaranteed not null
+                .startDate(challenge.getStartDate())
+                .endDate(challenge.getEndDate())
+                .challenge(challenge)
+                .assignedToUser(creator)
+                .assignedTo(creator.getId())
+                .build();
 
         taskRepository.save(task);
-
         log.debug("Created initial task for challenge {} and creator {}", challenge.getId(), creator.getId());
     }
-
     /**
      * Helper method to create task for a user who joined the challenge
      */

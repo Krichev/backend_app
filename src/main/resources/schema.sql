@@ -328,7 +328,7 @@ CREATE TABLE IF NOT EXISTS quiz_questions
     difficulty      VARCHAR(50),  -- EASY, MEDIUM, HARD
     topic           VARCHAR(200),
     source          VARCHAR(500),
-    additional_info VARCHAR(1000),
+    additional_info VARCHAR(5000),
     is_user_created BOOLEAN   DEFAULT FALSE,
     creator_id      BIGINT,
     external_id     VARCHAR(255), -- For questions from external APIs like db.chgk.info
@@ -551,9 +551,9 @@ ALTER TABLE challenges
     ADD COLUMN IF NOT EXISTS quiz_config TEXT;
 
 -- Add constraint to ensure quiz challenges have proper verification method
-ALTER TABLE challenges
-    ADD CONSTRAINT check_quiz_verification
-        CHECK (type != 'QUIZ' OR verification_method = 'QUIZ');
+-- ALTER TABLE challenges
+--     ADD CONSTRAINT check_quiz_verification
+--         CHECK (type != 'QUIZ' OR verification_method = 'QUIZ');
 
 -- Add indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_challenges_type_verification
@@ -581,3 +581,69 @@ ALTER TABLE quiz_sessions ADD CONSTRAINT fk_session_creator
 FOREIGN KEY (creator_id) REFERENCES users(id);
 
 CREATE INDEX idx_quiz_sessions_creator_id ON quiz_sessions(creator_id);
+
+
+
+-- Add external_id column for tracking original question IDs
+ALTER TABLE quiz_questions
+    ADD COLUMN IF NOT EXISTS external_id VARCHAR(100);
+
+-- Add source column for tracking question source
+ALTER TABLE quiz_questions
+    ADD COLUMN IF NOT EXISTS source VARCHAR(500);
+
+-- Add usage_count column for tracking question usage
+ALTER TABLE quiz_questions
+    ADD COLUMN IF NOT EXISTS usage_count INTEGER NOT NULL DEFAULT 0;
+
+-- Add is_active column for soft deletion
+ALTER TABLE quiz_questions
+    ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;
+
+-- Add last_used column for tracking when question was last used
+ALTER TABLE quiz_questions
+    ADD COLUMN IF NOT EXISTS last_used TIMESTAMP;
+
+-- Update existing columns that might need modification
+-- Ensure topic column is correct length
+-- ALTER TABLE quiz_questions
+--     MODIFY COLUMN topic VARCHAR(200);
+--
+-- -- Ensure additionalInfo column is correct length
+-- ALTER TABLE quiz_questions
+--     MODIFY COLUMN additional_info VARCHAR(1000);
+
+-- Add indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_quiz_questions_creator_id ON quiz_questions(creator_id);
+CREATE INDEX IF NOT EXISTS idx_quiz_questions_difficulty ON quiz_questions(difficulty);
+CREATE INDEX IF NOT EXISTS idx_quiz_questions_source ON quiz_questions(source);
+CREATE INDEX IF NOT EXISTS idx_quiz_questions_external_id ON quiz_questions(external_id);
+CREATE INDEX IF NOT EXISTS idx_quiz_questions_usage_count ON quiz_questions(usage_count);
+CREATE INDEX IF NOT EXISTS idx_quiz_questions_is_active ON quiz_questions(is_active);
+CREATE INDEX IF NOT EXISTS idx_quiz_questions_last_used ON quiz_questions(last_used);
+
+-- Update existing questions to have proper default values
+UPDATE quiz_questions
+SET usage_count = 0
+WHERE usage_count IS NULL;
+
+UPDATE quiz_questions
+SET is_active = true
+WHERE is_active IS NULL;
+
+UPDATE quiz_questions
+SET is_user_created = true
+WHERE creator_id IS NOT NULL AND is_user_created IS NULL;
+
+UPDATE quiz_questions
+SET is_user_created = false
+WHERE creator_id IS NULL AND is_user_created IS NULL;
+
+-- Set source for existing questions
+UPDATE quiz_questions
+SET source = 'USER_CREATED'
+WHERE creator_id IS NOT NULL AND source IS NULL;
+
+UPDATE quiz_questions
+SET source = 'APP_GENERATED'
+WHERE creator_id IS NULL AND source IS NULL;

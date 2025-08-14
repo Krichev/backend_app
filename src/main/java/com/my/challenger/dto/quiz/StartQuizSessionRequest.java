@@ -30,5 +30,11 @@ public class StartQuizSessionRequest {
 
     private Boolean enableAiHost = false;
     private String questionSource = "app"; // 'app' or 'user'
+
+    // Existing user question support
     private List<Long> customQuestionIds; // For user-created questions
+
+    // Enhanced question support - NEW FIELDS
+    private List<CreateQuestionRequest> newCustomQuestions; // For creating new questions on the fly
+    private List<AppQuestionData> appQuestions; // For saving app-generated questions
 }

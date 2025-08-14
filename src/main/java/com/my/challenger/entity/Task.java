@@ -70,16 +70,49 @@ public class Task {
     private Challenge challenge;
 
     @OneToMany(mappedBy = "task", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private Set<TaskCompletion> completions = new HashSet<>();
 
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
+
+        // SAFETY CHECK: Ensure verification method is set
+        if (verificationMethod == null) {
+            // If challenge is set and has verification method, use it
+            if (challenge != null && challenge.getVerificationMethod() != null) {
+                verificationMethod = challenge.getVerificationMethod();
+            } else {
+                // Default fallback
+                verificationMethod = VerificationMethod.MANUAL;
+            }
+        }
     }
 
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * Builder method to create a quiz task
+     */
+    public static Task createQuizTask(Challenge challenge, User assignedUser) {
+        return Task.builder()
+                .title(challenge.getTitle())
+                .description(challenge.getDescription())
+                .type(challenge.getFrequency() != null ?
+                        TaskType.valueOf(challenge.getFrequency().name()) : TaskType.ONE_TIME)
+                .status(TaskStatus.NOT_STARTED)
+                .verificationMethod(VerificationMethod.QUIZ) // Explicit quiz verification
+                .startDate(challenge.getStartDate())
+                .endDate(challenge.getEndDate())
+                .challenge(challenge)
+                .assignedToUser(assignedUser)
+                .assignedTo(assignedUser.getId())
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
     }
 }
