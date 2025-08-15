@@ -1,3 +1,4 @@
+// Additional repository for challenge-related statistics
 package com.my.challenger.repository;
 
 import com.my.challenger.entity.challenge.Challenge;
@@ -11,9 +12,6 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
-/**
- * Repository for Challenge entity
- */
 @Repository
 public interface ChallengeRepository extends JpaRepository<Challenge, Long> {
 
@@ -82,4 +80,13 @@ public interface ChallengeRepository extends JpaRepository<Challenge, Long> {
             "WHERE c.isPublic = true AND c.status = 'ACTIVE' " +
             "GROUP BY c.id ORDER BY participantCount DESC")
     List<Challenge> findTrendingChallenges(Pageable pageable);
+
+    /**
+     * Get user's challenge success rate
+     */
+    @Query("SELECT " +
+            "CAST(COUNT(CASE WHEN c.status = 'COMPLETED' THEN 1 END) AS DOUBLE) / " +
+            "CAST(COUNT(c) AS DOUBLE) * 100 " +
+            "FROM Challenge c WHERE c.creatorId = :userId")
+    Double getSuccessRateByCreatorId(@Param("userId") Long userId);
 }

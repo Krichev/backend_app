@@ -53,10 +53,10 @@ public class ChallengeServiceImpl implements ChallengeService {
         // Apply filters based on the provided parameters
         if (filters.get("participant_id") != null) {
             Long participantId = (Long) filters.get("participant_id");
-            challenges = challengeRepository.findChallengesByParticipantId(participantId, pageable);
+            challenges = challengeRepository.findByParticipantId(participantId, pageable);
         } else if (filters.get("creator_id") != null) {
             Long creatorId = (Long) filters.get("creator_id");
-            challenges = challengeRepository.findChallengesByUserIdAsCreatorOrParticipant(creatorId, pageable);
+            challenges = challengeRepository.findByUserIdAsCreatorOrParticipant(creatorId, pageable);
         } else {
             // Apply other filters like type, visibility, status
             ChallengeType type = filters.get("type") != null ?
