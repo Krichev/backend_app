@@ -1,5 +1,6 @@
 package com.my.challenger.service.impl;
 
+import com.my.challenger.dto.user.UpdateProfileRequest;
 import com.my.challenger.dto.user.UpdateUserProfileRequest;
 import com.my.challenger.dto.user.UserProfileResponse;
 import com.my.challenger.dto.user.UserStatsResponse;
@@ -11,6 +12,8 @@ import com.my.challenger.repository.ChallengeRepository;
 import com.my.challenger.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -28,7 +31,56 @@ public class UserService {
     private final UserRepository userRepository;
     private final ChallengeRepository challengeRepository;
     private final ChallengeProgressRepository challengeProgressRepository;
+    private final PasswordEncoder passwordEncoder;
 
+    public User updateUsername(String oldUsername, String newUsername) {
+        // Check if new username already exists
+        if (userRepository.existsByUserName(newUsername)) {
+            throw new BadRequestException("Username already taken");
+        }
+
+        User user = userRepository.findByUserName(oldUsername)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+
+        user.setUserName(newUsername);
+        return userRepository.save(user);
+    }
+
+    public User updateProfile(String username, UpdateProfileRequest request) {
+        User user = userRepository.findByUserName(username)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+
+        // Update username if provided and different
+        if (request.getUserName() != null && !request.getUserName().equals(username)) {
+            if (userRepository.existsByUserName(request.getUserName())) {
+                throw new BadRequestException("Username already taken");
+            }
+            user.setUserName(request.getUserName());
+        }
+
+        // Update other fields if provided
+        if (request.getEmail() != null) {
+            if (!request.getEmail().equals(user.getEmail()) &&
+                    userRepository.existsByEmail(request.getEmail())) {
+                throw new BadRequestException("Email already in use");
+            }
+            user.setEmail(request.getEmail());
+        }
+
+        if (request.getFullName() != null) {
+            user.setFullName(request.getFullName());
+        }
+
+        if (request.getPhoneNumber() != null) {
+            user.setPhoneNumber(request.getPhoneNumber());
+        }
+
+        if (request.getAddress() != null) {
+            user.setAddress(request.getAddress());
+        }
+
+        return userRepository.save(user);
+    }
     /**
      * Get user profile by ID
      */

@@ -50,40 +50,99 @@ public class ChallengeServiceImpl implements ChallengeService {
 
         List<Challenge> challenges;
 
-        // Apply filters based on the provided parameters
-        if (filters.get("participant_id") != null) {
-            Long participantId = (Long) filters.get("participant_id");
-            challenges = challengeRepository.findByParticipantId(participantId, pageable);
-        } else if (filters.get("creator_id") != null) {
-            Long creatorId = (Long) filters.get("creator_id");
-            challenges = challengeRepository.findByUserIdAsCreatorOrParticipant(creatorId, pageable);
-        } else {
-            // Apply other filters like type, visibility, status
-            ChallengeType type = filters.get("type") != null ?
-                    ChallengeType.valueOf((String) filters.get("type")) : null;
+        try {
+            // Apply filters based on the provided parameters
+            if (filters.get("participant_id") != null) {
+                Long participantId = (Long) filters.get("participant_id");
+                challenges = getChallengesByParticipantId(participantId, pageable);
+            } else if (filters.get("creator_id") != null) {
+                Long creatorId = (Long) filters.get("creator_id");
+                challenges = getChallengesByUserIdAsCreatorOrParticipant(creatorId, pageable);
+            } else {
+                // Apply other filters like type, visibility, status
+                ChallengeType type = filters.get("type") != null ?
+                        ChallengeType.valueOf((String) filters.get("type")) : null;
 
-            Boolean visibility = filters.get("visibility") != null ?
-                    "PUBLIC".equals(filters.get("visibility")) : null;
+                Boolean visibility = filters.get("visibility") != null ?
+                        "PUBLIC".equals(filters.get("visibility")) : null;
 
-            ChallengeStatus status = filters.get("status") != null ?
-                    ChallengeStatus.valueOf((String) filters.get("status")) : null;
+                ChallengeStatus status = filters.get("status") != null ?
+                        ChallengeStatus.valueOf((String) filters.get("status")) : null;
 
-            String targetGroup = (String) filters.get("targetGroup");
+                String targetGroup = (String) filters.get("targetGroup");
 
-            challenges = challengeRepository.findWithFilters(
-                    type,
-                    visibility,
-                    status,
-                    targetGroup,
-                    pageable
-            );
+                challenges = challengeRepository.findWithFilters(
+                        type,
+                        visibility,
+                        status,
+                        targetGroup,
+                        pageable
+                );
+            }
+
+            Long requestUserId = (Long) filters.get("requestUserId");
+
+            return challenges.stream()
+                    .map(challenge -> convertToDTO(challenge, requestUserId))
+                    .collect(Collectors.toList());
+
+        } catch (Exception e) {
+            log.error("Error getting challenges with filters: {}", filters, e);
+            throw new RuntimeException("Failed to retrieve challenges", e);
         }
+    }
 
-        Long requestUserId = (Long) filters.get("requestUserId");
+    /**
+     * FIXED METHOD: Get challenges by participant ID using new progress system
+     */
+    private List<Challenge> getChallengesByParticipantId(Long participantId, Pageable pageable) {
+        try {
+            // Use the new progress system instead of old participants relationship
+            List<ChallengeProgress> progressList = challengeProgressRepository.findByUserId(participantId);
 
-        return challenges.stream()
-                .map(challenge -> convertToDTO(challenge, requestUserId))
-                .collect(Collectors.toList());
+            return progressList.stream()
+                    .map(ChallengeProgress::getChallenge)
+                    .distinct() // Remove duplicates if any
+                    .skip(pageable.getOffset())
+                    .limit(pageable.getPageSize())
+                    .collect(Collectors.toList());
+
+        } catch (Exception e) {
+            log.error("Error finding challenges by participant ID: {}", participantId, e);
+            // Fallback to repository method if it exists
+            return challengeRepository.findChallengesByParticipantId(participantId, pageable);
+        }
+    }
+
+    /**
+     * FIXED METHOD: Get challenges by user ID as creator or participant
+     */
+    private List<Challenge> getChallengesByUserIdAsCreatorOrParticipant(Long userId, Pageable pageable) {
+        try {
+            // Get challenges where user is creator
+            List<Challenge> createdChallenges = challengeRepository.findByCreatorId(userId, pageable);
+
+            // Get challenges where user is participant (using progress system)
+            List<Challenge> participatedChallenges = getChallengesByParticipantId(userId, pageable);
+
+            // Combine and remove duplicates
+            List<Challenge> allChallenges = createdChallenges.stream()
+                    .collect(Collectors.toList());
+
+            participatedChallenges.stream()
+                    .filter(challenge -> !allChallenges.contains(challenge))
+                    .forEach(allChallenges::add);
+
+            return allChallenges.stream()
+                    .skip(pageable.getOffset())
+                    .limit(pageable.getPageSize())
+                    .collect(Collectors.toList());
+
+        } catch (Exception e) {
+            log.error("Error finding challenges by user ID as creator or participant: {}", userId, e);
+            // Fallback to repository method if it exists
+            return challengeRepository.findChallengesByUserIdAsCreatorOrParticipant(userId, pageable);
+        }
     }
 
     @Override
@@ -111,81 +170,28 @@ public class ChallengeServiceImpl implements ChallengeService {
         challenge.setStatus(request.getStatus() != null ?
                 request.getStatus() : ChallengeStatus.ACTIVE);
 
-        // Handle verification method - UPDATED to use new verificationDetails field
+        // Set verification method
         if (request.getVerificationMethod() != null) {
-            VerificationMethod verificationMethod = request.getVerificationMethod();
-            challenge.setVerificationMethod(verificationMethod);
-
-            // Only create VerificationDetails for challenges that need them
-            if (verificationMethod == VerificationMethod.PHOTO ||
-                    verificationMethod == VerificationMethod.LOCATION) {
-
-                if (request.getVerificationDetails() != null) {
-                    VerificationDetails verificationDetails = createVerificationDetails(
-                            request.getVerificationDetails(), verificationMethod);
-                    verificationDetails.setChallenge(challenge.getId());
-                    challenge.setVerificationDetails(Collections.singletonList(verificationDetails));
-                }
+            try {
+                VerificationMethod verificationMethod = request.getVerificationMethod();
+                challenge.setVerificationMethod(verificationMethod);
+            } catch (IllegalArgumentException e) {
+                log.warn("Invalid verification method: {}", request.getVerificationMethod());
+                challenge.setVerificationMethod(VerificationMethod.MANUAL);
             }
-            // For QUIZ, MANUAL, FITNESS_API, ACTIVITY - no VerificationDetails needed
         }
 
+        // Save challenge first
         Challenge savedChallenge = challengeRepository.save(challenge);
+
+        // Create initial task for the creator
         createInitialTask(savedChallenge, creator);
 
+        // Create progress record for the creator
+        createCreatorProgress(savedChallenge, creator);
+
+        log.info("Created challenge with ID: {} by user: {}", savedChallenge.getId(), creatorId);
         return convertToDTO(savedChallenge, creatorId);
-    }
-
-    /**
-     * Create VerificationDetails only when needed (PHOTO/LOCATION verification)
-     */
-    private VerificationDetails createVerificationDetails(
-            Map<String, Object> verificationData,
-            VerificationMethod method) {
-
-        if (verificationData == null || verificationData.isEmpty()) {
-            return null;
-        }
-
-        VerificationDetails.VerificationDetailsBuilder builder = VerificationDetails.builder();
-
-        if (method == VerificationMethod.PHOTO) {
-            PhotoVerificationDetails photoDetails = new PhotoVerificationDetails();
-            photoDetails.setDescription((String) verificationData.getOrDefault("description", ""));
-            photoDetails.setRequiresPhotoComparison(
-                    (Boolean) verificationData.getOrDefault("requiresComparison", false));
-            photoDetails.setVerificationMode(
-                    (String) verificationData.getOrDefault("verificationMode", "standard"));
-
-            builder.photoDetails(photoDetails);
-            builder.activityType("PHOTO_VERIFICATION");
-        }
-
-        if (method == VerificationMethod.LOCATION) {
-            LocationCoordinates coordinates = new LocationCoordinates();
-
-            // Handle different number types from JSON
-            Object latObj = verificationData.get("latitude");
-            Object lngObj = verificationData.get("longitude");
-            Object radiusObj = verificationData.getOrDefault("radius", 100);
-
-            Double latitude = latObj instanceof Number ? ((Number) latObj).doubleValue() :
-                    Double.parseDouble(latObj.toString());
-            Double longitude = lngObj instanceof Number ? ((Number) lngObj).doubleValue() :
-                    Double.parseDouble(lngObj.toString());
-
-            coordinates.setLatitude(latitude);
-            coordinates.setLongitude(longitude);
-
-            builder.locationCoordinates(coordinates);
-
-            Double radius = radiusObj instanceof Number ? ((Number) radiusObj).doubleValue() :
-                    Double.parseDouble(radiusObj.toString());
-            builder.radius(radius);
-            builder.activityType("LOCATION_VERIFICATION");
-        }
-
-        return builder.build();
     }
 
     @Override
@@ -193,53 +199,38 @@ public class ChallengeServiceImpl implements ChallengeService {
     public ChallengeDTO updateChallenge(Long id, UpdateChallengeRequest request, Long requestUserId) {
         Challenge challenge = findChallengeById(id);
 
-        // Validate ownership
+        // Verify ownership
         validateChallengeOwnership(id, requestUserId);
 
-        // Update fields if provided
-        if (request.getTitle() != null && !request.getTitle().trim().isEmpty()) {
+        // Update basic fields
+        if (request.getTitle() != null) {
             challenge.setTitle(request.getTitle());
         }
-
         if (request.getDescription() != null) {
             challenge.setDescription(request.getDescription());
         }
-
-        if (request.getType() != null) {
-            challenge.setType(request.getType());
-        }
-
-        if (request.getVisibility() != null) {
-            challenge.setPublic(request.getVisibility() == VisibilityType.PUBLIC);
-        }
-
-        if (request.getStatus() != null) {
-            challenge.setStatus(request.getStatus());
-        }
-
-        if (request.getFrequency() != null) {
-            challenge.setFrequency(request.getFrequency());
-        }
-
-        if (request.getStartDate() != null) {
-            challenge.setStartDate(request.getStartDate());
-        }
-
         if (request.getEndDate() != null) {
             challenge.setEndDate(request.getEndDate());
         }
+        if (request.getStatus() != null) {
+            try {
+                ChallengeStatus newStatus = request.getStatus();
+                challenge.setStatus(newStatus);
+            } catch (IllegalArgumentException e) {
+                log.warn("Invalid status in update request: {}", request.getStatus());
+            }
+        }
 
-        // Handle verification method updates
+        // Update verification method if provided
         if (request.getVerificationMethod() != null) {
             try {
                 VerificationMethod newMethod = VerificationMethod.valueOf(request.getVerificationMethod());
                 challenge.setVerificationMethod(newMethod);
 
                 // Clear existing verification details
-                challenge.getVerificationDetails().clear();
-
-                // Add new verification details if needed
-                // Note: UpdateChallengeRequest would need verificationDetails field for this to work fully
+                if (challenge.getVerificationDetails() != null) {
+                    challenge.getVerificationDetails().clear();
+                }
 
             } catch (IllegalArgumentException e) {
                 log.warn("Invalid verification method in update request: {}", request.getVerificationMethod());
@@ -317,84 +308,108 @@ public class ChallengeServiceImpl implements ChallengeService {
         // Set status based on verification method
         if (challenge.getVerificationMethod() != null &&
                 challenge.getVerificationMethod() == VerificationMethod.MANUAL) {
-            // Manual verification requires admin approval
-            completion.setStatus(CompletionStatus.SUBMITTED);
+            completion.setStatus(CompletionStatus.PENDING);
         } else {
-            // Auto-verification for other methods
             completion.setStatus(CompletionStatus.VERIFIED);
-
-            // Update task status
             task.setStatus(TaskStatus.COMPLETED);
-            taskRepository.save(task);
-
-            // Update challenge progress
-            updateChallengeProgress(challenge, user);
         }
 
-        // Set verification proof and notes
-        if (proofData != null) {
+        completion.setNotes(notes);
+
+        // Store proof data as JSON
+        if (proofData != null && !proofData.isEmpty()) {
             try {
                 String proofJson = objectMapper.writeValueAsString(proofData);
                 completion.setVerificationProof(proofJson);
             } catch (JsonProcessingException e) {
-                log.error("Error processing proof data", e);
+                log.warn("Failed to serialize proof data for task completion", e);
             }
         }
 
-        completion.setNotes(notes);
-        completion.setCreatedAt(LocalDateTime.now());
-
         taskCompletionRepository.save(completion);
 
-        log.info("Challenge completion submitted for user {} on challenge {}", userId, challengeId);
+        // Update challenge progress
+        updateChallengeProgress(challenge, user);
+
+        log.info("User {} submitted completion for challenge {}", userId, challengeId);
     }
 
     @Override
     @Transactional
     public void verifyChallengeCompletion(Long challengeId, Long userId, boolean approved) {
         Challenge challenge = findChallengeById(challengeId);
+        User user = findUserById(userId);
 
         // Find the most recent task completion for this challenge and user
-        TaskCompletion completion = taskCompletionRepository.findFirstByTaskChallengeIdAndUserIdOrderByCompletionDateDesc(challengeId, userId)
-                .orElseThrow(() -> new IllegalStateException("No completion record found"));
+        TaskCompletion completion = taskCompletionRepository
+                .findFirstByTaskChallengeIdAndUserIdOrderByCompletionDateDesc(challengeId, userId)
+                .orElseThrow(() -> new IllegalStateException("No completion record found for user " + userId + " on challenge " + challengeId));
 
-        // Update the status
+        // Update the verification status
         completion.setStatus(approved ? CompletionStatus.VERIFIED : CompletionStatus.REJECTED);
         completion.setVerificationDate(LocalDateTime.now());
 
         taskCompletionRepository.save(completion);
 
         if (approved) {
-            // Update the task status
+            // Update the task status to completed
             Task task = completion.getTask();
-            task.setStatus(TaskStatus.COMPLETED);
-            taskRepository.save(task);
+            if (task != null) {
+                task.setStatus(TaskStatus.COMPLETED);
+                taskRepository.save(task);
+            }
 
             // Update challenge progress
-            updateChallengeProgress(challenge, completion.getUser());
-        }
+            updateChallengeProgress(challenge, user);
 
-        log.info("Challenge completion {} for user {} on challenge {}",
-                approved ? "approved" : "rejected", userId, challengeId);
+            log.info("Challenge completion approved for user {} on challenge {}", userId, challengeId);
+        } else {
+            log.info("Challenge completion rejected for user {} on challenge {}", userId, challengeId);
+        }
     }
 
     @Override
     public List<ChallengeDTO> searchChallenges(String query, Long requestUserId) {
-        List<Challenge> challenges = challengeRepository.searchByKeyword(query);
-        return challenges.stream()
-                .map(challenge -> convertToDTO(challenge, requestUserId))
-                .collect(Collectors.toList());
+        if (query == null || query.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        try {
+            List<Challenge> challenges = challengeRepository.searchByKeyword(query.trim());
+            return challenges.stream()
+                    .map(challenge -> convertToDTO(challenge, requestUserId))
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Error searching challenges with query: {}", query, e);
+            return Collections.emptyList();
+        }
     }
 
     @Override
-    public List<Map<String, Object>> getVerificationHistory(Long challengeId, Long userId) {
+    public List<Map<String, Object>> getVerificationHistory(Long challengeId, Long requestUserId) {
         Challenge challenge = findChallengeById(challengeId);
-        User user = findUserById(userId);
 
-        List<TaskCompletion> completions = taskCompletionRepository
-                .findByTaskChallengeIdAndUserIdOrderByCompletionDateDesc(challengeId, userId);
+        // Verify user has rights to see verification history (creator or admin)
+        validateChallengeVerificationRights(challengeId, requestUserId);
 
-        return completions.stream()
+        // Get all task completions for this challenge across all statuses
+        List<TaskCompletion> allCompletions = new java.util.ArrayList<>();
+
+        // Get completions by status
+        allCompletions.addAll(taskCompletionRepository.findByTaskChallengeIdAndStatus(challengeId, CompletionStatus.PENDING));
+        allCompletions.addAll(taskCompletionRepository.findByTaskChallengeIdAndStatus(challengeId, CompletionStatus.VERIFIED));
+        allCompletions.addAll(taskCompletionRepository.findByTaskChallengeIdAndStatus(challengeId, CompletionStatus.REJECTED));
+        allCompletions.addAll(taskCompletionRepository.findByTaskChallengeIdAndStatus(challengeId, CompletionStatus.SUBMITTED));
+
+        // Sort by completion date descending
+        allCompletions.sort((a, b) -> {
+            if (a.getCompletionDate() == null && b.getCompletionDate() == null) return 0;
+            if (a.getCompletionDate() == null) return 1;
+            if (b.getCompletionDate() == null) return -1;
+            return b.getCompletionDate().compareTo(a.getCompletionDate());
+        });
+
+        return allCompletions.stream()
                 .map(completion -> {
                     Map<String, Object> details = new HashMap<>();
 
@@ -413,10 +428,11 @@ public class ChallengeServiceImpl implements ChallengeService {
 
                     VerificationHistoryDTO dto = VerificationHistoryDTO.builder()
                             .challengeId(challengeId)
-                            .userId(userId)
+                            .userId(completion.getUserId())
                             .challengeTitle(challenge.getTitle())
-                            .userName(user.getUsername())
-                            .completionDate(completion.getCompletionDate().toString())
+                            .userName(completion.getUser() != null ? completion.getUser().getUsername() : "Unknown")
+                            .completionDate(completion.getCompletionDate() != null ?
+                                    completion.getCompletionDate().toString() : null)
                             .verificationDate(completion.getVerificationDate() != null ?
                                     completion.getVerificationDate().toString() : null)
                             .status(completion.getStatus().toString())
@@ -467,31 +483,31 @@ public class ChallengeServiceImpl implements ChallengeService {
                 .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + id));
     }
 
+    /**
+     * Helper method to create initial task for a challenge creator
+     */
     private void createInitialTask(Challenge challenge, User creator) {
-        // Safety check for verification method
-        if (challenge.getVerificationMethod() == null) {
-            log.warn("Challenge {} has null verification method, setting default", challenge.getId());
-            challenge.setVerificationMethod(VerificationMethod.MANUAL);
-            challengeRepository.save(challenge);
-        }
-
-        Task task = Task.builder()
-                .title(challenge.getTitle())
-                .description(challenge.getDescription())
-                .type(challenge.getFrequency() != null ?
-                        TaskType.valueOf(challenge.getFrequency().name()) : TaskType.ONE_TIME)
-                .status(TaskStatus.NOT_STARTED)
-                .verificationMethod(challenge.getVerificationMethod()) // Now guaranteed not null
-                .startDate(challenge.getStartDate())
-                .endDate(challenge.getEndDate())
-                .challenge(challenge)
-                .assignedToUser(creator)
-                .assignedTo(creator.getId())
-                .build();
+        Task task = new Task();
+        task.setTitle(challenge.getTitle());
+        task.setDescription(challenge.getDescription());
+        task.setType(challenge.getFrequency() != null ?
+                TaskType.valueOf(challenge.getFrequency().name()) :
+                TaskType.ONE_TIME);
+        task.setStatus(TaskStatus.NOT_STARTED);
+        task.setVerificationMethod(challenge.getVerificationMethod());
+        task.setStartDate(challenge.getStartDate());
+        task.setEndDate(challenge.getEndDate());
+        task.setChallenge(challenge);
+        task.setAssignedToUser(creator);
+        task.setAssignedTo(creator.getId());
+        task.setCreatedAt(LocalDateTime.now());
+        task.setUpdatedAt(LocalDateTime.now());
 
         taskRepository.save(task);
+
         log.debug("Created initial task for challenge {} and creator {}", challenge.getId(), creator.getId());
     }
+
     /**
      * Helper method to create task for a user who joined the challenge
      */
@@ -515,6 +531,23 @@ public class ChallengeServiceImpl implements ChallengeService {
         taskRepository.save(task);
 
         log.debug("Created user task for challenge {} and user {}", challenge.getId(), user.getId());
+    }
+
+    /**
+     * Helper method to create progress record for challenge creator
+     */
+    private void createCreatorProgress(Challenge challenge, User creator) {
+        ChallengeProgress progress = new ChallengeProgress();
+        progress.setChallenge(challenge);
+        progress.setUser(creator);
+        progress.setStatus(ProgressStatus.IN_PROGRESS);
+        progress.setCompletionPercentage(0.0);
+        progress.setCreatedAt(LocalDateTime.now());
+        progress.setUpdatedAt(LocalDateTime.now());
+
+        challengeProgressRepository.save(progress);
+
+        log.debug("Created progress record for challenge {} and creator {}", challenge.getId(), creator.getId());
     }
 
     /**
@@ -576,7 +609,7 @@ public class ChallengeServiceImpl implements ChallengeService {
             dto.setUserHasJoined(hasJoined || isCreator);
         }
 
-        // Get participant count
+        // Get participant count using new progress system
         Long participantCount = challengeProgressRepository.countByChallengeId(challenge.getId());
         dto.setParticipantCount(participantCount.intValue());
 

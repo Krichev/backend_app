@@ -9,12 +9,10 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserProfileResponse {
-    private Long id;
+public class UpdateProfileRequest {
     private String userName;
     private String email;
     private String fullName;
     private String phoneNumber;
     private String address;
-    private String newToken; // Optional, only set when username changes
 }

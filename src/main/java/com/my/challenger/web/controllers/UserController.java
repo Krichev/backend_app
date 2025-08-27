@@ -1,8 +1,8 @@
 package com.my.challenger.web.controllers;
 
-import com.my.challenger.dto.user.UpdateUserProfileRequest;
-import com.my.challenger.dto.user.UserProfileResponse;
-import com.my.challenger.dto.user.UserStatsResponse;
+import com.my.challenger.config.JwtAuthenticationEntryPoint;
+import com.my.challenger.config.JwtRequestFilter;
+import com.my.challenger.dto.user.*;
 import com.my.challenger.entity.User;
 import com.my.challenger.repository.UserRepository;
 import com.my.challenger.security.CurrentUser;
@@ -13,10 +13,18 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Bean;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -28,6 +36,99 @@ public class UserController {
 
     private final UserService userService;
     private final UserRepository userRepository;
+    private final JwtTokenProvider jwtTokenProvider;
+    private final AuthenticationManager authenticationManager;
+    private final UserDetailsService userDetailsService;
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+    private final JwtRequestFilter jwtRequestFilter;
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http.csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(authz -> authz
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/users/profile/**").authenticated()
+                        .anyRequest().authenticated()
+                )
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(jwtAuthenticationEntryPoint)
+                )
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                );
+
+        http.addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+    @PutMapping("/profile/username")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<AuthResponse> updateUsername(
+            @RequestBody @Valid UpdateUsernameRequest request,
+            Authentication authentication) {
+
+        String oldUsername = authentication.getName();
+
+        // Update username in database
+        User updatedUser = userService.updateUsername(oldUsername, request.getNewUsername());
+
+        // Generate new JWT token with updated username
+        UserDetails userDetails = userDetailsService.loadUserByUsername(updatedUser.getUserName());
+        String newToken = jwtTokenProvider.generateToken(userDetails);
+
+        // Create response with new token
+        AuthResponse authResponse = AuthResponse.builder()
+                .token(newToken)
+                .user(mapToUserResponse(updatedUser))
+                .message("Username updated successfully")
+                .build();
+
+        return ResponseEntity.ok(authResponse);
+    }
+
+    @PutMapping("/profile")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<UserProfileResponse> updateProfile(
+            @RequestBody @Valid UpdateProfileRequest request,
+            Authentication authentication) {
+
+        String username = authentication.getName();
+        User updatedUser = userService.updateProfile(username, request);
+
+        // If username was changed, return new token
+        if (request.getUserName() != null && !request.getUserName().equals(username)) {
+            UserDetails userDetails = userDetailsService.loadUserByUsername(updatedUser.getUserName());
+            String newToken = jwtTokenProvider.generateToken(userDetails);
+
+            UserProfileResponse response = mapToUserProfileResponse(updatedUser);
+            response.setNewToken(newToken);
+            return ResponseEntity.ok(response);
+        }
+
+        return ResponseEntity.ok(mapToUserProfileResponse(updatedUser));
+    }
+
+    private UserResponse mapToUserResponse(User user) {
+        return UserResponse.builder()
+                .id(user.getId())
+                .userName(user.getUserName())
+                .email(user.getEmail())
+                .fullName(user.getFullName())
+                .phoneNumber(user.getPhoneNumber())
+                .address(user.getAddress())
+                .build();
+    }
+
+    private UserProfileResponse mapToUserProfileResponse(User user) {
+        return UserProfileResponse.builder()
+                .id(user.getId())
+                .userName(user.getUserName())
+                .email(user.getEmail())
+                .fullName(user.getFullName())
+                .phoneNumber(user.getPhoneNumber())
+                .address(user.getAddress())
+                .build();
+    }
 
     @Operation(summary = "Get user profile by ID")
     @GetMapping("/{userId}")
