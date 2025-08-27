@@ -1,6 +1,5 @@
 package com.my.challenger.service.impl;
 
-import com.my.challenger.dto.user.UpdateProfileRequest;
 import com.my.challenger.dto.user.UpdateUserProfileRequest;
 import com.my.challenger.dto.user.UserProfileResponse;
 import com.my.challenger.dto.user.UserStatsResponse;
@@ -12,8 +11,6 @@ import com.my.challenger.repository.ChallengeRepository;
 import com.my.challenger.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -31,56 +28,128 @@ public class UserService {
     private final UserRepository userRepository;
     private final ChallengeRepository challengeRepository;
     private final ChallengeProgressRepository challengeProgressRepository;
-    private final PasswordEncoder passwordEncoder;
 
-    public User updateUsername(String oldUsername, String newUsername) {
-        // Check if new username already exists
-        if (userRepository.existsByUserName(newUsername)) {
-            throw new BadRequestException("Username already taken");
+    /**
+     * Get user statistics - ENHANCED with better error handling
+     */
+    @Transactional(readOnly = true)
+    public UserStatsResponse getUserStats(Long userId) {
+        log.debug("Fetching user stats for userId: {}", userId);
+
+        // Verify user exists
+        if (!userRepository.existsById(userId)) {
+            throw new ResourceNotFoundException("User not found with id: " + userId);
         }
 
-        User user = userRepository.findByUserName(oldUsername)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+        try {
+            // Get challenge statistics
+            long createdChallenges = challengeRepository.countByCreatorId(userId);
+            long completedChallenges = challengeProgressRepository.countCompletedChallengesByUserId(userId);
 
-        user.setUserName(newUsername);
-        return userRepository.save(user);
+            // Calculate success rate using repository method (now handles division by zero)
+            Double successRate = challengeRepository.getSuccessRateByCreatorId(userId);
+
+            // Additional safety check - should not be null anymore, but just in case
+            if (successRate == null) {
+                log.warn("Success rate calculation returned null for userId: {}. Setting to 0.0", userId);
+                successRate = 0.0;
+            }
+
+            // Ensure success rate is within valid range (0-100)
+            if (successRate < 0.0) {
+                log.warn("Invalid success rate {} for userId: {}. Setting to 0.0", successRate, userId);
+                successRate = 0.0;
+            } else if (successRate > 100.0) {
+                log.warn("Success rate {} exceeds 100% for userId: {}. Setting to 100.0", successRate, userId);
+                successRate = 100.0;
+            }
+
+            UserStatsResponse stats = UserStatsResponse.builder()
+                    .created((int) createdChallenges)
+                    .completed((int) completedChallenges)
+                    .success(Math.round(successRate * 100.0) / 100.0) // Round to 2 decimal places
+                    .build();
+
+            log.debug("User stats for userId {}: created={}, completed={}, success={}%",
+                    userId, stats.getCreated(), stats.getCompleted(), stats.getSuccess());
+
+            return stats;
+
+        } catch (Exception e) {
+            log.error("Error calculating user stats for userId: {}", userId, e);
+
+            // Fallback: return basic stats without success rate calculation
+            try {
+                long createdChallenges = challengeRepository.countByCreatorId(userId);
+                long completedChallenges = challengeProgressRepository.countCompletedChallengesByUserId(userId);
+
+                UserStatsResponse fallbackStats = UserStatsResponse.builder()
+                        .created((int) createdChallenges)
+                        .completed((int) completedChallenges)
+                        .success(0.0) // Safe fallback
+                        .build();
+
+                log.warn("Returning fallback stats for userId: {}", userId);
+                return fallbackStats;
+
+            } catch (Exception fallbackException) {
+                log.error("Even fallback stats calculation failed for userId: {}", userId, fallbackException);
+
+                // Ultimate fallback - return zero stats
+                return UserStatsResponse.builder()
+                        .created(0)
+                        .completed(0)
+                        .success(0.0)
+                        .build();
+            }
+        }
     }
 
-    public User updateProfile(String username, UpdateProfileRequest request) {
-        User user = userRepository.findByUserName(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+    /**
+     * Alternative method using detailed stats (if you want more granular data)
+     */
+    @Transactional(readOnly = true)
+    public UserStatsResponse getUserStatsDetailed(Long userId) {
+        log.debug("Fetching detailed user stats for userId: {}", userId);
 
-        // Update username if provided and different
-        if (request.getUserName() != null && !request.getUserName().equals(username)) {
-            if (userRepository.existsByUserName(request.getUserName())) {
-                throw new BadRequestException("Username already taken");
+        // Verify user exists
+        if (!userRepository.existsById(userId)) {
+            throw new ResourceNotFoundException("User not found with id: " + userId);
+        }
+
+        try {
+            // Get basic counts
+            long completedChallenges = challengeProgressRepository.countCompletedChallengesByUserId(userId);
+
+            // Get detailed success rate stats
+            Object[] results = challengeRepository.getDetailedSuccessRateByCreatorId(userId);
+
+            if (results.length >= 5) {
+                Long totalChallenges = (Long) results[0];
+                Long completedCreated = (Long) results[1];
+                Long activeChallenges = (Long) results[2];
+                Long failedChallenges = (Long) results[3];
+                Double successRate = (Double) results[4];
+
+                log.debug("Detailed stats for userId {}: total={}, completed={}, active={}, failed={}, rate={}%",
+                        userId, totalChallenges, completedCreated, activeChallenges, failedChallenges, successRate);
+
+                return UserStatsResponse.builder()
+                        .created(totalChallenges.intValue())
+                        .completed((int) completedChallenges)
+                        .success(successRate != null ? Math.round(successRate * 100.0) / 100.0 : 0.0)
+                        .build();
+            } else {
+                // Fallback to basic method
+                return getUserStats(userId);
             }
-            user.setUserName(request.getUserName());
-        }
 
-        // Update other fields if provided
-        if (request.getEmail() != null) {
-            if (!request.getEmail().equals(user.getEmail()) &&
-                    userRepository.existsByEmail(request.getEmail())) {
-                throw new BadRequestException("Email already in use");
-            }
-            user.setEmail(request.getEmail());
+        } catch (Exception e) {
+            log.error("Error in detailed stats calculation for userId: {}, falling back to basic stats", userId, e);
+            return getUserStats(userId);
         }
-
-        if (request.getFullName() != null) {
-            user.setFullName(request.getFullName());
-        }
-
-        if (request.getPhoneNumber() != null) {
-            user.setPhoneNumber(request.getPhoneNumber());
-        }
-
-        if (request.getAddress() != null) {
-            user.setAddress(request.getAddress());
-        }
-
-        return userRepository.save(user);
     }
+
     /**
      * Get user profile by ID
      */
@@ -148,38 +217,6 @@ public class UserService {
         log.info("Successfully updated user profile for userId: {}", userId);
 
         return convertToUserProfileResponse(savedUser);
-    }
-
-    /**
-     * Get user statistics
-     */
-    @Transactional(readOnly = true)
-    public UserStatsResponse getUserStats(Long userId) {
-        log.debug("Fetching user stats for userId: {}", userId);
-
-        // Verify user exists
-        if (!userRepository.existsById(userId)) {
-            throw new ResourceNotFoundException("User not found with id: " + userId);
-        }
-
-        // Get challenge statistics
-        long createdChallenges = challengeRepository.countByCreatorId(userId);
-        long completedChallenges = challengeProgressRepository.countCompletedChallengesByUserId(userId);
-
-        // Calculate success rate using repository method (more accurate for creator success rate)
-        Double successRate = challengeRepository.getSuccessRateByCreatorId(userId);
-        if (successRate == null) {
-            successRate = 0.0;
-        }
-
-        UserStatsResponse stats = UserStatsResponse.builder()
-                .created((int) createdChallenges)
-                .completed((int) completedChallenges)
-                .success(successRate)
-                .build();
-
-        log.debug("User stats for userId {}: {}", userId, stats);
-        return stats;
     }
 
     /**

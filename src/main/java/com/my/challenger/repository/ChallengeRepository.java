@@ -19,16 +19,10 @@ import java.util.Optional;
  */
 @Repository
 public interface ChallengeRepository extends JpaRepository<Challenge, Long> {
-
     /**
      * Find challenges by creator ID
      */
     List<Challenge> findByCreatorId(Long creatorId, Pageable pageable);
-
-    /**
-     * Find challenges by creator ID (without pagination)
-     */
-    List<Challenge> findByCreatorId(Long creatorId);
 
     /**
      * Find challenges with filters
@@ -46,14 +40,93 @@ public interface ChallengeRepository extends JpaRepository<Challenge, Long> {
             Pageable pageable);
 
     /**
-     * FIXED: Find challenges by participant ID using the new progress system
-     * This replaces the old participants many-to-many relationship
+     * Find challenges by participant ID
      */
-    @Query("SELECT DISTINCT c FROM Challenge c " +
-            "JOIN c.progress cp " +
-            "WHERE cp.user.id = :participantId " +
-            "ORDER BY c.startDate DESC")
+    @Query("SELECT DISTINCT c FROM Challenge c JOIN c.progress cp WHERE cp.user.id = :participantId")
     List<Challenge> findChallengesByParticipantId(@Param("participantId") Long participantId, Pageable pageable);
+
+    @Query("SELECT c FROM Challenge c WHERE " +
+            "c.creator.id = :userId OR EXISTS (SELECT cp FROM ChallengeProgress cp " +
+            "WHERE cp.challenge.id = c.id AND cp.user.id = :userId)")
+    List<Challenge> findChallengesByUserIdAsCreatorOrParticipant(@Param("userId") Long userId, Pageable pageable);
+
+    /**
+     * Search challenges by keyword in title, description
+     */
+    @Query("SELECT c FROM Challenge c WHERE " +
+            "LOWER(c.title) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+            "LOWER(c.description) LIKE LOWER(CONCAT('%', :query, '%'))")
+    List<Challenge> searchByKeyword(@Param("query") String query);
+
+    /**
+     * Count challenges for a specific user (created by them)
+     */
+    long countByCreatorId(Long creatorId);
+
+    /**
+     * Count active challenges for a specific user
+     */
+    @Query("SELECT COUNT(c) FROM Challenge c WHERE c.creator.id = :userId AND c.status = 'ACTIVE'")
+    long countActiveByCreatorId(@Param("userId") Long userId);
+
+    /**
+     * Find public challenges for explore page
+     */
+    @Query("SELECT c FROM Challenge c WHERE c.isPublic = true AND c.status = 'ACTIVE' " +
+            "ORDER BY c.startDate DESC")
+    List<Challenge> findPublicChallenges(Pageable pageable);
+
+    /**
+     * Find trending challenges (most participants)
+     */
+    @Query("SELECT c, COUNT(cp) AS participantCount FROM Challenge c " +
+            "JOIN ChallengeProgress cp ON c.id = cp.challenge.id " +
+            "WHERE c.isPublic = true AND c.status = 'ACTIVE' " +
+            "GROUP BY c.id ORDER BY participantCount DESC")
+    List<Challenge> findTrendingChallenges(Pageable pageable);
+
+    /**
+     * Get user's challenge success rate - FIXED: Handles division by zero
+     */
+    @Query("SELECT " +
+            "CASE " +
+            "WHEN COUNT(c) = 0 THEN 0.0 " +
+            "ELSE (CAST(COUNT(CASE WHEN c.status = 'COMPLETED' THEN 1 END) AS DOUBLE) / " +
+            "CAST(COUNT(c) AS DOUBLE) * 100) " +
+            "END " +
+            "FROM Challenge c WHERE c.creator.id = :userId")
+    Double getSuccessRateByCreatorId(@Param("userId") Long userId);
+
+    /**
+     * Alternative method: Get detailed success rate stats
+     */
+    @Query("SELECT " +
+            "COUNT(c) as totalChallenges, " +
+            "COUNT(CASE WHEN c.status = 'COMPLETED' THEN 1 END) as completedChallenges " +
+            "FROM Challenge c WHERE c.creator.id = :userId")
+    Object[] getSuccessRateStatsById(@Param("userId") Long userId);
+
+    /**
+     * Get success rate with additional status breakdown
+     */
+    @Query("SELECT " +
+            "COUNT(c) as total, " +
+            "COUNT(CASE WHEN c.status = 'COMPLETED' THEN 1 END) as completed, " +
+            "COUNT(CASE WHEN c.status = 'ACTIVE' THEN 1 END) as active, " +
+            "COUNT(CASE WHEN c.status = 'FAILED' THEN 1 END) as failed, " +
+            "CASE " +
+            "WHEN COUNT(c) = 0 THEN 0.0 " +
+            "ELSE (CAST(COUNT(CASE WHEN c.status = 'COMPLETED' THEN 1 END) AS DOUBLE) / " +
+            "CAST(COUNT(c) AS DOUBLE) * 100) " +
+            "END as successRate " +
+            "FROM Challenge c WHERE c.creator.id = :userId")
+    Object[] getDetailedSuccessRateByCreatorId(@Param("userId") Long userId);
+
+    /**
+     * Find challenges by creator ID (without pagination)
+     */
+    List<Challenge> findByCreatorId(Long creatorId);
+
 
     /**
      * FIXED: Find challenges by participant ID (without pagination)
@@ -64,15 +137,6 @@ public interface ChallengeRepository extends JpaRepository<Challenge, Long> {
             "ORDER BY c.startDate DESC")
     List<Challenge> findChallengesByParticipantId(@Param("participantId") Long participantId);
 
-    /**
-     * FIXED: Find challenges where user is creator OR participant using progress system
-     */
-    @Query("SELECT DISTINCT c FROM Challenge c " +
-            "WHERE c.creator.id = :userId " +
-            "OR EXISTS (SELECT cp FROM ChallengeProgress cp " +
-            "           WHERE cp.challenge.id = c.id AND cp.user.id = :userId) " +
-            "ORDER BY c.startDate DESC")
-    List<Challenge> findChallengesByUserIdAsCreatorOrParticipant(@Param("userId") Long userId, Pageable pageable);
 
     /**
      * FIXED: Find challenges where user is creator OR participant (without pagination)
@@ -93,14 +157,6 @@ public interface ChallengeRepository extends JpaRepository<Challenge, Long> {
             "ORDER BY c.startDate DESC")
     List<Challenge> searchByKeyword(@Param("query") String query, Pageable pageable);
 
-    /**
-     * Search challenges by keyword (without pagination)
-     */
-    @Query("SELECT c FROM Challenge c WHERE " +
-            "LOWER(c.title) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
-            "LOWER(c.description) LIKE LOWER(CONCAT('%', :query, '%')) " +
-            "ORDER BY c.startDate DESC")
-    List<Challenge> searchByKeyword(@Param("query") String query);
 
     /**
      * Find active public challenges
@@ -132,11 +188,6 @@ public interface ChallengeRepository extends JpaRepository<Challenge, Long> {
      */
     List<Challenge> findByStatus(ChallengeStatus status, Pageable pageable);
 
-    /**
-     * Find public challenges
-     */
-    @Query("SELECT c FROM Challenge c WHERE c.isPublic = true ORDER BY c.startDate DESC")
-    List<Challenge> findPublicChallenges(Pageable pageable);
 
     /**
      * Find private challenges
@@ -222,11 +273,6 @@ public interface ChallengeRepository extends JpaRepository<Challenge, Long> {
     long countPublicChallenges();
 
     /**
-     * Count challenges by creator
-     */
-    long countByCreatorId(Long creatorId);
-
-    /**
      * Find challenges by date range
      */
     @Query("SELECT c FROM Challenge c WHERE " +
@@ -290,12 +336,4 @@ public interface ChallengeRepository extends JpaRepository<Challenge, Long> {
             @Param("minParticipants") Long minParticipants,
             @Param("minCompletion") Double minCompletion);
 
-    /**
-     * Get user's challenge success rate
-     */
-    @Query("SELECT " +
-            "CAST(COUNT(CASE WHEN c.status = 'COMPLETED' THEN 1 END) AS DOUBLE) / " +
-            "CAST(COUNT(c) AS DOUBLE) * 100 " +
-            "FROM Challenge c WHERE c.creator.id = :userId")
-    Double getSuccessRateByCreatorId(@Param("userId") Long userId);
 }
