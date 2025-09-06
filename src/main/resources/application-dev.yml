@@ -10,7 +10,12 @@
 #
 
 
-
+app:
+  storage:
+    type: local
+  upload:
+    dir: ./uploads
+    max-file-size: 10485760
 
 spring:
   datasource:

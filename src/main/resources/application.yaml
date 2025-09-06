@@ -14,7 +14,30 @@ spring:
     pathmatch:
       matching-strategy: ant_path_matcher
 
-
+app:
+  upload:
+    dir: ${UPLOAD_DIR:./uploads}
+    max-file-size: 52428800      # 50MB for images
+    max-video-size: 209715200    # 200MB for videos
+    max-audio-size: 52428800     # 50MB for audio
+  ffmpeg:
+    path: ${FFMPEG_PATH:ffmpeg}
+  ffprobe:
+    path: ${FFPROBE_PATH:ffprobe}
+  storage:
+    type: s3
+  s3:
+    bucket-name: ${S3_BUCKET_NAME:my-challenger-photos}
+    region: ${AWS_REGION:us-east-1}
+    access-key: ${AWS_ACCESS_KEY}
+    secret-key: ${AWS_SECRET_KEY}
+    cloudfront-domain: ${CLOUDFRONT_DOMAIN:}
+#  upload:
+#    max-file-size: 10485760
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 250MB
 
   jpa:
     hibernate:
@@ -75,4 +98,199 @@ jwt:
   secret: yourVeryLongSecretKeyHereMakeItAtLeast256BitsLongForSecurity
   expiration: 86400000
 
+spring:
+  application:
+    name: challenger-app
 
+  # Database configuration
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/challenger_db}
+    username: ${SPRING_DATASOURCE_USERNAME:challenger_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:challenger_password}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
+
+    # HikariCP connection pool configuration
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 30000
+      pool-name: ChallengerHikariPool
+      max-lifetime: 2000000
+      connection-timeout: 30000
+      leak-detection-threshold: 60000
+
+  # JPA/Hibernate configuration
+  jpa:
+    database-platform: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.PostgreSQLDialect}
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:validate}
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+        implicit-strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyLegacyJpaImpl
+    show-sql: ${SPRING_JPA_SHOW_SQL:false}
+    properties:
+      hibernate:
+        format_sql: ${SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL:true}
+        jdbc:
+          batch_size: 20
+          fetch_size: 50
+        order_inserts: true
+        order_updates: true
+        batch_versioned_data: true
+        generate_statistics: false
+
+  # Redis configuration (if using Redis for caching)
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
+      jedis:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+
+  # Security configuration
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:}
+            client-secret: ${GOOGLE_CLIENT_SECRET:}
+            scope: openid,profile,email
+
+  # File upload configuration
+  servlet:
+    multipart:
+      max-file-size: ${SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE:10MB}
+      max-request-size: ${SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE:10MB}
+
+  # Email configuration
+  mail:
+    host: ${SPRING_MAIL_HOST:smtp.gmail.com}
+    port: ${SPRING_MAIL_PORT:587}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+# Server configuration
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /api/v1
+  error:
+    include-stacktrace: never
+    include-message: always
+
+# Logging configuration
+logging:
+  level:
+    root: ${LOGGING_LEVEL_ROOT:INFO}
+    com.my.challenger: ${LOGGING_LEVEL_COM_MY_CHALLENGER:DEBUG}
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# Management endpoints (Actuator)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+  info:
+    env:
+      enabled: true
+
+# Application specific configuration
+app:
+  # JWT Configuration
+  jwt:
+    secret: ${JWT_SECRET:mySecretKey}
+    expiration: ${JWT_EXPIRATION:86400000} # 24 hours in milliseconds
+
+  # File storage configuration
+  file:
+    upload-dir: ${FILE_UPLOAD_DIR:./uploads}
+
+  # Challenge configuration
+  challenge:
+    max-participants: ${MAX_CHALLENGE_PARTICIPANTS:100}
+    default-duration-days: ${DEFAULT_CHALLENGE_DURATION:30}
+
+  # Quiz configuration
+  quiz:
+    default-question-count: ${DEFAULT_QUIZ_QUESTIONS:10}
+    time-limit-minutes: ${QUIZ_TIME_LIMIT:30}
+
+---
+# Development profile
+spring:
+  config:
+    activate:
+      on-profile: development
+
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+logging:
+  level:
+    com.my.challenger: DEBUG
+    org.springframework.web: DEBUG
+
+---
+# Production profile
+spring:
+  config:
+    activate:
+      on-profile: production
+
+  jpa:
+    show-sql: false
+
+logging:
+  level:
+    root: WARN
+    com.my.challenger: INFO
+
+server:
+  error:
+    include-stacktrace: never
+    include-message: never
+
+---
+# Test profile
+spring:
+  config:
+    activate:
+      on-profile: test
+
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+
+  h2:
+    console:
+      enabled: true
