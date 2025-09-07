@@ -1,71 +1,90 @@
+# Application Configuration
 spring:
   application:
-    name: challenger-app
+    name: media-service
 
-  # PostgreSQL Database Configuration
+  # Database configuration
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/challenger_db}
-    username: ${SPRING_DATASOURCE_USERNAME:challenger_user}
-    password: ${SPRING_DATASOURCE_PASSWORD:challenger_password_secure_123}
-    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
+    url: jdbc:postgresql://localhost:5432/media_db
+    username: ${DB_USERNAME:media_user}
+    password: ${DB_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
 
-    # HikariCP Connection Pool Configuration
-    hikari:
-      minimum-idle: 5
-      maximum-pool-size: 20
-      idle-timeout: 30000
-      pool-name: ChallengerHikariPool
-      max-lifetime: 2000000
-      connection-timeout: 30000
-      leak-detection-threshold: 60000
-
-  # JPA/Hibernate Configuration
   jpa:
-    database-platform: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.PostgreSQLDialect}
     hibernate:
-      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:validate}
-      naming:
-        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
-        implicit-strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyLegacyJpaImpl
-    show-sql: ${SPRING_JPA_SHOW_SQL:true}
+      ddl-auto: update
     properties:
       hibernate:
-        format_sql: ${SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL:true}
-        jdbc:
-          batch_size: 20
-          fetch_size: 50
-        order_inserts: true
-        order_updates: true
-        batch_versioned_data: true
-        generate_statistics: false
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    show-sql: false
 
   # File upload configuration
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 10MB
+      enabled: true
+      max-file-size: 200MB
+      max-request-size: 200MB
 
-# Server Configuration
-server:
-  port: 8080
-  servlet:
-    context-path: /
-  error:
-    include-stacktrace: never
-    include-message: always
+  # Async configuration
+  task:
+    execution:
+      pool:
+        core-size: 4
+        max-size: 10
+        queue-capacity: 100
+      thread-name-prefix: async-
 
-# Logging Configuration
+# Application-specific configuration
+app:
+  # Base URL for generating media URLs
+  base-url: ${BASE_URL:http://localhost:8080}
+
+  # Storage type: local or s3
+  storage:
+    type: ${STORAGE_TYPE:s3}  # Change to 'local' for local storage
+
+  # Local upload directory (used when storage.type=local)
+  upload:
+    dir: ${UPLOAD_DIR:./uploads}
+    max-file-size: 52428800     # 50MB
+    max-video-size: 209715200   # 200MB
+    max-audio-size: 52428800    # 50MB
+
+  # S3 configuration (used when storage.type=s3)
+  s3:
+    access-key: ${AWS_ACCESS_KEY_ID}
+    secret-key: ${AWS_SECRET_ACCESS_KEY}
+    region: ${AWS_REGION:us-east-1}
+    bucket-name: ${S3_BUCKET_NAME:my-media-bucket}
+    endpoint: ${S3_ENDPOINT:}  # Optional: for LocalStack or custom S3
+    cloudfront-domain: ${CLOUDFRONT_DOMAIN:}  # Optional: CloudFront distribution
+
+  # FFmpeg configuration
+  ffmpeg:
+    path: ${FFMPEG_PATH:ffmpeg}
+
+  ffprobe:
+    path: ${FFPROBE_PATH:ffprobe}
+
+# Logging configuration
 logging:
   level:
     root: INFO
     com.my.challenger: DEBUG
-    org.springframework.security: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    software.amazon.awssdk: INFO
+    com.github.kokorin.jaffree: DEBUG
 
-# Management endpoints (Actuator)
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+  file:
+    name: logs/media-service.log
+    max-size: 10MB
+    max-history: 30
+
+# Actuator endpoints
 management:
   endpoints:
     web:
@@ -73,98 +92,57 @@ management:
         include: health,info,metrics
   endpoint:
     health:
-      show-details: when-authorized
-
-# Application specific configuration
-app:
-  # File upload configuration (local storage for now)
-  upload:
-    dir: uploads
-    max-file-size: 52428800  # 50MB
-
-  uploads:
-    photo-verification-dir: uploads/verification-photos/
-
-  # Storage configuration (local for now, can be changed to S3 later)
-  storage:
-    type: local
-
-  # Challenge configuration
-  challenge:
-    max-participants: 100
-    default-duration-days: 30
-
-  # Quiz configuration
-  quiz:
-    default-question-count: 10
-    time-limit-minutes: 30
-
-# JWT Configuration (if using JWT authentication)
-jwt:
-  secret: ${JWT_SECRET:your-jwt-secret-key-change-in-production}
-  expiration: ${JWT_EXPIRATION:86400000}  # 24 hours
+      show-details: always
 
 ---
 # Development profile
 spring:
   config:
     activate:
-      on-profile: development
+      on-profile: dev
 
-  jpa:
-    show-sql: true
-    properties:
-      hibernate:
-        format_sql: true
+app:
+  storage:
+    type: local
+  upload:
+    dir: ./dev-uploads
 
 logging:
   level:
     com.my.challenger: DEBUG
-    org.springframework.web: DEBUG
-    org.hibernate.SQL: DEBUG
 
 ---
 # Production profile
 spring:
   config:
     activate:
-      on-profile: production
+      on-profile: prod
 
   jpa:
     show-sql: false
-    properties:
-      hibernate:
-        format_sql: false
+
+app:
+  storage:
+    type: s3
 
 logging:
   level:
     root: WARN
     com.my.challenger: INFO
-    org.hibernate.SQL: WARN
-
-server:
-  error:
-    include-stacktrace: never
-    include-message: never
 
 ---
 # Test profile
-spring:
-  config:
-    activate:
-      on-profile: test
-
-  datasource:
-    url: jdbc:h2:mem:testdb
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
-
-  jpa:
-    database-platform: org.hibernate.dialect.H2Dialect
-    hibernate:
-      ddl-auto: create-drop
-
-  h2:
-    console:
-      enabled: true
+#spring:
+#  config:
+#    activate:
+#      on-profile: test
+#
+#  datasource:
+#    url: jdbc:h2:mem:testdb
+#    driver-class-name: org.h2.Driver
+#
+#app:
+#  storage:
+#    type: local
+#  upload:
+#    dir: ./test-uploads

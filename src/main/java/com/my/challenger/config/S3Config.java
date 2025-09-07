@@ -6,6 +6,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.S3AsyncClientBuilder;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -24,7 +25,7 @@ public class S3Config {
     @Value("${app.s3.secret-key}")
     private String secretKey;
 
-    @Value("${app.s3.region}")
+    @Value("${app.s3.region:us-east-1}")
     private String region;
 
     @Value("${app.s3.endpoint:}")
@@ -47,22 +48,22 @@ public class S3Config {
         return builder.build();
     }
 
-//    @Bean
-//    public S3AsyncClient s3AsyncClient() {
-//        AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKey, secretKey);
-//
-//        S3ClientBuilder builder = S3AsyncClient.builder()
-//                .region(Region.of(region))
-//                .credentialsProvider(StaticCredentialsProvider.create(credentials));
-//
-//        // For LocalStack or custom S3-compatible services
-//        if (!endpoint.isEmpty()) {
-//            builder.endpointOverride(URI.create(endpoint))
-//                    .forcePathStyle(true);
-//        }
-//
-//        return builder.build();
-//    }
+    @Bean
+    public S3AsyncClient s3AsyncClient() {
+        AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKey, secretKey);
+
+        S3AsyncClientBuilder builder = S3AsyncClient.builder()
+                .region(Region.of(region))
+                .credentialsProvider(StaticCredentialsProvider.create(credentials));
+
+        // For LocalStack or custom S3-compatible services
+        if (!endpoint.isEmpty()) {
+            builder.endpointOverride(URI.create(endpoint))
+                    .forcePathStyle(true);
+        }
+
+        return builder.build();
+    }
 
     @Bean
     public S3Presigner s3Presigner() {

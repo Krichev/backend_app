@@ -17,7 +17,6 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "media_files")
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class MediaFile {
@@ -26,62 +25,70 @@ public class MediaFile {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
-    private String filename;
-
     @Column(name = "original_filename", nullable = false)
     private String originalFilename;
 
-    @Column(name = "file_path", nullable = false, length = 500)
+    @Column(name = "filename", nullable = false, unique = true)
+    private String filename;
+
+    @Column(name = "file_path", nullable = false)
     private String filePath;
 
-    @Column(name = "file_size")
-    private Long fileSize;
+    @Column(name = "processed_path")
+    private String processedPath;
 
-    @Column(name = "mime_type", length = 100)
-    private String mimeType;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "media_category", length = 20)
-    private MediaCategory mediaCategory;
-
-    // Image specific fields
-    private Integer width;
-    private Integer height;
-
-    // Video/Audio specific fields
-    @Column(name = "duration_seconds")
-    private Integer durationSeconds;
-
-    private Integer bitrate;
-
-    private String resolution; // "1920x1080"
-
-    @Column(name = "frame_rate", precision = 5, scale = 2)
-    private BigDecimal frameRate;
-
-    @Column(name = "thumbnail_path", length = 500)
+    @Column(name = "thumbnail_path")
     private String thumbnailPath;
 
-    @Column(name = "uploaded_by")
-    private Long uploadedBy;
+    @Column(name = "content_type", nullable = false)
+    private String contentType;
+
+    @Column(name = "file_size", nullable = false)
+    private Long fileSize;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "media_type", length = 50)
+    @Column(name = "media_type", nullable = false)
     private MediaType mediaType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "media_category", nullable = false)
+    private MediaCategory mediaCategory;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "processing_status", nullable = false)
+    private ProcessingStatus processingStatus;
 
     @Column(name = "entity_id")
     private Long entityId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "processing_status", length = 20)
-    private ProcessingStatus processingStatus;
+    @Column(name = "uploaded_by", nullable = false)
+    private Long uploadedBy;
 
-    @CreationTimestamp
-    @Column(name = "created_at")
-    private LocalDateTime createdAt;
+    @Column(name = "uploaded_at", nullable = false)
+    private LocalDateTime uploadedAt;
 
-    @UpdateTimestamp
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+    // Media metadata
+    @Column(name = "width")
+    private Integer width;
+
+    @Column(name = "height")
+    private Integer height;
+
+    @Column(name = "duration_seconds")
+    private Double durationSeconds;
+
+    @Column(name = "bitrate")
+    private Long bitrate;
+
+    @Column(name = "frame_rate", precision = 10, scale = 2)
+    private BigDecimal frameRate;
+
+    @Column(name = "resolution")
+    private String resolution;
+
+    @Column(name = "s3_key")
+    private String s3Key;
+
+    @Column(name = "s3_url")
+    private String s3Url;
 }

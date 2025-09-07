@@ -20,7 +20,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -32,7 +31,6 @@ public class MediaProcessingService {
     private final Path ffmpegPath;
     private final Path ffprobePath;
 
-    // FIX: Use constructor injection for dependencies. It improves testability and ensures immutability.
     public MediaProcessingService(@Value("${app.ffmpeg.path:ffmpeg}") String ffmpegPath,
                                   @Value("${app.ffprobe.path:ffprobe}") String ffprobePath) {
         this.ffmpegPath = Paths.get(ffmpegPath);
@@ -58,7 +56,6 @@ public class MediaProcessingService {
 
             Format format = result.getFormat();
 
-            // FIX: Populate all fields in the metadata object.
             return VideoMetadata.builder()
                     .width(videoStream.getWidth())
                     .height(videoStream.getHeight())
@@ -66,12 +63,11 @@ public class MediaProcessingService {
                     .bitrate(format.getBitRate() != null ? format.getBitRate() : 0L)
                     .frameRate(parseFrameRate(videoStream.getRFrameRate()))
                     .codec(videoStream.getCodecName())
-                    .pixelFormat(videoStream.getPixelFormat())
+                    .pixelFormat(videoStream.getPixFormat())
                     .build();
 
         } catch (Exception e) {
             log.error("Failed to extract video metadata from: {}", videoPath, e);
-            // FIX: Use a specific, custom exception.
             throw new MediaProcessingException("Video metadata extraction failed for: " + videoPath, e);
         }
     }
@@ -95,10 +91,10 @@ public class MediaProcessingService {
 
             Format format = result.getFormat();
 
-            // FIX: Populate all fields in the metadata object.
             return AudioMetadata.builder()
                     .durationSeconds(format.getDuration())
-                    .bitrate(audioStream.getBitRate() != null ? audioStream.getBitRate() : 0L)
+                    .bitrate(audioStream.getBitRate() != null ? audioStream.getBitRate() :
+                            (format.getBitRate() != null ? format.getBitRate() : 0L))
                     .sampleRate(audioStream.getSampleRate())
                     .channels(audioStream.getChannels())
                     .codec(audioStream.getCodecName())
@@ -124,24 +120,19 @@ public class MediaProcessingService {
         Objects.requireNonNull(outputDir, "outputDir must not be null");
         Objects.requireNonNull(seekTime, "seekTime must not be null");
 
-        // FIX: Use UUID for filenames to prevent collisions.
         String thumbnailFilename = "thumb_" + UUID.randomUUID() + ".jpg";
         Path thumbnailPath = outputDir.resolve(thumbnailFilename);
 
         try {
             FFmpeg.atPath(ffmpegPath)
                     .addInput(UrlInput.fromPath(Paths.get(videoPath))
-                            // FIX: Use setPosition to seek to a specific time for the thumbnail.
                             .setPosition(seekTime.toMillis(), TimeUnit.MILLISECONDS))
-                    // FIX: Simplified progress listener. The old calculation was arbitrary and misleading.
                     .addOutput(UrlOutput.toPath(thumbnailPath)
-                            .disableStream(StreamType.VIDEO) // <-- Correct replacement
-                            .setAudioCodec(options.getAudioCodec())
-                            .setAudioBitRate(options.getBitrate())
-                            .setAudioSampleRate(options.getSampleRate())
+                            .setFrameCount(StreamType.VIDEO, 1L)  // Extract only 1 frame
+                            .disableStream(StreamType.AUDIO)       // No audio in thumbnail
                             .setOverwriteOutput(true))
-                    // FIX: Simplified progress listener. The old calculation was arbitrary and misleading.
-                    .setProgressListener(progress -> log.debug("Thumbnail generation progress: {}ms", progress.getTimeMillis()))
+                    .setProgressListener(progress ->
+                            log.debug("Thumbnail generation progress: {}ms", progress.getTimeMillis()))
                     .execute();
 
             log.info("Successfully generated thumbnail: {}", thumbnailPath);
@@ -154,16 +145,16 @@ public class MediaProcessingService {
     }
 
     /**
-     * Asynchronously generates a single thumbnail from a video, taking the frame from the 5-second mark.
+     * Asynchronously generates a single thumbnail from a video.
      *
      * @param videoPath Path to the video file.
      * @param outputDir Directory to save the thumbnail in.
      * @return A CompletableFuture containing the path to the thumbnail.
      */
     @Async
-    // NOTE: Ensure you have a configured TaskExecutor for @Async to work optimally.
     public CompletableFuture<String> generateVideoThumbnailAsync(String videoPath, Path outputDir) {
-        return CompletableFuture.supplyAsync(() -> generateVideoThumbnail(videoPath, outputDir, Duration.ofSeconds(5)));
+        return CompletableFuture.supplyAsync(() ->
+                generateVideoThumbnail(videoPath, outputDir, Duration.ofSeconds(5)));
     }
 
     /**
@@ -184,34 +175,38 @@ public class MediaProcessingService {
         Path outputPath = outputDir.resolve(outputFilename);
 
         try {
-            // Create a configurable UrlOutput object
             UrlOutput output = UrlOutput.toPath(outputPath)
                     .setOverwriteOutput(true)
                     .setFormat(options.getFormat());
 
-            // Apply options to the UrlOutput object
+            // Apply video options
             if (options.getWidth() != null && options.getHeight() != null) {
-                output.setVideoFilter("scale=" + options.getWidth() + ":" + options.getHeight());
+                output.addArguments("-vf", "scale=" + options.getWidth() + ":" + options.getHeight());
             }
             if (options.getBitrate() != null) {
-                output.setVideoBitRate(options.getBitrate());
+                output.addArguments("-b:v", options.getBitrate() + "k");
             }
             if (options.getFrameRate() != null) {
                 output.setFrameRate(options.getFrameRate());
             }
             if (options.getVideoCodec() != null) {
-                // FIX: Use the new generic setCodec method
                 output.setCodec(StreamType.VIDEO, options.getVideoCodec());
             }
+            if (options.getAudioCodec() != null) {
+                output.setCodec(StreamType.AUDIO, options.getAudioCodec());
+            }
 
-            FFmpeg.atPath(ffmpegPath)
+            // Add quality preset
+            String preset = options.getQualityPreset() != null ? options.getQualityPreset() : "medium";
+
+            FFmpeg ffmpeg = FFmpeg.atPath(ffmpegPath)
                     .addInput(UrlInput.fromPath(Paths.get(inputPath)))
-                    // Pass the fully configured output object
                     .addOutput(output)
-                    .addArgument("-preset")
-                    .addArgument(options.getQualityPreset())
-                    .setProgressListener(progress -> log.debug("Video conversion progress: frame {}", progress.getFrame()))
-                    .execute();
+                    .addArguments("-preset", preset)
+                    .setProgressListener(progress ->
+                            log.debug("Video conversion progress: frame {}", progress.getFrame()));
+
+            ffmpeg.execute();
 
             log.info("Video conversion completed: {} -> {}", inputPath, outputPath);
             return outputPath.toString();
@@ -236,28 +231,43 @@ public class MediaProcessingService {
      * @return The full path to the extracted audio file.
      * @throws MediaProcessingException if audio extraction fails.
      */
-    public String extractAudio(String videoPath, Path outputDir, AudioCompressionOptions options) {
+    public String extractAudioFromVideo(String videoPath, Path outputDir, AudioCompressionOptions options) {
         Objects.requireNonNull(videoPath, "videoPath must not be null");
         Objects.requireNonNull(outputDir, "outputDir must not be null");
         Objects.requireNonNull(options, "options must not be null");
 
-        String audioFilename = "audio_" + UUID.randomUUID() + "." + options.getFormat();
-        Path audioPath = outputDir.resolve(audioFilename);
+        String format = options.getFormat() != null ? options.getFormat() : "mp3";
+        String outputFilename = "audio_" + UUID.randomUUID() + "." + format;
+        Path outputPath = outputDir.resolve(outputFilename);
 
         try {
-            // FIX: Replaced hardcoded values with flexible options from AudioCompressionOptions.
+            UrlOutput output = UrlOutput.toPath(outputPath)
+                    .disableStream(StreamType.VIDEO)  // No video stream
+                    .setOverwriteOutput(true);
+
+            // Apply audio options
+            if (options.getAudioCodec() != null) {
+                output.setCodec(StreamType.AUDIO, options.getAudioCodec());
+            }
+            if (options.getBitrate() != null) {
+                output.addArguments("-b:a", options.getBitrate() + "k");
+            }
+            if (options.getSampleRate() != null) {
+                output.addArguments("-ar", String.valueOf(options.getSampleRate()));
+            }
+            if (options.getChannels() != null) {
+                output.addArguments("-ac", String.valueOf(options.getChannels()));
+            }
+
             FFmpeg.atPath(ffmpegPath)
                     .addInput(UrlInput.fromPath(Paths.get(videoPath)))
-                    .addOutput(UrlOutput.toPath(audioPath)
-                            .disableVideo()
-                            .setAudioCodec(options.getAudioCodec())
-                            .setAudioBitRate(options.getBitrate())
-                            .setAudioSampleRate(options.getSampleRate())
-                            .setOverwriteOutput(true))
+                    .addOutput(output)
+                    .setProgressListener(progress ->
+                            log.debug("Audio extraction progress: {}ms", progress.getTimeMillis()))
                     .execute();
 
-            log.info("Audio extraction completed: {}", audioPath);
-            return audioPath.toString();
+            log.info("Audio extraction completed: {} -> {}", videoPath, outputPath);
+            return outputPath.toString();
 
         } catch (Exception e) {
             log.error("Failed to extract audio from video: {}", videoPath, e);
@@ -266,7 +276,7 @@ public class MediaProcessingService {
     }
 
     /**
-     * Compresses an audio file.
+     * Compresses an audio file according to the specified options.
      *
      * @param inputPath Path to the input audio file.
      * @param outputDir Directory for the output file.
@@ -279,31 +289,36 @@ public class MediaProcessingService {
         Objects.requireNonNull(outputDir, "outputDir must not be null");
         Objects.requireNonNull(options, "options must not be null");
 
-        String outputFilename = "compressed_" + UUID.randomUUID() + "." + options.getFormat();
+        String format = options.getFormat() != null ? options.getFormat() : "mp3";
+        String outputFilename = "compressed_" + UUID.randomUUID() + "." + format;
         Path outputPath = outputDir.resolve(outputFilename);
 
         try {
             UrlOutput output = UrlOutput.toPath(outputPath)
-                    .setOverwriteOutput(true)
-                    .setFormat(options.getFormat());
+                    .setOverwriteOutput(true);
 
+            // Apply audio compression options
+            if (options.getAudioCodec() != null) {
+                output.setCodec(StreamType.AUDIO, options.getAudioCodec());
+            }
             if (options.getBitrate() != null) {
-                output.setAudioBitRate(options.getBitrate());
+                output.addArguments("-b:a", options.getBitrate() + "k");
             }
             if (options.getSampleRate() != null) {
-                output.setAudioSampleRate(options.getSampleRate());
+                output.addArguments("-ar", String.valueOf(options.getSampleRate()));
             }
-            if (options.getAudioCodec() != null) {
-                // FIX: Use the new generic setCodec method
-                output.setCodec(StreamType.AUDIO, options.getAudioCodec());
+            if (options.getChannels() != null) {
+                output.addArguments("-ac", String.valueOf(options.getChannels()));
             }
 
             FFmpeg.atPath(ffmpegPath)
                     .addInput(UrlInput.fromPath(Paths.get(inputPath)))
                     .addOutput(output)
+                    .setProgressListener(progress ->
+                            log.debug("Audio compression progress: {}ms", progress.getTimeMillis()))
                     .execute();
 
-            log.info("Audio compression completed: {}", outputPath);
+            log.info("Audio compression completed: {} -> {}", inputPath, outputPath);
             return outputPath.toString();
 
         } catch (Exception e) {
@@ -313,69 +328,85 @@ public class MediaProcessingService {
     }
 
     /**
-     * Gets the duration of a video file in seconds.
+     * Merges multiple video files into one.
      *
-     * @param mediaPath Path to the media file.
-     * @return An Optional containing the duration, or empty if it fails.
+     * @param videoPaths List of video file paths to merge.
+     * @param outputDir  Directory for the output file.
+     * @param format     Output format (e.g., "mp4").
+     * @return The full path to the merged video file.
+     * @throws MediaProcessingException if merging fails.
      */
-    public Optional<Float> getMediaDuration(String mediaPath) {
-        Objects.requireNonNull(mediaPath, "mediaPath must not be null");
+    public String mergeVideos(java.util.List<String> videoPaths, Path outputDir, String format) {
+        if (videoPaths == null || videoPaths.isEmpty()) {
+            throw new IllegalArgumentException("Video paths list cannot be null or empty");
+        }
+        Objects.requireNonNull(outputDir, "outputDir must not be null");
+
+        String outputFormat = format != null ? format : "mp4";
+        String outputFilename = "merged_" + UUID.randomUUID() + "." + outputFormat;
+        Path outputPath = outputDir.resolve(outputFilename);
+
         try {
-            FFprobeResult result = getFfprobeResult(mediaPath);
-            // FIX: Return Optional to better handle the failure case than returning 0.0.
-            return Optional.ofNullable(result.getFormat().getDuration());
-        } catch (Exception e) {
-            log.error("Failed to get media duration: {}", mediaPath, e);
-            return Optional.empty();
-        }
-    }
-
-    /**
-     * Checks if a file is a valid and readable media file.
-     *
-     * @param filePath Path to the file.
-     * @return true if the file contains at least one media stream, false otherwise.
-     */
-    public boolean isValidMediaFile(String filePath) {
-        Objects.requireNonNull(filePath, "filePath must not be null");
-        try {
-            FFprobeResult result = getFfprobeResult(filePath);
-            return result != null && result.getStreams() != null && !result.getStreams().isEmpty();
-        } catch (Exception e) {
-            log.warn("Could not probe file, it is likely not a valid media file: {}", filePath);
-            return false;
-        }
-    }
-
-    // --- Helper Methods ---
-
-    /**
-     * Parses the frame rate string (e.g., "30/1") into a double.
-     */
-    private double parseFrameRate(String frameRateString) {
-        if (frameRateString == null || frameRateString.isEmpty()) {
-            return 0.0;
-        }
-        String[] parts = frameRateString.split("/");
-        if (parts.length == 2) {
-            try {
-                return Double.parseDouble(parts[0]) / Double.parseDouble(parts[1]);
-            } catch (NumberFormatException e) {
-                log.warn("Could not parse frame rate: {}", frameRateString);
-                return 0.0;
+            // Create concat demuxer input file
+            Path concatFile = outputDir.resolve("concat_" + UUID.randomUUID() + ".txt");
+            java.util.List<String> lines = new java.util.ArrayList<>();
+            for (String videoPath : videoPaths) {
+                lines.add("file '" + videoPath + "'");
             }
+            java.nio.file.Files.write(concatFile, lines);
+
+            FFmpeg.atPath(ffmpegPath)
+                    .addArguments("-f", "concat")
+                    .addArguments("-safe", "0")
+                    .addInput(UrlInput.fromPath(concatFile))
+                    .addArguments("-c", "copy")
+                    .addOutput(UrlOutput.toPath(outputPath)
+                            .setOverwriteOutput(true))
+                    .setProgressListener(progress ->
+                            log.debug("Video merge progress: frame {}", progress.getFrame()))
+                    .execute();
+
+            // Clean up temp file
+            java.nio.file.Files.deleteIfExists(concatFile);
+
+            log.info("Video merge completed: {} videos -> {}", videoPaths.size(), outputPath);
+            return outputPath.toString();
+
+        } catch (Exception e) {
+            log.error("Failed to merge videos", e);
+            throw new MediaProcessingException("Video merge failed", e);
         }
-        return 0.0;
     }
 
     /**
-     * Executes ffprobe to get media information.
+     * Helper method to get FFprobe result.
      */
-    private FFprobeResult getFfprobeResult(String mediaPath) {
+    private FFprobeResult getFfprobeResult(String filePath) {
         return FFprobe.atPath(ffprobePath)
-                .setInput(mediaPath)
                 .setShowStreams(true)
                 .setShowFormat(true)
+                .setInput(Paths.get(filePath))
                 .execute();
+    }
+
+    /**
+     * Parses frame rate from FFprobe string format (e.g., "30/1" -> 30.0).
+     */
+    private double parseFrameRate(String frameRateStr) {
+        if (frameRateStr == null || frameRateStr.isEmpty()) {
+            return 0.0;
+        }
+
+        try {
+            if (frameRateStr.contains("/")) {
+                String[] parts = frameRateStr.split("/");
+                return Double.parseDouble(parts[0]) / Double.parseDouble(parts[1]);
+            } else {
+                return Double.parseDouble(frameRateStr);
+            }
+        } catch (NumberFormatException e) {
+            log.warn("Failed to parse frame rate: {}", frameRateStr);
+            return 0.0;
+        }
     }
 }

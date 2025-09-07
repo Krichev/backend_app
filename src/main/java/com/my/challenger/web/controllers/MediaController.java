@@ -2,7 +2,7 @@ package com.my.challenger.web.controllers;
 
 import com.my.challenger.entity.MediaFile;
 import com.my.challenger.entity.enums.MediaType;
-import com.my.challenger.service.MediaStorageService;
+import com.my.challenger.service.impl.MediaStorageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;

@@ -1,6 +1,7 @@
+// File: S3StartupConfig.java
 package com.my.challenger.config;
 
-import com.my.challenger.service.AdvancedS3Service;
+import com.my.challenger.service.impl.AdvancedS3Service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationRunner;
@@ -29,3 +30,4 @@ public class S3StartupConfig {
         };
     }
 }
+

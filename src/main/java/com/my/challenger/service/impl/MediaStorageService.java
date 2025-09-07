@@ -1,18 +1,20 @@
 package com.my.challenger.service.impl;
 
+import com.my.challenger.dto.media.AudioMetadata;
 import com.my.challenger.dto.media.VideoMetadata;
 import com.my.challenger.entity.MediaFile;
 import com.my.challenger.entity.enums.MediaCategory;
 import com.my.challenger.entity.enums.MediaType;
 import com.my.challenger.entity.enums.ProcessingStatus;
+import com.my.challenger.exception.MediaProcessingException;
 import com.my.challenger.repository.MediaFileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-import software.amazon.awssdk.services.rekognition.model.AudioMetadata;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -24,6 +26,7 @@ import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -51,6 +54,9 @@ public class MediaStorageService {
     @Value("${app.upload.max-audio-size:52428800}") // 50MB for audio
     private long maxAudioSize;
 
+    @Value("${app.base-url:http://localhost:8080}")
+    private String baseUrl;
+
     // Supported file types
     private static final Set<String> IMAGE_TYPES = Set.of(
             "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"
@@ -72,40 +78,33 @@ public class MediaStorageService {
     private static final int MAX_IMAGE_WIDTH = 2048;
     private static final int MAX_IMAGE_HEIGHT = 2048;
 
-    public MediaFile saveMedia(MultipartFile file, MediaType mediaType, Long entityId, Long uploadedBy)
-            throws IOException {
+    @Transactional
+    public MediaFile saveMedia(MultipartFile file, MediaType mediaType, Long entityId, Long uploadedBy) throws IOException {
+        validateFile(file);
 
-        MediaCategory category = validateAndDetectMediaCategory(file);
-
-        // Create upload directory
+        MediaCategory category = determineMediaCategory(file.getContentType());
         Path uploadPath = createUploadDirectory(mediaType, category);
+        String uniqueFilename = generateUniqueFilename(file.getOriginalFilename());
+        Path filePath = uploadPath.resolve(uniqueFilename);
 
-        // Generate unique filename
-        String filename = generateUniqueFilename(file.getOriginalFilename());
-        Path filePath = uploadPath.resolve(filename);
+        // Save file to disk
+        Files.write(filePath, file.getBytes());
 
-        // Save initial file
-        Files.copy(file.getInputStream(), filePath);
+        // Create media file entity
+        MediaFile mediaFile = new MediaFile();
+        mediaFile.setOriginalFilename(file.getOriginalFilename());
+        mediaFile.setFilename(uniqueFilename);
+        mediaFile.setFilePath(filePath.toString());
+        mediaFile.setContentType(file.getContentType());
+        mediaFile.setFileSize(file.getSize());
+        mediaFile.setMediaType(mediaType);
+        mediaFile.setMediaCategory(category);
+        mediaFile.setEntityId(entityId);
+        mediaFile.setUploadedBy(uploadedBy);
+        mediaFile.setUploadedAt(LocalDateTime.now());
+        mediaFile.setProcessingStatus(ProcessingStatus.PENDING);
 
-        // Create media record
-        MediaFile mediaFile = MediaFile.builder()
-                .filename(filename)
-                .originalFilename(file.getOriginalFilename())
-                .filePath(filePath.toString())
-                .fileSize(file.getSize())
-                .mimeType(file.getContentType())
-                .mediaCategory(category)
-                .uploadedBy(uploadedBy)
-                .mediaType(mediaType)
-                .entityId(entityId)
-                .processingStatus(ProcessingStatus.PENDING)
-                .build();
-
-        // Remove old media if updating avatar
-        if (mediaType == MediaType.AVATAR && entityId != null) {
-            deleteExistingMedia(entityId, mediaType);
-        }
-
+        // Save to database
         mediaFile = mediaFileRepository.save(mediaFile);
 
         // Process asynchronously
@@ -114,65 +113,22 @@ public class MediaStorageService {
         return mediaFile;
     }
 
-    private MediaCategory validateAndDetectMediaCategory(MultipartFile file) throws IOException {
-        if (file.isEmpty()) {
-            throw new IOException("File is empty");
-        }
-
-        String contentType = file.getContentType();
-        if (contentType == null) {
-            throw new IOException("Unable to determine file type");
-        }
-
-        MediaCategory category;
-        long maxSize;
-
-        if (IMAGE_TYPES.contains(contentType)) {
-            category = MediaCategory.IMAGE;
-            maxSize = maxFileSize;
-        } else if (VIDEO_TYPES.contains(contentType)) {
-            category = MediaCategory.VIDEO;
-            maxSize = maxVideoSize;
-        } else if (AUDIO_TYPES.contains(contentType)) {
-            category = MediaCategory.AUDIO;
-            maxSize = maxAudioSize;
-        } else {
-            throw new IOException("File type not supported: " + contentType);
-        }
-
-        if (file.getSize() > maxSize) {
-            throw new IOException("File size exceeds maximum allowed size for " + category);
-        }
-
-        String extension = getFileExtension(file.getOriginalFilename()).toLowerCase();
-        Set<String> allowedExtensions = switch (category) {
-            case IMAGE -> IMAGE_EXTENSIONS;
-            case VIDEO -> VIDEO_EXTENSIONS;
-            case AUDIO -> AUDIO_EXTENSIONS;
-        };
-
-        if (!allowedExtensions.contains(extension)) {
-            throw new IOException("File extension not allowed: " + extension);
-        }
-
-        return category;
-    }
-
     @Async
     public void processMediaAsync(MediaFile mediaFile) {
         try {
-            mediaFile.setProcessingStatus(ProcessingStatus.PROCESSING);
-            mediaFileRepository.save(mediaFile);
-
             switch (mediaFile.getMediaCategory()) {
-                case IMAGE -> processImage(mediaFile);
-                case VIDEO -> processVideo(mediaFile);
-                case AUDIO -> processAudio(mediaFile);
+                case IMAGE:
+                    processImage(mediaFile);
+                    break;
+                case VIDEO:
+                    processVideo(mediaFile);
+                    break;
+                case AUDIO:
+                    processAudio(mediaFile);
+                    break;
             }
-
             mediaFile.setProcessingStatus(ProcessingStatus.COMPLETED);
             mediaFileRepository.save(mediaFile);
-
         } catch (Exception e) {
             log.error("Failed to process media file: {}", mediaFile.getId(), e);
             mediaFile.setProcessingStatus(ProcessingStatus.FAILED);
@@ -183,6 +139,10 @@ public class MediaStorageService {
     private void processImage(MediaFile mediaFile) throws IOException {
         byte[] originalData = Files.readAllBytes(Paths.get(mediaFile.getFilePath()));
         BufferedImage image = ImageIO.read(new ByteArrayInputStream(originalData));
+
+        if (image == null) {
+            throw new MediaProcessingException("Failed to read image file");
+        }
 
         // Set dimensions
         mediaFile.setWidth(image.getWidth());
@@ -218,15 +178,17 @@ public class MediaStorageService {
             mediaFile.setFrameRate(BigDecimal.valueOf(metadata.getFrameRate()));
             mediaFile.setResolution(metadata.getWidth() + "x" + metadata.getHeight());
 
-            // Generate thumbnail
+            // Generate thumbnail at 5 seconds
             String thumbnailPath = mediaProcessingService.generateVideoThumbnail(
                     mediaFile.getFilePath(),
-                    getUploadPath(mediaFile.getMediaType(), MediaCategory.IMAGE)
+                    getUploadPath(mediaFile.getMediaType(), MediaCategory.IMAGE),
+                    Duration.ofSeconds(5)
             );
             mediaFile.setThumbnailPath(thumbnailPath);
 
         } catch (Exception e) {
             log.error("Failed to process video: {}", mediaFile.getId(), e);
+            throw new MediaProcessingException("Video processing failed", e);
         }
     }
 
@@ -239,6 +201,114 @@ public class MediaStorageService {
 
         } catch (Exception e) {
             log.error("Failed to process audio: {}", mediaFile.getId(), e);
+            throw new MediaProcessingException("Audio processing failed", e);
+        }
+    }
+
+    private BufferedImage resizeToSquare(BufferedImage img, int size) {
+        int width = img.getWidth();
+        int height = img.getHeight();
+
+        // Calculate crop dimensions
+        int cropSize = Math.min(width, height);
+        int x = (width - cropSize) / 2;
+        int y = (height - cropSize) / 2;
+
+        // Crop to square
+        BufferedImage croppedImage = img.getSubimage(x, y, cropSize, cropSize);
+
+        // Resize
+        BufferedImage resized = new BufferedImage(size, size, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = resized.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g.drawImage(croppedImage, 0, 0, size, size, null);
+        g.dispose();
+
+        return resized;
+    }
+
+    private BufferedImage resizeIfNeeded(BufferedImage img, int maxWidth, int maxHeight) {
+        int width = img.getWidth();
+        int height = img.getHeight();
+
+        // Calculate scaling factor
+        double scaleFactor = Math.min(
+                (double) maxWidth / width,
+                (double) maxHeight / height
+        );
+
+        if (scaleFactor >= 1.0) {
+            return img; // No resize needed
+        }
+
+        int newWidth = (int) (width * scaleFactor);
+        int newHeight = (int) (height * scaleFactor);
+
+        BufferedImage resized = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = resized.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g.drawImage(img, 0, 0, newWidth, newHeight, null);
+        g.dispose();
+
+        return resized;
+    }
+
+    private void saveProcessedImage(MediaFile mediaFile, BufferedImage image) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ImageIO.write(image, "jpg", baos);
+        byte[] bytes = baos.toByteArray();
+
+        Path processedPath = Paths.get(mediaFile.getFilePath().replace(".", "_processed."));
+        Files.write(processedPath, bytes);
+        mediaFile.setProcessedPath(processedPath.toString());
+    }
+
+    private void validateFile(MultipartFile file) {
+        if (file.isEmpty()) {
+            throw new IllegalArgumentException("File is empty");
+        }
+
+        String contentType = file.getContentType();
+        if (contentType == null) {
+            throw new IllegalArgumentException("File content type is not specified");
+        }
+
+        // Check file size based on type
+        if (VIDEO_TYPES.contains(contentType) && file.getSize() > maxVideoSize) {
+            throw new IllegalArgumentException("Video file size exceeds maximum limit of " + maxVideoSize + " bytes");
+        } else if (AUDIO_TYPES.contains(contentType) && file.getSize() > maxAudioSize) {
+            throw new IllegalArgumentException("Audio file size exceeds maximum limit of " + maxAudioSize + " bytes");
+        } else if (file.getSize() > maxFileSize) {
+            throw new IllegalArgumentException("File size exceeds maximum limit of " + maxFileSize + " bytes");
+        }
+
+        // Validate file extension
+        String extension = getFileExtension(file.getOriginalFilename()).toLowerCase();
+        if (!isValidExtension(extension, contentType)) {
+            throw new IllegalArgumentException("Invalid file extension: " + extension);
+        }
+    }
+
+    private boolean isValidExtension(String extension, String contentType) {
+        if (IMAGE_TYPES.contains(contentType)) {
+            return IMAGE_EXTENSIONS.contains(extension);
+        } else if (VIDEO_TYPES.contains(contentType)) {
+            return VIDEO_EXTENSIONS.contains(extension);
+        } else if (AUDIO_TYPES.contains(contentType)) {
+            return AUDIO_EXTENSIONS.contains(extension);
+        }
+        return false;
+    }
+
+    private MediaCategory determineMediaCategory(String contentType) {
+        if (IMAGE_TYPES.contains(contentType)) {
+            return MediaCategory.IMAGE;
+        } else if (VIDEO_TYPES.contains(contentType)) {
+            return MediaCategory.VIDEO;
+        } else if (AUDIO_TYPES.contains(contentType)) {
+            return MediaCategory.AUDIO;
+        } else {
+            throw new IllegalArgumentException("Unsupported media type: " + contentType);
         }
     }
 
@@ -268,130 +338,56 @@ public class MediaStorageService {
         return filename.substring(filename.lastIndexOf('.') + 1);
     }
 
-    private BufferedImage resizeToSquare(BufferedImage originalImage, int size) {
-        int width = originalImage.getWidth();
-        int height = originalImage.getHeight();
-
-        // Calculate crop dimensions (center crop to square)
-        int cropSize = Math.min(width, height);
-        int x = (width - cropSize) / 2;
-        int y = (height - cropSize) / 2;
-
-        // Crop to square
-        BufferedImage croppedImage = originalImage.getSubimage(x, y, cropSize, cropSize);
-
-        // Resize to target size
-        BufferedImage resizedImage = new BufferedImage(size, size, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g2d = resizedImage.createGraphics();
-        g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g2d.drawImage(croppedImage, 0, 0, size, size, null);
-        g2d.dispose();
-
-        return resizedImage;
-    }
-
-    private BufferedImage resizeIfNeeded(BufferedImage originalImage, int maxWidth, int maxHeight) {
-        int width = originalImage.getWidth();
-        int height = originalImage.getHeight();
-
-        if (width <= maxWidth && height <= maxHeight) {
-            return originalImage;
+    public String getMediaUrl(MediaFile mediaFile) {
+        if (mediaFile == null || mediaFile.getFilename() == null) {
+            return null;
         }
 
-        double widthRatio = (double) maxWidth / width;
-        double heightRatio = (double) maxHeight / height;
-        double ratio = Math.min(widthRatio, heightRatio);
-
-        int newWidth = (int) (width * ratio);
-        int newHeight = (int) (height * ratio);
-
-        BufferedImage resizedImage = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g2d = resizedImage.createGraphics();
-        g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g2d.drawImage(originalImage, 0, 0, newWidth, newHeight, null);
-        g2d.dispose();
-
-        return resizedImage;
+        String relativePath = String.format("/api/media/file/%s", mediaFile.getId());
+        return baseUrl + relativePath;
     }
 
-    private void saveProcessedImage(MediaFile mediaFile, BufferedImage processedImage) throws IOException {
-        String format = getImageFormat(mediaFile.getMimeType());
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        ImageIO.write(processedImage, format, baos);
-
-        Files.write(Paths.get(mediaFile.getFilePath()), baos.toByteArray());
-        mediaFile.setFileSize((long) baos.size());
-    }
-
-    private String getImageFormat(String mimeType) {
-        return switch (mimeType) {
-            case "image/png" -> "png";
-            case "image/gif" -> "gif";
-            case "image/webp" -> "webp";
-            default -> "jpg";
-        };
-    }
-
-    // Public methods for retrieval
-    public Optional<MediaFile> getMedia(Long id) {
+    @Transactional(readOnly = true)
+    public Optional<MediaFile> findById(Long id) {
         return mediaFileRepository.findById(id);
     }
 
-    public Optional<MediaFile> getMediaByEntityAndType(Long entityId, MediaType mediaType) {
+    @Transactional(readOnly = true)
+    public List<MediaFile> findByEntityIdAndMediaType(Long entityId, MediaType mediaType) {
         return mediaFileRepository.findByEntityIdAndMediaType(entityId, mediaType);
     }
 
-    public List<MediaFile> getMediaByTypeAndUser(MediaType mediaType, Long userId) {
-        return mediaFileRepository.findByMediaTypeAndUploadedBy(mediaType, userId);
-    }
+    @Transactional
+    public void deleteMedia(Long mediaId) {
+        mediaFileRepository.findById(mediaId).ifPresent(mediaFile -> {
+            try {
+                // Delete physical files
+                Files.deleteIfExists(Paths.get(mediaFile.getFilePath()));
+                if (mediaFile.getProcessedPath() != null) {
+                    Files.deleteIfExists(Paths.get(mediaFile.getProcessedPath()));
+                }
+                if (mediaFile.getThumbnailPath() != null) {
+                    Files.deleteIfExists(Paths.get(mediaFile.getThumbnailPath()));
+                }
 
-    public byte[] getMediaData(MediaFile mediaFile) throws IOException {
-        return Files.readAllBytes(Paths.get(mediaFile.getFilePath()));
-    }
-
-    public byte[] getThumbnailData(MediaFile mediaFile) throws IOException {
-        if (mediaFile.getThumbnailPath() != null) {
-            return Files.readAllBytes(Paths.get(mediaFile.getThumbnailPath()));
-        }
-        return null;
-    }
-
-    public void deleteMedia(Long mediaId) throws IOException {
-        Optional<MediaFile> mediaOpt = mediaFileRepository.findById(mediaId);
-        if (mediaOpt.isPresent()) {
-            MediaFile mediaFile = mediaOpt.get();
-
-            // Delete main file
-            Files.deleteIfExists(Paths.get(mediaFile.getFilePath()));
-
-            // Delete thumbnail if exists
-            if (mediaFile.getThumbnailPath() != null) {
-                Files.deleteIfExists(Paths.get(mediaFile.getThumbnailPath()));
+                // Delete from database
+                mediaFileRepository.delete(mediaFile);
+                log.info("Deleted media file: {}", mediaId);
+            } catch (IOException e) {
+                log.error("Failed to delete media file: {}", mediaId, e);
+                throw new MediaProcessingException("Failed to delete media file", e);
             }
-
-            mediaFileRepository.delete(mediaFile);
-        }
+        });
     }
 
-    private void deleteExistingMedia(Long entityId, MediaType mediaType) {
-        mediaFileRepository.findByEntityIdAndMediaType(entityId, mediaType)
-                .ifPresent(existingMedia -> {
-                    try {
-                        deleteMedia(existingMedia.getId());
-                    } catch (IOException e) {
-                        log.warn("Failed to delete existing media: {}", e.getMessage());
-                    }
-                });
-    }
+    public byte[] getMediaContent(Long mediaId) throws IOException {
+        MediaFile mediaFile = mediaFileRepository.findById(mediaId)
+                .orElseThrow(() -> new IllegalArgumentException("Media not found: " + mediaId));
 
-    public String getMediaUrl(MediaFile mediaFile) {
-        return "/api/media/" + mediaFile.getId();
-    }
+        Path filePath = mediaFile.getProcessedPath() != null
+                ? Paths.get(mediaFile.getProcessedPath())
+                : Paths.get(mediaFile.getFilePath());
 
-    public String getThumbnailUrl(MediaFile mediaFile) {
-        if (mediaFile.getThumbnailPath() != null) {
-            return "/api/media/" + mediaFile.getId() + "/thumbnail";
-        }
-        return null;
+        return Files.readAllBytes(filePath);
     }
 }
