@@ -1,5 +1,6 @@
-package com.my.challenger.service;
+package com.my.challenger.service.impl;
 
+import com.my.challenger.dto.media.VideoMetadata;
 import com.my.challenger.entity.MediaFile;
 import com.my.challenger.entity.enums.MediaCategory;
 import com.my.challenger.entity.enums.MediaType;
@@ -11,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.services.rekognition.model.AudioMetadata;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -24,9 +26,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
