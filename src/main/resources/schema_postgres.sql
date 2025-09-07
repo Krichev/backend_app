@@ -121,18 +121,6 @@ CREATE TABLE rewards (
                          FOREIGN KEY (quest_id) REFERENCES quests (id) ON DELETE CASCADE
 );
 
--- Stakes table
-CREATE TABLE stakes (
-                        id BIGSERIAL PRIMARY KEY,
-                        user_id BIGINT NOT NULL,
-                        challenge_id BIGINT NOT NULL,
-                        amount DECIMAL(10,2) NOT NULL,
-                        currency VARCHAR(10) DEFAULT 'USD',
-                        is_refunded BOOLEAN DEFAULT FALSE,
-                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-                        FOREIGN KEY (challenge_id) REFERENCES challenges (id) ON DELETE CASCADE
-);
 
 -- Challenges table
 CREATE TABLE challenges (
@@ -152,6 +140,19 @@ CREATE TABLE challenges (
                             updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                             FOREIGN KEY (creator_id) REFERENCES users (id) ON DELETE CASCADE,
                             FOREIGN KEY (group_id) REFERENCES groups (id) ON DELETE SET NULL
+);
+
+-- Stakes table
+CREATE TABLE stakes (
+                        id BIGSERIAL PRIMARY KEY,
+                        user_id BIGINT NOT NULL,
+                        challenge_id BIGINT NOT NULL,
+                        amount DECIMAL(10,2) NOT NULL,
+                        currency VARCHAR(10) DEFAULT 'USD',
+                        is_refunded BOOLEAN DEFAULT FALSE,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                        FOREIGN KEY (challenge_id) REFERENCES challenges (id) ON DELETE CASCADE
 );
 
 -- Add foreign key constraint to quests table

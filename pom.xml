@@ -62,11 +62,11 @@
             <version>0.11.5</version>
             <scope>runtime</scope>
         </dependency>
-        <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
-            <scope>runtime</scope>
-        </dependency>
+        <!--        <dependency>-->
+        <!--            <groupId>com.h2database</groupId>-->
+        <!--            <artifactId>h2</artifactId>-->
+        <!--            <scope>runtime</scope>-->
+        <!--        </dependency>-->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jdbc</artifactId>
@@ -102,6 +102,7 @@
             <artifactId>auth</artifactId>
             <version>2.21.29</version>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/com.github.kokorin.jaffree/jaffree -->
         <dependency>
             <groupId>com.github.kokorin.jaffree</groupId>
             <artifactId>jaffree</artifactId>
@@ -113,11 +114,11 @@
             <scope>runtime</scope>
             <optional>true</optional>
         </dependency>
-        <!--		<dependency>-->
-        <!--			<groupId>org.postgresql</groupId>-->
-        <!--			<artifactId>postgresql</artifactId>-->
-        <!--			<scope>runtime</scope>-->
-        <!--		</dependency>-->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
@@ -153,21 +154,21 @@
         <!--		</dependency>-->
     </dependencies>
 
-   <!-- <build>
-        <plugins>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-                <configuration>
-                    <excludes>
-                        <exclude>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok</artifactId>
-                        </exclude>
-                    </excludes>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>-->
+    <!-- <build>
+         <plugins>
+             <plugin>
+                 <groupId>org.springframework.boot</groupId>
+                 <artifactId>spring-boot-maven-plugin</artifactId>
+                 <configuration>
+                     <excludes>
+                         <exclude>
+                             <groupId>org.projectlombok</groupId>
+                             <artifactId>lombok</artifactId>
+                         </exclude>
+                     </excludes>
+                 </configuration>
+             </plugin>
+         </plugins>
+     </build>-->
 
 </project>
