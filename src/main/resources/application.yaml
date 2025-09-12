@@ -3,21 +3,43 @@ spring:
   application:
     name: media-service
 
-  # Database configuration
+  # PostgreSQL Database Configuration
   datasource:
-    url: jdbc:postgresql://localhost:5432/media_db
-    username: ${DB_USERNAME:media_user}
-    password: ${DB_PASSWORD:password}
-    driver-class-name: org.postgresql.Driver
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/challenger_db}
+    username: ${SPRING_DATASOURCE_USERNAME:challenger_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:challenger_password_secure_123}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
 
+    # HikariCP Connection Pool Configuration
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 30000
+      pool-name: ChallengerHikariPool
+      max-lifetime: 2000000
+      connection-timeout: 30000
+      leak-detection-threshold: 60000
+
+  # JPA/Hibernate Configuration
   jpa:
+    database-platform: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.PostgreSQLDialect}
     hibernate:
-      ddl-auto: update
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:validate}
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+        implicit-strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyLegacyJpaImpl
+    show-sql: ${SPRING_JPA_SHOW_SQL:true}
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
-    show-sql: false
+        format_sql: ${SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL:true}
+        jdbc:
+          batch_size: 20
+          fetch_size: 50
+        order_inserts: true
+        order_updates: true
+        batch_versioned_data: true
+        generate_statistics: false
+
 
   # File upload configuration
   servlet:
