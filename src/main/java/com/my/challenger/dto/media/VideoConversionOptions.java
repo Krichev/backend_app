@@ -14,6 +14,7 @@ public class VideoConversionOptions {
     private Double frameRate;
     @Builder.Default
     private String videoCodec = "libx264";
+    private String audioCodec;
     /**
      * Corresponds to FFmpeg's -preset option.
      * Examples: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow.

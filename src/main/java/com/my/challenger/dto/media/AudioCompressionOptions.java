@@ -12,6 +12,8 @@ public class AudioCompressionOptions {
     private Long bitrate = 128000L; // in bits per second (128 kbps)
     @Builder.Default
     private Integer sampleRate = 44100; // Hz
+
+    private Integer channels;
     /**
      * Recommended codec for mp3 is 'libmp3lame'. For aac, use 'aac'.
      */

@@ -5,6 +5,7 @@ import com.my.challenger.entity.enums.PhotoType;
 import com.my.challenger.repository.PhotoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -37,6 +38,10 @@ public class S3PhotoStorageService implements PhotoStorageService {
     private final S3Client s3Client;
     private final PhotoRepository photoRepository;
 
+    // Optional metrics - will be null if disabled
+    @Autowired(required = false)
+    private PhotoMetricsService metricsService;
+
     @Value("${app.s3.bucket-name}")
     private String bucketName;
 
@@ -57,101 +62,45 @@ public class S3PhotoStorageService implements PhotoStorageService {
     public Photo savePhoto(MultipartFile file, PhotoType photoType, Long entityId, Long uploadedBy)
             throws IOException {
 
-        log.info("Starting photo upload - Type: {}, EntityId: {}, UploadedBy: {}",
-                photoType, entityId, uploadedBy);
-
-        validateFile(file);
-
-        // Generate S3 key (path)
-        String s3Key = generateS3Key(photoType, file.getOriginalFilename());
-
-        // Process image
-        byte[] processedImage = processImage(file, photoType);
-        Dimension dimensions = getImageDimensions(processedImage);
-
-        // Build metadata
-        Map<String, String> userMetadata = new HashMap<>();
-        userMetadata.put("original-filename", file.getOriginalFilename());
-        userMetadata.put("photo-type", photoType.name());
-        userMetadata.put("uploaded-by", uploadedBy.toString());
-        userMetadata.put("entity-id", entityId != null ? entityId.toString() : "");
-
-        // Create PutObjectRequest
-        PutObjectRequest.Builder putRequestBuilder = PutObjectRequest.builder()
-                .bucket(bucketName)
-                .key(s3Key)
-                .contentType(file.getContentType())
-                .cacheControl("public, max-age=31536000")
-                .metadata(userMetadata);
-
-        // Make public readable for certain photo types
-        if (photoType.isPublicAccessible()) {
-            putRequestBuilder.acl(ObjectCannedACL.PUBLIC_READ);
-        }
-
-        PutObjectRequest putRequest = putRequestBuilder.build();
+        long startTime = System.currentTimeMillis();
 
         try {
+            log.info("Starting photo upload - Type: {}, EntityId: {}, UploadedBy: {}",
+                    photoType, entityId, uploadedBy);
+
+            validateFile(file);
+            String s3Key = generateS3Key(photoType, file.getOriginalFilename());
+            byte[] processedImage = processImage(file, photoType);
+            Dimension dimensions = getImageDimensions(processedImage);
+
             // Upload to S3
-            s3Client.putObject(putRequest, RequestBody.fromBytes(processedImage));
-            log.info("Successfully uploaded photo to S3: {}", s3Key);
+            uploadToS3(s3Key, processedImage, file.getContentType(), photoType, entityId, uploadedBy);
+
+            // Save to database
+            Photo photo = createPhotoEntity(s3Key, file, processedImage, dimensions,
+                    photoType, entityId, uploadedBy);
+
+            // Handle single-instance photo types (replace existing)
+            if ((photoType == PhotoType.AVATAR || photoType == PhotoType.CHALLENGE_COVER) && entityId != null) {
+                deleteExistingPhoto(entityId, photoType);
+            }
+
+            Photo savedPhoto = photoRepository.save(photo);
+
+            // Record successful upload metrics
+            long duration = System.currentTimeMillis() - startTime;
+            recordSuccessMetrics(processedImage.length, duration);
+
+            log.info("Successfully uploaded photo with ID: {}", savedPhoto.getId());
+            return savedPhoto;
+
+        } catch (IOException e) {
+            recordFailureMetrics(e.getMessage());
+            throw e;
         } catch (Exception e) {
-            log.error("Failed to upload photo to S3: {}", e.getMessage());
-            throw new IOException("Failed to upload photo to S3", e);
+            recordFailureMetrics("Unexpected error: " + e.getMessage());
+            throw new IOException("Unexpected error during photo upload", e);
         }
-
-        // Generate S3 URL
-        String s3Url = generateS3Url(s3Key);
-
-        // Save to database
-        Photo photo = Photo.builder()
-                .filename(extractFilenameFromKey(s3Key))
-                .originalFilename(file.getOriginalFilename())
-                .filePath(s3Key)
-                .fileSize((long) processedImage.length)
-                .mimeType(file.getContentType())
-                .width(dimensions.width)
-                .height(dimensions.height)
-                .uploadedBy(uploadedBy)
-                .photoType(photoType)
-                .entityId(entityId)
-                .s3Key(s3Key)
-                .s3Url(s3Url)
-                .processingStatus("COMPLETED")
-                .build();
-
-        // Remove old photo if updating single-instance photo types
-        if ((photoType == PhotoType.AVATAR || photoType == PhotoType.CHALLENGE_COVER) && entityId != null) {
-            deleteExistingPhoto(entityId, photoType);
-        }
-
-        Photo savedPhoto = photoRepository.save(photo);
-        log.info("Successfully saved photo to database with ID: {}", savedPhoto.getId());
-
-        return savedPhoto;
-    }
-
-    @Override
-    public byte[] getPhotoData(Photo photo) throws IOException {
-        try {
-            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
-                    .bucket(bucketName)
-                    .key(photo.getFilePath())
-                    .build();
-
-            return s3Client.getObject(getObjectRequest).readAllBytes();
-        } catch (Exception e) {
-            log.error("Failed to retrieve photo from S3: {}", e.getMessage());
-            throw new IOException("Failed to retrieve photo from S3", e);
-        }
-    }
-
-    @Override
-    public String getPhotoUrl(Photo photo) {
-        if (photo.getS3Url() != null && !photo.getS3Url().isEmpty()) {
-            return photo.getS3Url();
-        }
-        return generateS3Url(photo.getFilePath());
     }
 
     @Override
@@ -159,6 +108,7 @@ public class S3PhotoStorageService implements PhotoStorageService {
         Optional<Photo> photoOpt = photoRepository.findById(photoId);
         if (photoOpt.isPresent()) {
             Photo photo = photoOpt.get();
+            long fileSize = photo.getFileSize();
 
             // Delete from S3
             try {
@@ -174,10 +124,36 @@ public class S3PhotoStorageService implements PhotoStorageService {
 
             // Delete from database
             photoRepository.delete(photo);
+
+            // Record deletion metrics
+            recordDeletionMetrics(fileSize);
+
             log.info("Successfully deleted photo from database: {}", photoId);
         } else {
             log.warn("Photo not found for deletion: {}", photoId);
         }
+    }
+
+    @Override
+    public byte[] getPhotoData(Photo photo) throws IOException {
+        try {
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(photo.getFilePath())
+                    .build();
+            return s3Client.getObject(getObjectRequest).readAllBytes();
+        } catch (Exception e) {
+            log.error("Failed to retrieve photo from S3: {}", e.getMessage());
+            throw new IOException("Failed to retrieve photo from S3", e);
+        }
+    }
+
+    @Override
+    public String getPhotoUrl(Photo photo) {
+        if (photo.getS3Url() != null && !photo.getS3Url().isEmpty()) {
+            return photo.getS3Url();
+        }
+        return generateS3Url(photo.getFilePath());
     }
 
     @Override
@@ -218,11 +194,71 @@ public class S3PhotoStorageService implements PhotoStorageService {
     @Override
     public StorageStats getStorageStats() {
         long totalPhotos = photoRepository.count();
-        // For a more complete implementation, you'd need custom queries for these
         return new StorageStats(totalPhotos, 0L, 0L);
     }
 
-    // Private helper methods
+    // Metrics helper methods - safe to call even when metricsService is null
+
+    private void recordSuccessMetrics(long fileSize, long duration) {
+        if (metricsService != null) {
+            metricsService.recordSuccessfulUpload(fileSize, duration);
+        }
+    }
+
+    private void recordFailureMetrics(String reason) {
+        if (metricsService != null) {
+            metricsService.recordFailedUpload(reason);
+        }
+    }
+
+    private void recordDeletionMetrics(long fileSize) {
+        if (metricsService != null) {
+            metricsService.recordDeletion(fileSize);
+        }
+    }
+
+    // Private helper methods (unchanged from original)
+
+    private void uploadToS3(String s3Key, byte[] data, String contentType,
+                            PhotoType photoType, Long entityId, Long uploadedBy) {
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("photo-type", photoType.name());
+        metadata.put("uploaded-by", uploadedBy.toString());
+        metadata.put("entity-id", entityId != null ? entityId.toString() : "");
+
+        PutObjectRequest.Builder putRequestBuilder = PutObjectRequest.builder()
+                .bucket(bucketName)
+                .key(s3Key)
+                .contentType(contentType)
+                .cacheControl("public, max-age=31536000")
+                .metadata(metadata);
+
+        if (photoType.isPublicAccessible()) {
+            putRequestBuilder.acl(ObjectCannedACL.PUBLIC_READ);
+        }
+
+        s3Client.putObject(putRequestBuilder.build(), RequestBody.fromBytes(data));
+    }
+
+    private Photo createPhotoEntity(String s3Key, MultipartFile file, byte[] processedImage,
+                                    Dimension dimensions, PhotoType photoType,
+                                    Long entityId, Long uploadedBy) {
+        return Photo.builder()
+                .filename(extractFilenameFromKey(s3Key))
+                .originalFilename(file.getOriginalFilename())
+                .filePath(s3Key)
+                .fileSize((long) processedImage.length)
+                .mimeType(file.getContentType())
+                .width(dimensions.width)
+                .height(dimensions.height)
+                .uploadedBy(uploadedBy)
+                .photoType(photoType)
+                .entityId(entityId)
+                .s3Key(s3Key)
+                .s3Url(generateS3Url(s3Key))
+                .processingStatus("COMPLETED")
+                .build();
+    }
 
     private void deleteExistingPhoto(Long entityId, PhotoType photoType) {
         photoRepository.findByEntityIdAndPhotoType(entityId, photoType)
@@ -234,9 +270,9 @@ public class S3PhotoStorageService implements PhotoStorageService {
                                 .build();
                         s3Client.deleteObject(deleteRequest);
                         photoRepository.delete(existingPhoto);
-                        log.info("Successfully deleted existing photo: {}", existingPhoto.getFilename());
+                        recordDeletionMetrics(existingPhoto.getFileSize());
                     } catch (Exception e) {
-                        log.warn("Failed to delete existing S3 photo: {}", e.getMessage());
+                        log.warn("Failed to delete existing photo: {}", e.getMessage());
                     }
                 });
     }
@@ -245,13 +281,7 @@ public class S3PhotoStorageService implements PhotoStorageService {
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy/MM/dd"));
         String randomId = UUID.randomUUID().toString();
         String extension = getFileExtension(originalFilename);
-
-        return String.format("%s/%s/%s.%s",
-                photoType.name().toLowerCase(),
-                timestamp,
-                randomId,
-                extension
-        );
+        return String.format("%s/%s/%s.%s", photoType.name().toLowerCase(), timestamp, randomId, extension);
     }
 
     private String extractFilenameFromKey(String s3Key) {
@@ -260,12 +290,9 @@ public class S3PhotoStorageService implements PhotoStorageService {
 
     private String generateS3Url(String s3Key) {
         if (!cloudFrontDomain.isEmpty()) {
-            // Use CloudFront for better performance
             return String.format("https://%s/%s", cloudFrontDomain, s3Key);
         } else {
-            // Use direct S3 URL
-            return String.format("https://%s.s3.%s.amazonaws.com/%s",
-                    bucketName, region, s3Key);
+            return String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, s3Key);
         }
     }
 
@@ -273,24 +300,19 @@ public class S3PhotoStorageService implements PhotoStorageService {
         if (file.isEmpty()) {
             throw new IOException("File is empty");
         }
-
         if (file.getSize() > maxFileSize) {
             throw new IOException(String.format("File size %d exceeds maximum allowed size %d",
                     file.getSize(), maxFileSize));
         }
-
         String originalFilename = file.getOriginalFilename();
         if (originalFilename == null || originalFilename.isEmpty()) {
             throw new IOException("File name is required");
         }
-
         String extension = getFileExtension(originalFilename).toLowerCase();
         if (!ALLOWED_EXTENSIONS.contains(extension)) {
             throw new IOException("File type not supported. Allowed types: " +
                     String.join(", ", ALLOWED_EXTENSIONS));
         }
-
-        // Validate that it's actually an image
         try {
             BufferedImage image = ImageIO.read(file.getInputStream());
             if (image == null) {
@@ -303,38 +325,27 @@ public class S3PhotoStorageService implements PhotoStorageService {
 
     private byte[] processImage(MultipartFile file, PhotoType photoType) throws IOException {
         BufferedImage originalImage = ImageIO.read(file.getInputStream());
-
         if (originalImage == null) {
             throw new IOException("Cannot read image file");
         }
 
         BufferedImage processedImage = originalImage;
-
-        // Apply photo type specific processing
         if (photoType.requiresResizing()) {
             int[] maxDimensions = photoType.getMaxDimensions();
-
             if (photoType == PhotoType.AVATAR || photoType == PhotoType.THUMBNAIL) {
-                // Square resize for avatars and thumbnails
                 processedImage = resizeToSquare(originalImage, maxDimensions[0]);
             } else {
-                // Proportional resize for other types
                 processedImage = resizeIfNeeded(originalImage, maxDimensions[0], maxDimensions[1]);
             }
         } else {
-            // Standard resize if image is too large
             processedImage = resizeIfNeeded(originalImage, MAX_WIDTH, MAX_HEIGHT);
         }
 
-        // Convert to byte array
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         String formatName = getFileExtension(file.getOriginalFilename()).toLowerCase();
-
-        // Use JPEG for better compression if not PNG or GIF
         if (!formatName.equals("png") && !formatName.equals("gif")) {
             formatName = "jpg";
         }
-
         ImageIO.write(processedImage, formatName, outputStream);
         return outputStream.toByteArray();
     }
@@ -342,23 +353,17 @@ public class S3PhotoStorageService implements PhotoStorageService {
     private BufferedImage resizeToSquare(BufferedImage originalImage, int size) {
         int width = originalImage.getWidth();
         int height = originalImage.getHeight();
-
-        // Calculate the square crop area (center crop)
         int cropSize = Math.min(width, height);
         int x = (width - cropSize) / 2;
         int y = (height - cropSize) / 2;
 
-        // Crop to square
         BufferedImage croppedImage = originalImage.getSubimage(x, y, cropSize, cropSize);
-
-        // Resize to target size
         BufferedImage resizedImage = new BufferedImage(size, size, BufferedImage.TYPE_INT_RGB);
         Graphics2D g2d = resizedImage.createGraphics();
         g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
         g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
         g2d.drawImage(croppedImage, 0, 0, size, size, null);
         g2d.dispose();
-
         return resizedImage;
     }
 
@@ -366,12 +371,10 @@ public class S3PhotoStorageService implements PhotoStorageService {
         int width = originalImage.getWidth();
         int height = originalImage.getHeight();
 
-        // Check if resize is needed
         if (width <= maxWidth && height <= maxHeight) {
             return originalImage;
         }
 
-        // Calculate new dimensions while maintaining aspect ratio
         double aspectRatio = (double) width / height;
         int newWidth, newHeight;
 
@@ -383,7 +386,6 @@ public class S3PhotoStorageService implements PhotoStorageService {
             newWidth = (int) (maxHeight * aspectRatio);
         }
 
-        // Ensure we don't exceed maximum dimensions
         if (newWidth > maxWidth) {
             newWidth = maxWidth;
             newHeight = (int) (maxWidth / aspectRatio);
@@ -399,7 +401,6 @@ public class S3PhotoStorageService implements PhotoStorageService {
         g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
         g2d.drawImage(originalImage, 0, 0, newWidth, newHeight, null);
         g2d.dispose();
-
         return resizedImage;
     }
 

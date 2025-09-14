@@ -19,7 +19,13 @@ spring:
       max-lifetime: 2000000
       connection-timeout: 30000
       leak-detection-threshold: 60000
-
+  management:
+    metrics:
+      enabled: true
+    endpoints:
+      web:
+        exposure:
+          include: health,info,metrics,prometheus
   # JPA/Hibernate Configuration
   jpa:
     database-platform: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.PostgreSQLDialect}

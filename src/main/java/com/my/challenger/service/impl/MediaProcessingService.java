@@ -1,7 +1,10 @@
 package com.my.challenger.service.impl;
 
+import com.github.kokorin.jaffree.Rational;
 import com.github.kokorin.jaffree.StreamType;
-import com.github.kokorin.jaffree.ffmpeg.*;
+import com.github.kokorin.jaffree.ffmpeg.FFmpeg;
+import com.github.kokorin.jaffree.ffmpeg.UrlInput;
+import com.github.kokorin.jaffree.ffmpeg.UrlOutput;
 import com.github.kokorin.jaffree.ffprobe.FFprobe;
 import com.github.kokorin.jaffree.ffprobe.FFprobeResult;
 import com.github.kokorin.jaffree.ffprobe.Format;
@@ -63,8 +66,9 @@ public class MediaProcessingService {
                     .bitrate(format.getBitRate() != null ? format.getBitRate() : 0L)
                     .frameRate(parseFrameRate(videoStream.getRFrameRate()))
                     .codec(videoStream.getCodecName())
-                    .pixelFormat(videoStream.getPixFormat())
+                    .pixelFormat(videoStream.getPixFmt())   // ✅ FIXED
                     .build();
+
 
         } catch (Exception e) {
             log.error("Failed to extract video metadata from: {}", videoPath, e);
@@ -109,9 +113,9 @@ public class MediaProcessingService {
     /**
      * Generates a single thumbnail from a video.
      *
-     * @param videoPath  Path to the video file.
-     * @param outputDir  Directory to save the thumbnail in.
-     * @param seekTime   The time from which to grab the thumbnail.
+     * @param videoPath Path to the video file.
+     * @param outputDir Directory to save the thumbnail in.
+     * @param seekTime  The time from which to grab the thumbnail.
      * @return The full path to the generated thumbnail.
      * @throws MediaProcessingException if thumbnail generation fails.
      */
@@ -130,7 +134,7 @@ public class MediaProcessingService {
                     .addOutput(UrlOutput.toPath(thumbnailPath)
                             .setFrameCount(StreamType.VIDEO, 1L)  // Extract only 1 frame
                             .disableStream(StreamType.AUDIO)       // No audio in thumbnail
-                            .setOverwriteOutput(true))
+                            .addArgument("-y"))
                     .setProgressListener(progress ->
                             log.debug("Thumbnail generation progress: {}ms", progress.getTimeMillis()))
                     .execute();
@@ -176,7 +180,7 @@ public class MediaProcessingService {
 
         try {
             UrlOutput output = UrlOutput.toPath(outputPath)
-                    .setOverwriteOutput(true)
+                    .addArgument("-y")
                     .setFormat(options.getFormat());
 
             // Apply video options
@@ -243,7 +247,7 @@ public class MediaProcessingService {
         try {
             UrlOutput output = UrlOutput.toPath(outputPath)
                     .disableStream(StreamType.VIDEO)  // No video stream
-                    .setOverwriteOutput(true);
+                    .addArgument("-y");
 
             // Apply audio options
             if (options.getAudioCodec() != null) {
@@ -275,6 +279,12 @@ public class MediaProcessingService {
         }
     }
 
+
+    private double parseFrameRate(Rational rational) {
+        if (rational == null) return 0.0;
+        return rational.doubleValue();   // ✅ Rational has doubleValue()
+    }
+
     /**
      * Compresses an audio file according to the specified options.
      *
@@ -295,7 +305,7 @@ public class MediaProcessingService {
 
         try {
             UrlOutput output = UrlOutput.toPath(outputPath)
-                    .setOverwriteOutput(true);
+                    .addArgument("-y");
 
             // Apply audio compression options
             if (options.getAudioCodec() != null) {
@@ -361,7 +371,7 @@ public class MediaProcessingService {
                     .addInput(UrlInput.fromPath(concatFile))
                     .addArguments("-c", "copy")
                     .addOutput(UrlOutput.toPath(outputPath)
-                            .setOverwriteOutput(true))
+                            .addArgument("-y"))
                     .setProgressListener(progress ->
                             log.debug("Video merge progress: frame {}", progress.getFrame()))
                     .execute();
