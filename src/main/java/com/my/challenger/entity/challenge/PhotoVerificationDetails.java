@@ -1,29 +1,47 @@
 package com.my.challenger.entity.challenge;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
+@Data
 @Entity
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @Table(name = "photo_verification_details")
-@Getter
-@Setter
 public class PhotoVerificationDetails {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String description;               // Description of what should be in the photo
-    private Boolean requiresPhotoComparison;  // Whether to compare with previous photos
-    private String verificationMode;          // Verification mode (standard, strict, etc.)
+    @Column(columnDefinition = "TEXT")
+    private String description;
 
-    // Default constructor
-    public PhotoVerificationDetails() {
-        this.requiresPhotoComparison = false;
-        this.verificationMode = "standard";
-    }
+    @Column(name = "requires_photo_comparison")
+    private Boolean requiresPhotoComparison = false;
 
-    // Relationship to VerificationDetails
+    @Column(name = "verification_mode")
+    private String verificationMode = "standard";
+
+    // Audit fields
+    @Column(name = "created_at")
+    private java.time.LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private java.time.LocalDateTime updatedAt;
+
+    // Bidirectional relationship with VerificationDetails
     @OneToOne(mappedBy = "photoDetails")
     private VerificationDetails verificationDetails;
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = java.time.LocalDateTime.now();
+        updatedAt = java.time.LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = java.time.LocalDateTime.now();
+    }
 }

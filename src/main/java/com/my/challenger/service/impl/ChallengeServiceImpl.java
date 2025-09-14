@@ -11,9 +11,6 @@ import com.my.challenger.entity.Task;
 import com.my.challenger.entity.TaskCompletion;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.challenge.Challenge;
-import com.my.challenger.entity.challenge.LocationCoordinates;
-import com.my.challenger.entity.challenge.PhotoVerificationDetails;
-import com.my.challenger.entity.challenge.VerificationDetails;
 import com.my.challenger.entity.enums.*;
 import com.my.challenger.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -24,10 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -149,6 +143,15 @@ public class ChallengeServiceImpl implements ChallengeService {
     public ChallengeDTO getChallengeById(Long id, Long requestUserId) {
         Challenge challenge = findChallengeById(id);
         return convertToDTO(challenge, requestUserId);
+    }
+
+    @Override
+    public Optional<Challenge> getChallengeById(Long id) {
+        Challenge challenge = findChallengeById(id);
+        if(challenge == null) {
+            return Optional.empty();
+        }
+        return Optional.of(challenge);
     }
 
     @Override

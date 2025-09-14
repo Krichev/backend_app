@@ -20,12 +20,15 @@ spring:
   # JPA Configuration - Development Settings
   jpa:
     hibernate:
-      ddl-auto: create-drop # Creates and drops schema on startup/shutdown
-      naming:
-        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
-        implicit-strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyLegacyJpaImpl
+#      ddl-auto: create-drop # Creates and drops schema on startup/shutdown
+      ddl-auto: validate # Creates and drops schema on startup/shutdown
+#      naming:
+#        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+#        implicit-strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyLegacyJpaImpl
     properties:
       hibernate:
+        hbm2ddl:
+         auto: validate
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
         show_sql: true
@@ -43,7 +46,7 @@ spring:
         order_updates: true
         batch_versioned_data: true
     show-sql: true
-    generate-ddl: true
+#    generate-ddl: true
 
   # Flyway Configuration - Disabled for development (using create-drop)
   flyway:
@@ -163,6 +166,8 @@ logging:
     com.my.challenger: DEBUG
     org.springframework.security: DEBUG
     org.hibernate.SQL: DEBUG
+    org.hibernate.boot.model: DEBUG
+    org.hibernate.cfg.annotations: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
     org.springframework.web: DEBUG
     org.springframework.boot.autoconfigure: INFO
@@ -221,3 +226,4 @@ spring:
     url: jdbc:postgresql://postgres:5432/challenger_dev_db
     username: challenger_user
     password: challenger_password
+

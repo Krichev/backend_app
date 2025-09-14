@@ -96,67 +96,89 @@ CREATE TYPE processing_status AS ENUM (
 );
 
 -- Create the media_files table matching your Java entity exactly
-CREATE TABLE media_files (
+CREATE TABLE media_files
+(
     -- Primary key - matches @GeneratedValue(strategy = GenerationType.IDENTITY)
-                             id BIGSERIAL PRIMARY KEY,
+    id                BIGSERIAL PRIMARY KEY,
 
     -- File information
-                             original_filename VARCHAR(255) NOT NULL,
-                             filename VARCHAR(255) NOT NULL UNIQUE,
-                             file_path VARCHAR(500) NOT NULL,
-                             processed_path VARCHAR(500),
-                             thumbnail_path VARCHAR(500),
-                             content_type VARCHAR(100) NOT NULL,
-                             file_size BIGINT NOT NULL CHECK (file_size > 0),
+    original_filename VARCHAR(255)      NOT NULL,
+    filename          VARCHAR(255)      NOT NULL UNIQUE,
+    file_path         VARCHAR(500)      NOT NULL,
+    processed_path    VARCHAR(500),
+    thumbnail_path    VARCHAR(500),
+    content_type      VARCHAR(100)      NOT NULL,
+    file_size         BIGINT            NOT NULL CHECK (file_size > 0),
 
     -- Enum fields
-                             media_type media_type NOT NULL,
-                             media_category media_category NOT NULL,
-                             processing_status processing_status NOT NULL DEFAULT 'PENDING',
+    media_type        media_type        NOT NULL,
+    media_category    media_category    NOT NULL,
+    processing_status processing_status NOT NULL DEFAULT 'PENDING',
 
     -- Entity relationships
-                             entity_id BIGINT,
-                             uploaded_by BIGINT NOT NULL,
+    entity_id         BIGINT,
+    uploaded_by       BIGINT            NOT NULL,
 
     -- Timestamp fields - matching Java LocalDateTime
-                             uploaded_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                             created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                             updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    uploaded_at       TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at        TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at        TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 
     -- Media metadata fields
-                             width INTEGER CHECK (width > 0),
-                             height INTEGER CHECK (height > 0),
-                             duration_seconds DOUBLE PRECISION CHECK (duration_seconds > 0),
-                             bitrate BIGINT CHECK (bitrate > 0),
-                             frame_rate DECIMAL(10, 2) CHECK (frame_rate > 0),
-                             resolution VARCHAR(50),
+    width             INTEGER CHECK (width > 0),
+    height            INTEGER CHECK (height > 0),
+    duration_seconds  DOUBLE PRECISION CHECK (duration_seconds > 0),
+    bitrate           BIGINT CHECK (bitrate > 0),
+    frame_rate        DECIMAL(10, 2) CHECK (frame_rate > 0),
+    resolution        VARCHAR(50),
 
     -- S3 fields
-                             s3_key VARCHAR(500),
-                             s3_url TEXT
+    s3_key            VARCHAR(500),
+    s3_url            TEXT
 );
 
-COMMENT ON TABLE media_files IS 'Stores metadata and information about uploaded media files matching Java MediaFile entity';
-COMMENT ON COLUMN media_files.id IS 'Auto-incrementing primary key (matches @GeneratedValue IDENTITY)';
-COMMENT ON COLUMN media_files.original_filename IS 'Original filename as uploaded by user';
-COMMENT ON COLUMN media_files.filename IS 'Unique filename used for storage';
-COMMENT ON COLUMN media_files.file_path IS 'Full path to the file on storage system';
-COMMENT ON COLUMN media_files.processed_path IS 'Path to processed/optimized version';
-COMMENT ON COLUMN media_files.thumbnail_path IS 'Path to thumbnail version';
-COMMENT ON COLUMN media_files.content_type IS 'MIME type / content type of the file';
-COMMENT ON COLUMN media_files.file_size IS 'File size in bytes';
-COMMENT ON COLUMN media_files.media_type IS 'Type of media (IMAGE, VIDEO, AUDIO, etc.)';
-COMMENT ON COLUMN media_files.media_category IS 'Category of media usage (PROFILE_PICTURE, THUMBNAIL, etc.)';
-COMMENT ON COLUMN media_files.processing_status IS 'Current processing status (PENDING, COMPLETED, FAILED)';
-COMMENT ON COLUMN media_files.entity_id IS 'ID of related entity this media belongs to';
-COMMENT ON COLUMN media_files.uploaded_by IS 'ID of user who uploaded the file';
-COMMENT ON COLUMN media_files.uploaded_at IS 'Timestamp when file was uploaded (matches @CreationTimestamp)';
-COMMENT ON COLUMN media_files.created_at IS 'Record creation timestamp (matches @CreationTimestamp)';
-COMMENT ON COLUMN media_files.updated_at IS 'Last update timestamp (matches @UpdateTimestamp)';
-COMMENT ON COLUMN media_files.duration_seconds IS 'Duration in seconds for video/audio files';
-COMMENT ON COLUMN media_files.frame_rate IS 'Frame rate for video files (decimal with 2 places)';
-COMMENT ON COLUMN media_files.s3_key IS 'S3 object key for cloud storage';
-COMMENT ON COLUMN media_files.s3_url IS 'Full S3 URL for direct access';
+COMMENT
+ON TABLE media_files IS 'Stores metadata and information about uploaded media files matching Java MediaFile entity';
+COMMENT
+ON COLUMN media_files.id IS 'Auto-incrementing primary key (matches @GeneratedValue IDENTITY)';
+COMMENT
+ON COLUMN media_files.original_filename IS 'Original filename as uploaded by user';
+COMMENT
+ON COLUMN media_files.filename IS 'Unique filename used for storage';
+COMMENT
+ON COLUMN media_files.file_path IS 'Full path to the file on storage system';
+COMMENT
+ON COLUMN media_files.processed_path IS 'Path to processed/optimized version';
+COMMENT
+ON COLUMN media_files.thumbnail_path IS 'Path to thumbnail version';
+COMMENT
+ON COLUMN media_files.content_type IS 'MIME type / content type of the file';
+COMMENT
+ON COLUMN media_files.file_size IS 'File size in bytes';
+COMMENT
+ON COLUMN media_files.media_type IS 'Type of media (IMAGE, VIDEO, AUDIO, etc.)';
+COMMENT
+ON COLUMN media_files.media_category IS 'Category of media usage (PROFILE_PICTURE, THUMBNAIL, etc.)';
+COMMENT
+ON COLUMN media_files.processing_status IS 'Current processing status (PENDING, COMPLETED, FAILED)';
+COMMENT
+ON COLUMN media_files.entity_id IS 'ID of related entity this media belongs to';
+COMMENT
+ON COLUMN media_files.uploaded_by IS 'ID of user who uploaded the file';
+COMMENT
+ON COLUMN media_files.uploaded_at IS 'Timestamp when file was uploaded (matches @CreationTimestamp)';
+COMMENT
+ON COLUMN media_files.created_at IS 'Record creation timestamp (matches @CreationTimestamp)';
+COMMENT
+ON COLUMN media_files.updated_at IS 'Last update timestamp (matches @UpdateTimestamp)';
+COMMENT
+ON COLUMN media_files.duration_seconds IS 'Duration in seconds for video/audio files';
+COMMENT
+ON COLUMN media_files.frame_rate IS 'Frame rate for video files (decimal with 2 places)';
+COMMENT
+ON COLUMN media_files.s3_key IS 'S3 object key for cloud storage';
+COMMENT
+ON COLUMN media_files.s3_url IS 'Full S3 URL for direct access';
 -- Users table
 CREATE TABLE users
 (
@@ -241,6 +263,7 @@ CREATE TABLE challenges
     id                  BIGSERIAL PRIMARY KEY,
     title               VARCHAR(255)   NOT NULL,
     description         TEXT,
+    quiz_config         TEXT,
     type                challenge_type NOT NULL,
     creator_id          BIGINT         NOT NULL,
     group_id            BIGINT,
@@ -380,49 +403,56 @@ CREATE TABLE task_completions
 );
 
 -- Verification Details table
-CREATE TABLE verification_details
-(
-    id                 BIGSERIAL PRIMARY KEY,
-    task_completion_id BIGINT,
-    verification_type  VARCHAR(50),
-    verification_data  JSONB,
-    created_at         TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (task_completion_id) REFERENCES task_completions (id) ON DELETE CASCADE
+CREATE TABLE verification_details (
+                                      id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                                      activity_type VARCHAR(100),
+                                      target_value DOUBLE,
+                                      radius DOUBLE,
+                                      challenge_id BIGINT NOT NULL,
+                                      location_coordinates_id BIGINT,
+                                      photo_details_id BIGINT,
+                                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    -- Foreign key constraints
+                                      CONSTRAINT fk_verification_details_challenge
+                                          FOREIGN KEY (challenge_id) REFERENCES challenges(id)
+                                              ON DELETE CASCADE,
+
+                                      CONSTRAINT fk_verification_details_location
+                                          FOREIGN KEY (location_coordinates_id) REFERENCES location_coordinates(id)
+                                              ON DELETE SET NULL,
+
+                                      CONSTRAINT fk_verification_details_photo
+                                          FOREIGN KEY (photo_details_id) REFERENCES photo_verification_details(id)
+                                              ON DELETE SET NULL
 );
 
--- Location Coordinates table
-CREATE TABLE location_coordinates
-(
-    id                     BIGSERIAL PRIMARY KEY,
-    verification_detail_id BIGINT,
-    latitude               DOUBLE PRECISION,
-    longitude              DOUBLE PRECISION,
-    address                TEXT,
-    created_at             TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (verification_detail_id) REFERENCES verification_details (id) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS location_coordinates (
+                                                    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                                                    latitude DOUBLE,
+                                                    longitude DOUBLE,
+                                                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
--- Photo Verification Details table
-CREATE TABLE photo_verification_details
-(
-    id                     BIGSERIAL PRIMARY KEY,
-    verification_detail_id BIGINT,
-    photo_url              TEXT NOT NULL,
-    description            TEXT,
-    uploaded_at            TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (verification_detail_id) REFERENCES verification_details (id) ON DELETE CASCADE
-);
+-CREATE TABLE IF NOT EXISTS location_coordinates (
+                                                     id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                                                     latitude DOUBLE NOT NULL,
+                                                     longitude DOUBLE NOT NULL,
+                                                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+ );
 
--- Junction table for many-to-many relationship between rewards and users
-CREATE TABLE reward_users
-(
-    reward_id    BIGINT,
-    user_id      BIGINT,
-    awarded_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (reward_id, user_id),
-    FOREIGN KEY (reward_id) REFERENCES rewards (id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-);
+-- Create photo_verification_details table first (referenced by verification_details)
+CREATE TABLE IF NOT EXISTS photo_verification_details (
+                                                          id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                                                          description TEXT,
+                                                          requires_photo_comparison BOOLEAN DEFAULT FALSE,
+                                                          verification_mode VARCHAR(50) DEFAULT 'standard',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    );
 
 -- User Connections table
 CREATE TABLE user_connections
@@ -561,6 +591,11 @@ CREATE INDEX idx_quests_creator ON quests (creator_id);
 CREATE INDEX idx_quests_status ON quests (status);
 CREATE INDEX idx_quests_challenge ON quests (challenge_id);
 
+CREATE INDEX idx_verification_details_challenge_id ON verification_details(challenge_id);
+CREATE INDEX idx_verification_details_location_id ON verification_details(location_coordinates_id);
+CREATE INDEX idx_verification_details_photo_id ON verification_details(photo_details_id);
+CREATE INDEX idx_verification_details_activity_type ON verification_details(activity_type);
+
 -- Tasks table indexes
 CREATE INDEX idx_tasks_quest ON tasks (quest_id);
 CREATE INDEX idx_tasks_assigned_to ON tasks (assigned_to);
@@ -623,22 +658,21 @@ CREATE INDEX idx_photos_s3_key ON photos (s3_key);
 CREATE INDEX idx_photos_created_at ON photos (created_at);
 CREATE INDEX idx_photos_processing_status ON photos (processing_status);
 
-CREATE INDEX idx_media_files_uploaded_by ON media_files(uploaded_by);
-CREATE INDEX idx_media_files_entity_id ON media_files(entity_id);
-CREATE INDEX idx_media_files_media_type ON media_files(media_type);
-CREATE INDEX idx_media_files_media_category ON media_files(media_category);
-CREATE INDEX idx_media_files_processing_status ON media_files(processing_status);
-CREATE INDEX idx_media_files_uploaded_at ON media_files(uploaded_at);
-CREATE INDEX idx_media_files_created_at ON media_files(created_at);
-CREATE INDEX idx_media_files_content_type ON media_files(content_type);
-CREATE INDEX idx_media_files_s3_key ON media_files(s3_key);
+CREATE INDEX idx_media_files_uploaded_by ON media_files (uploaded_by);
+CREATE INDEX idx_media_files_entity_id ON media_files (entity_id);
+CREATE INDEX idx_media_files_media_type ON media_files (media_type);
+CREATE INDEX idx_media_files_media_category ON media_files (media_category);
+CREATE INDEX idx_media_files_processing_status ON media_files (processing_status);
+CREATE INDEX idx_media_files_uploaded_at ON media_files (uploaded_at);
+CREATE INDEX idx_media_files_created_at ON media_files (created_at);
+CREATE INDEX idx_media_files_content_type ON media_files (content_type);
+CREATE INDEX idx_media_files_s3_key ON media_files (s3_key);
 
 -- Composite indexes for common queries
-CREATE INDEX idx_media_files_uploaded_by_category ON media_files(uploaded_by, media_category);
-CREATE INDEX idx_media_files_entity_category ON media_files(entity_id, media_category) WHERE entity_id IS NOT NULL;
-CREATE INDEX idx_media_files_processing_media_type ON media_files(processing_status, media_type);
-CREATE INDEX idx_media_files_s3_key_status ON media_files(s3_key, processing_status) WHERE s3_key IS NOT NULL;
-
+CREATE INDEX idx_media_files_uploaded_by_category ON media_files (uploaded_by, media_category);
+CREATE INDEX idx_media_files_entity_category ON media_files (entity_id, media_category) WHERE entity_id IS NOT NULL;
+CREATE INDEX idx_media_files_processing_media_type ON media_files (processing_status, media_type);
+CREATE INDEX idx_media_files_s3_key_status ON media_files (s3_key, processing_status) WHERE s3_key IS NOT NULL;
 
 
 -- Function to update updated_at timestamp
@@ -653,49 +687,60 @@ END;
 $$
 LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION is_image(media_cat media_category)
+CREATE
+OR REPLACE FUNCTION is_image(media_cat media_category)
 RETURNS BOOLEAN AS $$
 BEGIN
 RETURN media_cat = 'IMAGE';
 END;
-$$ LANGUAGE plpgsql IMMUTABLE;
+$$
+LANGUAGE plpgsql IMMUTABLE;
 
 -- Function to check if media is video (matches isVideo() method)
-CREATE OR REPLACE FUNCTION is_video(media_cat media_category)
+CREATE
+OR REPLACE FUNCTION is_video(media_cat media_category)
 RETURNS BOOLEAN AS $$
 BEGIN
 RETURN media_cat = 'VIDEO';
 END;
-$$ LANGUAGE plpgsql IMMUTABLE;
+$$
+LANGUAGE plpgsql IMMUTABLE;
 
 -- Function to check if media is audio (matches isAudio() method)
-CREATE OR REPLACE FUNCTION is_audio(media_cat media_category)
+CREATE
+OR REPLACE FUNCTION is_audio(media_cat media_category)
 RETURNS BOOLEAN AS $$
 BEGIN
 RETURN media_cat = 'AUDIO';
 END;
-$$ LANGUAGE plpgsql IMMUTABLE;
+$$
+LANGUAGE plpgsql IMMUTABLE;
 
 -- Function to check if processing is completed (matches isProcessingCompleted() method)
-CREATE OR REPLACE FUNCTION is_processing_completed(proc_status processing_status)
+CREATE
+OR REPLACE FUNCTION is_processing_completed(proc_status processing_status)
 RETURNS BOOLEAN AS $$
 BEGIN
 RETURN proc_status = 'COMPLETED';
 END;
-$$ LANGUAGE plpgsql IMMUTABLE;
+$$
+LANGUAGE plpgsql IMMUTABLE;
 
 -- Function to check if processing failed (matches isProcessingFailed() method)
-CREATE OR REPLACE FUNCTION is_processing_failed(proc_status processing_status)
+CREATE
+OR REPLACE FUNCTION is_processing_failed(proc_status processing_status)
 RETURNS BOOLEAN AS $$
 BEGIN
 RETURN proc_status = 'FAILED';
 END;
-$$ LANGUAGE plpgsql IMMUTABLE;
+$$
+LANGUAGE plpgsql IMMUTABLE;
 
 -- Stored procedures for common operations
 
 -- Get media files by user
-CREATE OR REPLACE FUNCTION get_media_files_by_user(
+CREATE
+OR REPLACE FUNCTION get_media_files_by_user(
     user_id BIGINT,
     media_cat media_category DEFAULT NULL,
     proc_status processing_status DEFAULT NULL,
@@ -715,29 +760,28 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
 RETURN QUERY
-SELECT
-    mf.id,
-    mf.original_filename,
-    mf.filename,
-    mf.s3_url,
-    mf.media_type,
-    mf.media_category,
-    mf.processing_status,
-    mf.file_size,
-    mf.uploaded_at
+SELECT mf.id,
+       mf.original_filename,
+       mf.filename,
+       mf.s3_url,
+       mf.media_type,
+       mf.media_category,
+       mf.processing_status,
+       mf.file_size,
+       mf.uploaded_at
 FROM media_files mf
-WHERE
-    mf.uploaded_by = user_id
+WHERE mf.uploaded_by = user_id
   AND (media_cat IS NULL OR mf.media_category = media_cat)
   AND (proc_status IS NULL OR mf.processing_status = proc_status)
-ORDER BY mf.uploaded_at DESC
-    LIMIT limit_count
+ORDER BY mf.uploaded_at DESC LIMIT limit_count
 OFFSET offset_count;
 END;
-$$ LANGUAGE plpgsql;
+$$
+LANGUAGE plpgsql;
 
 -- Get media files by entity
-CREATE OR REPLACE FUNCTION get_media_files_by_entity(
+CREATE
+OR REPLACE FUNCTION get_media_files_by_entity(
     ent_id BIGINT,
     media_cat media_category DEFAULT NULL,
     limit_count INTEGER DEFAULT 50
@@ -753,26 +797,25 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
 RETURN QUERY
-SELECT
-    mf.id,
-    mf.original_filename,
-    mf.filename,
-    mf.s3_url,
-    mf.media_category,
-    mf.processing_status,
-    mf.uploaded_at
+SELECT mf.id,
+       mf.original_filename,
+       mf.filename,
+       mf.s3_url,
+       mf.media_category,
+       mf.processing_status,
+       mf.uploaded_at
 FROM media_files mf
-WHERE
-    mf.entity_id = ent_id
+WHERE mf.entity_id = ent_id
   AND (media_cat IS NULL OR mf.media_category = media_cat)
   AND mf.processing_status = 'COMPLETED'
-ORDER BY mf.uploaded_at DESC
-    LIMIT limit_count;
+ORDER BY mf.uploaded_at DESC LIMIT limit_count;
 END;
-$$ LANGUAGE plpgsql;
+$$
+LANGUAGE plpgsql;
 
 -- Update processing status
-CREATE OR REPLACE FUNCTION update_processing_status(
+CREATE
+OR REPLACE FUNCTION update_processing_status(
     file_id BIGINT,
     new_status processing_status,
     new_processed_path VARCHAR(500) DEFAULT NULL,
@@ -781,19 +824,21 @@ CREATE OR REPLACE FUNCTION update_processing_status(
 RETURNS BOOLEAN AS $$
 BEGIN
 UPDATE media_files
-SET
-    processing_status = new_status,
-    processed_path = COALESCE(new_processed_path, processed_path),
-    thumbnail_path = COALESCE(new_thumbnail_path, thumbnail_path),
-    updated_at = CURRENT_TIMESTAMP
+SET processing_status = new_status,
+    processed_path    = COALESCE(new_processed_path, processed_path),
+    thumbnail_path    = COALESCE(new_thumbnail_path, thumbnail_path),
+    updated_at        = CURRENT_TIMESTAMP
 WHERE id = file_id;
 
-RETURN FOUND;
+RETURN
+FOUND;
 END;
-$$ LANGUAGE plpgsql;
+$$
+LANGUAGE plpgsql;
 
 -- Get files pending processing
-CREATE OR REPLACE FUNCTION get_pending_processing_files(limit_count INTEGER DEFAULT 10)
+CREATE
+OR REPLACE FUNCTION get_pending_processing_files(limit_count INTEGER DEFAULT 10)
 RETURNS TABLE (
     id BIGINT,
     filename VARCHAR(255),
@@ -806,22 +851,20 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
 RETURN QUERY
-SELECT
-    mf.id,
-    mf.filename,
-    mf.file_path,
-    mf.s3_key,
-    mf.s3_url,
-    mf.media_type,
-    mf.content_type,
-    mf.uploaded_at
+SELECT mf.id,
+       mf.filename,
+       mf.file_path,
+       mf.s3_key,
+       mf.s3_url,
+       mf.media_type,
+       mf.content_type,
+       mf.uploaded_at
 FROM media_files mf
-WHERE
-    mf.processing_status = 'PENDING'
-ORDER BY mf.uploaded_at ASC
-    LIMIT limit_count;
+WHERE mf.processing_status = 'PENDING'
+ORDER BY mf.uploaded_at ASC LIMIT limit_count;
 END;
-$$ LANGUAGE plpgsql;
+$$
+LANGUAGE plpgsql;
 
 
 -- Apply triggers to tables with updated_at column
@@ -896,26 +939,54 @@ CREATE TRIGGER generate_media_files_stored_filename
 
 -- View for completed media files
 CREATE VIEW completed_media_files AS
-SELECT
-    id, original_filename, filename, file_path, processed_path, thumbnail_path,
-    content_type, file_size, media_type, media_category, entity_id, uploaded_by,
-    uploaded_at, created_at, updated_at, width, height, duration_seconds,
-    bitrate, frame_rate, resolution, s3_key, s3_url
+SELECT id,
+       original_filename,
+       filename,
+       file_path,
+       processed_path,
+       thumbnail_path,
+       content_type,
+       file_size,
+       media_type,
+       media_category,
+       entity_id,
+       uploaded_by,
+       uploaded_at,
+       created_at,
+       updated_at,
+       width,
+       height,
+       duration_seconds,
+       bitrate,
+       frame_rate,
+       resolution,
+       s3_key,
+       s3_url
 FROM media_files
 WHERE processing_status = 'COMPLETED';
 
 -- View for media files with dimensions (images and videos)
 CREATE VIEW media_files_with_dimensions AS
-SELECT
-    id, original_filename, filename, s3_url, media_type, media_category,
-    width, height, resolution, file_size, uploaded_by, uploaded_at
+SELECT id,
+       original_filename,
+       filename,
+       s3_url,
+       media_type,
+       media_category,
+       width,
+       height,
+       resolution,
+       file_size,
+       uploaded_by,
+       uploaded_at
 FROM media_files
 WHERE (width IS NOT NULL AND height IS NOT NULL)
   AND processing_status = 'COMPLETED';
 
 -- View for user profile pictures
 CREATE VIEW user_profile_pictures AS
-SELECT DISTINCT ON (uploaded_by)
+SELECT DISTINCT
+        ON (uploaded_by)
         id, original_filename, filename, s3_url, width, height, uploaded_by, uploaded_at
         FROM media_files
         WHERE media_category = 'PROFILE_PICTURE'

@@ -3,9 +3,11 @@ package com.my.challenger.service.impl;
 import com.my.challenger.dto.ChallengeDTO;
 import com.my.challenger.dto.CreateChallengeRequest;
 import com.my.challenger.dto.UpdateChallengeRequest;
+import com.my.challenger.entity.challenge.Challenge;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Service interface for Challenge operations
@@ -21,6 +23,11 @@ public interface ChallengeService {
      * Get a specific challenge by ID
      */
     ChallengeDTO getChallengeById(Long id, Long requestUserId);
+
+    /**
+     * Get a specific challenge by ID
+     */
+    Optional<Challenge> getChallengeById(Long id);
     
     /**
      * Create a new challenge
