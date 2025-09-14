@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class MediaFile {
 
     @Id
@@ -56,7 +57,7 @@ public class MediaFile {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "processing_status", nullable = false)
-    private ProcessingStatus processingStatus;
+    private ProcessingStatus processingStatus = ProcessingStatus.PENDING;
 
     @Column(name = "entity_id")
     private Long entityId;
@@ -64,10 +65,19 @@ public class MediaFile {
     @Column(name = "uploaded_by", nullable = false)
     private Long uploadedBy;
 
+    @CreationTimestamp
     @Column(name = "uploaded_at", nullable = false)
     private LocalDateTime uploadedAt;
 
-    // Media metadata
+    @CreationTimestamp
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    // Media metadata fields
     @Column(name = "width")
     private Integer width;
 
@@ -91,4 +101,41 @@ public class MediaFile {
 
     @Column(name = "s3_url")
     private String s3Url;
+
+    // **MISSING METHOD: getMimeType() - maps to contentType field**
+    public String getMimeType() {
+        return this.contentType;
+    }
+
+    public void setMimeType(String mimeType) {
+        this.contentType = mimeType;
+    }
+
+    // Additional utility methods
+    public boolean isImage() {
+        return mediaCategory == MediaCategory.IMAGE;
+    }
+
+    public boolean isVideo() {
+        return mediaCategory == MediaCategory.VIDEO;
+    }
+
+    public boolean isAudio() {
+        return mediaCategory == MediaCategory.AUDIO;
+    }
+
+    public boolean isProcessingCompleted() {
+        return processingStatus == ProcessingStatus.COMPLETED;
+    }
+
+    public boolean isProcessingFailed() {
+        return processingStatus == ProcessingStatus.FAILED;
+    }
+
+    public String getFileExtension() {
+        if (originalFilename == null || !originalFilename.contains(".")) {
+            return "";
+        }
+        return originalFilename.substring(originalFilename.lastIndexOf('.') + 1).toLowerCase();
+    }
 }

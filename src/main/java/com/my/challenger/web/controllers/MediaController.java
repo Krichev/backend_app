@@ -1,6 +1,8 @@
 package com.my.challenger.web.controllers;
 
+import com.my.challenger.dto.media.VideoConversionOptions;
 import com.my.challenger.entity.MediaFile;
+import com.my.challenger.entity.enums.MediaCategory;
 import com.my.challenger.entity.enums.MediaType;
 import com.my.challenger.service.impl.MediaStorageService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -176,66 +178,64 @@ public class MediaController {
         }
     }
 
-    @GetMapping("/user/{userId}/storage-usage")
-    @Operation(summary = "Get user storage usage statistics")
-    public ResponseEntity<Map<String, Object>> getUserStorageUsage(
-            @PathVariable Long userId,
-            @AuthenticationPrincipal UserDetails userDetails) {
+//    @GetMapping("/user/{userId}/storage-usage")
+//    @Operation(summary = "Get user storage usage statistics")
+//    public ResponseEntity<Map<String, Object>> getUserStorageUsage(
+//            @PathVariable Long userId,
+//            @AuthenticationPrincipal UserDetails userDetails) {
+//
+//        // Add authorization check here
+//        Long totalFiles = mediaStorageService.getMediaByTypeAndUser(MediaType.AVATAR, userId).size() +
+//                mediaStorageService.getMediaByTypeAndUser(MediaType.QUIZ_QUESTION, userId).size();
+//
+//        // Calculate total storage (implement in repository)
+//        return ResponseEntity.ok(Map.of(
+//                "totalFiles", totalFiles,
+//                "totalStorageBytes", 0L, // Implement this
+//                "storageLimit", 1073741824L // 1GB limit
+//        ));
+//    }
 
-        // Add authorization check here
-        Long totalFiles = mediaStorageService.getMediaByTypeAndUser(MediaType.AVATAR, userId).size() +
-                mediaStorageService.getMediaByTypeAndUser(MediaType.QUIZ_QUESTION, userId).size();
-
-        // Calculate total storage (implement in repository)
-        return ResponseEntity.ok(Map.of(
-                "totalFiles", totalFiles,
-                "totalStorageBytes", 0L, // Implement this
-                "storageLimit", 1073741824L // 1GB limit
-        ));
-    }
-
-    @PostMapping("/{mediaId}/convert")
-    @Operation(summary = "Convert video to different format/quality")
-    public ResponseEntity<Map<String, Object>> convertVideo(
-            @PathVariable Long mediaId,
-            @RequestParam(defaultValue = "mp4") String format,
-            @RequestParam(required = false) Integer width,
-            @RequestParam(required = false) Integer height,
-            @RequestParam(required = false) Integer bitrate,
-            @AuthenticationPrincipal UserDetails userDetails) {
-
-        try {
-            Optional<MediaFile> mediaOpt = mediaStorageService.getMedia(mediaId);
-            if (mediaOpt.isEmpty() || mediaOpt.get().getMediaCategory() != MediaCategory.VIDEO) {
-                return ResponseEntity.badRequest().body(Map.of(
-                        "success", false,
-                        "message", "Video not found"
-                ));
-            }
-
-            // Add authorization check here
-
-            VideoConversionOptions options = new VideoConversionOptions();
-            options.setFormat(format);
-            options.setWidth(width);
-            options.setHeight(height);
-            options.setBitrate(bitrate);
-
-            // Start async conversion
-            // This would be implemented in MediaStorageService
-
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", "Video conversion started",
-                    "conversionId", "conv_" + System.currentTimeMillis()
-            ));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "message", "Failed to convert video: " + e.getMessage()
-            ));
-        }
-    }
+//    @PostMapping("/{mediaId}/convert")
+//    @Operation(summary = "Convert video to different format/quality")
+//    public ResponseEntity<Map<String, Object>> convertVideo(
+//            @PathVariable Long mediaId,
+//            @RequestParam(defaultValue = "mp4") String format,
+//            @RequestParam(required = false) Integer width,
+//            @RequestParam(required = false) Integer height,
+//            @RequestParam(required = false) Integer bitrate,
+//            @AuthenticationPrincipal UserDetails userDetails) {
+//
+//        try {
+//            Optional<MediaFile> mediaOpt = mediaStorageService.getMedia(mediaId);
+//            if (mediaOpt.isEmpty() || mediaOpt.get().getMediaCategory() != MediaCategory.VIDEO) {
+//                return ResponseEntity.badRequest().body(Map.of(
+//                        "success", false,
+//                        "message", "Video not found"
+//                ));
+//            }
+//
+//            VideoConversionOptions options = new VideoConversionOptions();
+//            options.setFormat(format);
+//            options.setWidth(width);
+//            options.setHeight(height);
+//            options.setBitrate(bitrate);
+//
+//            // Start async conversion
+//            // This would be implemented in MediaStorageService
+//
+//            return ResponseEntity.ok(Map.of(
+//                    "success", true,
+//                    "message", "Video conversion started",
+//                    "conversionId", "conv_" + System.currentTimeMillis()
+//            ));
+//        } catch (Exception e) {
+//            return ResponseEntity.badRequest().body(Map.of(
+//                    "success", false,
+//                    "message", "Failed to convert video: " + e.getMessage()
+//            ));
+//        }
+//    }
 
     @PostMapping("/{mediaId}/extract-audio")
     @Operation(summary = "Extract audio from video")
@@ -281,18 +281,18 @@ public class MediaController {
             }
 
             MediaFile mediaFile = mediaOpt.get();
-            Map<String, Object> metadata = Map.of(
-                    "id", mediaFile.getId(),
-                    "filename", mediaFile.getOriginalFilename(),
-                    "mediaType", mediaFile.getMediaCategory().name(),
-                    "fileSize", mediaFile.getFileSize(),
-                    "mimeType", mediaFile.getMimeType(),
-                    "width", mediaFile.getWidth() != null ? mediaFile.getWidth() : 0,
-                    "height", mediaFile.getHeight() != null ? mediaFile.getHeight() : 0,
-                    "durationSeconds", mediaFile.getDurationSeconds() != null ? mediaFile.getDurationSeconds() : 0,
-                    "bitrate", mediaFile.getBitrate() != null ? mediaFile.getBitrate() : 0,
-                    "processingStatus", mediaFile.getProcessingStatus().name(),
-                    "createdAt", mediaFile.getCreatedAt()
+            Map<String, Object> metadata = Map.ofEntries(
+                    Map.entry("id", mediaFile.getId()),
+                    Map.entry("filename", mediaFile.getOriginalFilename()),
+                    Map.entry("mediaType", mediaFile.getMediaCategory().name()),
+                    Map.entry("fileSize", mediaFile.getFileSize()),
+                    Map.entry("mimeType", mediaFile.getMimeType()),
+                    Map.entry("width", mediaFile.getWidth() != null ? mediaFile.getWidth() : 0),
+                    Map.entry("height", mediaFile.getHeight() != null ? mediaFile.getHeight() : 0),
+                    Map.entry("durationSeconds", mediaFile.getDurationSeconds() != null ? mediaFile.getDurationSeconds() : 0),
+                    Map.entry("bitrate", mediaFile.getBitrate() != null ? mediaFile.getBitrate() : 0),
+                    Map.entry("processingStatus", mediaFile.getProcessingStatus().name()),
+                    Map.entry("createdAt", mediaFile.getCreatedAt())
             );
 
             return ResponseEntity.ok(metadata);
@@ -315,7 +315,7 @@ public class MediaController {
                     "success", true,
                     "message", "Media deleted successfully"
             ));
-        } catch (IOException e) {
+        } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of(
                     "success", false,
                     "message", "Failed to delete media: " + e.getMessage()
