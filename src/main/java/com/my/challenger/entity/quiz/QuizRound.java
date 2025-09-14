@@ -1,4 +1,3 @@
-// src/main/java/com/my/challenger/entity/quiz/QuizRound.java
 package com.my.challenger.entity.quiz;
 
 import jakarta.persistence.*;

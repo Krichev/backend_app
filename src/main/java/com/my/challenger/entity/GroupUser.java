@@ -29,7 +29,7 @@ public class GroupUser {
     @Column(nullable = false)
     private UserRole role;
 
-    @Column(name = "join_date")
+    @Column(name = "joined_at")
     private LocalDateTime joinDate;
 
     // Constructors, getter/setter methods

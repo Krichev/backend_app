@@ -9,7 +9,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
@@ -31,8 +30,8 @@ public class Reward {
     @Column(nullable = false)
     private RewardType type;
 
-    @Column(precision = 10, scale = 2)
-    private BigDecimal monetaryValue;
+    @Column(name = "monetary_value")
+    private Double monetaryValue;
 
     @Enumerated(EnumType.STRING)
     private CurrencyType currency;

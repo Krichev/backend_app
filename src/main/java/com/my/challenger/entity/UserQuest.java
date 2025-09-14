@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "user_quests")
 public class UserQuest {
+
     @EmbeddedId
     private UserQuestId id;
 
@@ -21,7 +22,7 @@ public class UserQuest {
     @JoinColumn(name = "quest_id")
     private Quest quest;
 
-    @Column(name = "join_date")
+    @Column(name = "joined_at")
     private LocalDateTime joinDate;
 
     @Enumerated(EnumType.STRING)

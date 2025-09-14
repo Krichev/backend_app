@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Service
-@ConditionalOnProperty(name = "app.storage.type", havingValue = "s3")
+//@ConditionalOnProperty(name = "app.storage.type", havingValue = "s3")
 @RequiredArgsConstructor
 @Slf4j
 public class S3PhotoStorageService implements PhotoStorageService {

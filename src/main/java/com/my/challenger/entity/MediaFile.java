@@ -11,7 +11,6 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -90,8 +89,8 @@ public class MediaFile {
     @Column(name = "bitrate")
     private Long bitrate;
 
-    @Column(name = "frame_rate", precision = 10, scale = 2)
-    private BigDecimal frameRate;
+    @Column(name = "frame_rate")
+    private Double frameRate;
 
     @Column(name = "resolution")
     private String resolution;

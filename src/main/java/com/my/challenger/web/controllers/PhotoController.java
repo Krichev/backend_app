@@ -4,6 +4,8 @@ import com.my.challenger.entity.Photo;
 import com.my.challenger.entity.enums.PhotoType;
 import com.my.challenger.service.impl.PhotoMetricsService;
 import com.my.challenger.service.impl.PhotoStorageService;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;

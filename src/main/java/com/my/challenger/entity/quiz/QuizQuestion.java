@@ -43,7 +43,7 @@ public class QuizQuestion {
     @Column(length = 500)
     private String source; // Source identifier (e.g., "APP_GENERATED", "USER_CREATED")
 
-    @Column(length = 1000)
+    @Column(name = "additional_info", length = 1000)
     private String additionalInfo;
 
     @Column(name = "is_user_created", nullable = false)

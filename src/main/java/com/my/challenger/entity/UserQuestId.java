@@ -1,8 +1,8 @@
 package com.my.challenger.entity;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Embeddable;
+
 import java.io.Serializable;
-import java.util.Objects;
 
 @Embeddable
 public class UserQuestId implements Serializable {

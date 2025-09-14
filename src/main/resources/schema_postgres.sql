@@ -54,6 +54,7 @@ CREATE TYPE participant_status AS ENUM ('IN_PROGRESS', 'COMPLETED', 'FAILED');
 CREATE TYPE quiz_difficulty AS ENUM ('EASY', 'MEDIUM', 'HARD');
 CREATE TYPE quiz_session_status AS ENUM ('CREATED', 'IN_PROGRESS', 'COMPLETED', 'ABANDONED', 'CANCELLED', 'ARCHIVED');
 CREATE TYPE question_source AS ENUM ('app', 'user');
+CREATE TYPE currency_type AS ENUM ('USD', 'EUR', 'GBP', 'CAD', 'AUD', 'POINTS');
 
 
 -- Create enum type for photo_type
@@ -129,7 +130,7 @@ CREATE TABLE media_files
     height            INTEGER CHECK (height > 0),
     duration_seconds  DOUBLE PRECISION CHECK (duration_seconds > 0),
     bitrate           BIGINT CHECK (bitrate > 0),
-    frame_rate        DECIMAL(10, 2) CHECK (frame_rate > 0),
+    frame_rate        DOUBLE PRECISION CHECK (frame_rate > 0),
     resolution        VARCHAR(50),
 
     -- S3 fields
@@ -249,7 +250,7 @@ CREATE TABLE rewards
     title         VARCHAR(255) NOT NULL,
     description   TEXT,
     type          reward_type              DEFAULT 'POINTS',
-    value         DECIMAL(10, 2),
+    value         DOUBLE PRECISION,
     reward_source reward_source            DEFAULT 'SYSTEM',
     created_at    TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     quest_id      BIGINT,
@@ -283,10 +284,10 @@ CREATE TABLE challenges
 CREATE TABLE stakes
 (
     id           BIGSERIAL PRIMARY KEY,
-    user_id      BIGINT         NOT NULL,
-    challenge_id BIGINT         NOT NULL,
-    amount       DECIMAL(10, 2) NOT NULL,
-    currency     VARCHAR(10)              DEFAULT 'USD',
+    user_id      BIGINT           NOT NULL,
+    challenge_id BIGINT           NOT NULL,
+    amount       DOUBLE PRECISION NOT NULL,
+    currency     currency_type            DEFAULT 'USD',
     is_refunded  BOOLEAN                  DEFAULT FALSE,
     created_at   TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
@@ -360,6 +361,7 @@ CREATE TABLE user_quests
     user_id   BIGINT,
     quest_id  BIGINT,
     joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    status quiz_session_status default 'CREATED',
     PRIMARY KEY (user_id, quest_id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     FOREIGN KEY (quest_id) REFERENCES quests (id) ON DELETE CASCADE
@@ -371,6 +373,7 @@ CREATE TABLE group_users
     group_id  BIGINT,
     user_id   BIGINT,
     joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    role      user_role                DEFAULT 'MEMBER',
     PRIMARY KEY (group_id, user_id),
     FOREIGN KEY (group_id) REFERENCES groups (id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
@@ -394,65 +397,90 @@ CREATE TABLE task_completions
     user_id         BIGINT NOT NULL,
     status          completion_status        DEFAULT 'SUBMITTED',
     completion_data TEXT,
+    notes           TEXT,
     verified_by     BIGINT,
-    completed_at    TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    completed_at    TIMESTAMP WITH TIME ZONE,
     verified_at     TIMESTAMP WITH TIME ZONE,
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     FOREIGN KEY (verified_by) REFERENCES users (id) ON DELETE SET NULL
 );
 
--- Verification Details table
-CREATE TABLE verification_details (
-                                      id BIGINT PRIMARY KEY AUTO_INCREMENT,
-                                      activity_type VARCHAR(100),
-                                      target_value DOUBLE,
-                                      radius DOUBLE,
-                                      challenge_id BIGINT NOT NULL,
-                                      location_coordinates_id BIGINT,
-                                      photo_details_id BIGINT,
-                                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
-    -- Foreign key constraints
-                                      CONSTRAINT fk_verification_details_challenge
-                                          FOREIGN KEY (challenge_id) REFERENCES challenges(id)
-                                              ON DELETE CASCADE,
-
-                                      CONSTRAINT fk_verification_details_location
-                                          FOREIGN KEY (location_coordinates_id) REFERENCES location_coordinates(id)
-                                              ON DELETE SET NULL,
-
-                                      CONSTRAINT fk_verification_details_photo
-                                          FOREIGN KEY (photo_details_id) REFERENCES photo_verification_details(id)
-                                              ON DELETE SET NULL
+CREATE TABLE IF NOT EXISTS location_coordinates
+(
+    id
+    BIGSERIAL
+    PRIMARY
+    KEY,
+    latitude
+    DOUBLE
+    PRECISION,
+    longitude
+    DOUBLE
+    PRECISION,
+    created_at
+    TIMESTAMP
+    DEFAULT
+    CURRENT_TIMESTAMP,
+    updated_at
+    TIMESTAMP
+    WITH
+    TIME
+    ZONE
+    DEFAULT
+    CURRENT_TIMESTAMP
 );
-
-CREATE TABLE IF NOT EXISTS location_coordinates (
-                                                    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-                                                    latitude DOUBLE,
-                                                    longitude DOUBLE,
-                                                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-
--CREATE TABLE IF NOT EXISTS location_coordinates (
-                                                     id BIGINT PRIMARY KEY AUTO_INCREMENT,
-                                                     latitude DOUBLE NOT NULL,
-                                                     longitude DOUBLE NOT NULL,
-                                                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
- );
 
 -- Create photo_verification_details table first (referenced by verification_details)
-CREATE TABLE IF NOT EXISTS photo_verification_details (
-                                                          id BIGINT PRIMARY KEY AUTO_INCREMENT,
-                                                          description TEXT,
-                                                          requires_photo_comparison BOOLEAN DEFAULT FALSE,
-                                                          verification_mode VARCHAR(50) DEFAULT 'standard',
+CREATE TABLE IF NOT EXISTS photo_verification_details
+(
+    id
+    BIGSERIAL
+    PRIMARY
+    KEY,
+    description
+    TEXT,
+    requires_photo_comparison
+    BOOLEAN
+    DEFAULT
+    FALSE,
+    verification_mode
+    VARCHAR
+(
+    50
+) DEFAULT 'standard',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    );
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                             );
+
+
+-- Verification Details table
+CREATE TABLE verification_details
+(
+    id                      BIGSERIAL PRIMARY KEY,
+    activity_type           VARCHAR(100),
+    target_value            DOUBLE PRECISION,
+    radius                  DOUBLE PRECISION,
+    challenge_id            BIGINT NOT NULL,
+    location_coordinates_id BIGINT,
+    photo_details_id        BIGINT,
+    created_at              TIMESTAMP                DEFAULT CURRENT_TIMESTAMP,
+    updated_at              TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+
+    -- Foreign key constraints
+    CONSTRAINT fk_verification_details_challenge
+        FOREIGN KEY (challenge_id) REFERENCES challenges (id)
+            ON DELETE CASCADE,
+
+    CONSTRAINT fk_verification_details_location
+        FOREIGN KEY (location_coordinates_id) REFERENCES location_coordinates (id)
+            ON DELETE SET NULL,
+
+    CONSTRAINT fk_verification_details_photo
+        FOREIGN KEY (photo_details_id) REFERENCES photo_verification_details (id)
+            ON DELETE SET NULL
+);
 
 -- User Connections table
 CREATE TABLE user_connections
@@ -523,14 +551,15 @@ CREATE TABLE quiz_sessions
 CREATE TABLE quiz_rounds
 (
     id              BIGSERIAL PRIMARY KEY,
-    quiz_session_id BIGINT  NOT NULL,
-    question_id     BIGINT  NOT NULL,
+    quiz_session_id BIGINT                   NOT NULL,
+    question_id     BIGINT                   NOT NULL,
     user_answer     VARCHAR(500),
     is_correct      BOOLEAN,
     answered_at     TIMESTAMP WITH TIME ZONE,
     time_taken      INTEGER,
-    round_number    INTEGER NOT NULL,
-    created_at      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    round_number    INTEGER                  NOT NULL,
+    created_at      TIMESTAMP WITH TIME ZONE          DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (quiz_session_id) REFERENCES quiz_sessions (id) ON DELETE CASCADE,
     FOREIGN KEY (question_id) REFERENCES quiz_questions (id) ON DELETE CASCADE
 );
@@ -571,7 +600,6 @@ COMMENT
 ON COLUMN photos.photo_type IS 'Type of photo (AVATAR, QUIZ_QUESTION, etc.)';
 COMMENT
 ON COLUMN photos.processing_status IS 'Current processing status of the photo';
-1,8s
 
 
 -- ================================
@@ -591,10 +619,10 @@ CREATE INDEX idx_quests_creator ON quests (creator_id);
 CREATE INDEX idx_quests_status ON quests (status);
 CREATE INDEX idx_quests_challenge ON quests (challenge_id);
 
-CREATE INDEX idx_verification_details_challenge_id ON verification_details(challenge_id);
-CREATE INDEX idx_verification_details_location_id ON verification_details(location_coordinates_id);
-CREATE INDEX idx_verification_details_photo_id ON verification_details(photo_details_id);
-CREATE INDEX idx_verification_details_activity_type ON verification_details(activity_type);
+CREATE INDEX idx_verification_details_challenge_id ON verification_details (challenge_id);
+CREATE INDEX idx_verification_details_location_id ON verification_details (location_coordinates_id);
+CREATE INDEX idx_verification_details_photo_id ON verification_details (photo_details_id);
+CREATE INDEX idx_verification_details_activity_type ON verification_details (activity_type);
 
 -- Tasks table indexes
 CREATE INDEX idx_tasks_quest ON tasks (quest_id);
@@ -992,3 +1020,143 @@ SELECT DISTINCT
         WHERE media_category = 'PROFILE_PICTURE'
         AND processing_status = 'COMPLETED'
         ORDER BY uploaded_by, uploaded_at DESC;
+
+
+
+ALTER TYPE challenge_type ADD VALUE IF NOT EXISTS 'QUIZ';
+ALTER TYPE challenge_status ADD VALUE IF NOT EXISTS 'OPEN';
+ALTER TYPE task_type ADD VALUE IF NOT EXISTS 'RECURRING';
+ALTER TYPE reward_source RENAME VALUE 'SYSTEM' TO 'INDIVIDUAL';
+ALTER TYPE reward_source ADD VALUE IF NOT EXISTS 'GROUP';
+ALTER TYPE reward_source ADD VALUE IF NOT EXISTS 'SYSTEM';
+
+-- 2. Fix tasks table - add missing date fields
+ALTER TABLE tasks
+    ADD COLUMN IF NOT EXISTS start_date TIMESTAMP WITH TIME ZONE;
+ALTER TABLE tasks
+    ADD COLUMN IF NOT EXISTS end_date TIMESTAMP WITH TIME ZONE;
+-- Keep due_date for backward compatibility or remove if not needed
+-- ALTER TABLE tasks DROP COLUMN due_date;
+
+-- 3. Fix rewards table - add monetary fields
+ALTER TABLE rewards
+    ADD COLUMN IF NOT EXISTS monetary_value DOUBLE PRECISION;
+ALTER TABLE rewards
+    ADD COLUMN IF NOT EXISTS currency currency_type;
+-- Remove or rename the existing value column
+ALTER TABLE rewards RENAME COLUMN value TO monetary_value_old;
+
+
+ALTER TABLE quiz_sessions
+    ADD COLUMN IF NOT EXISTS host_user_id BIGINT NOT NULL;
+ALTER TABLE quiz_sessions
+    ADD COLUMN IF NOT EXISTS team_name VARCHAR (200);
+ALTER TABLE quiz_sessions
+    ADD COLUMN IF NOT EXISTS team_members VARCHAR (1000); -- JSON array as string
+ALTER TABLE quiz_sessions
+    ADD COLUMN IF NOT EXISTS round_time_seconds INTEGER;
+ALTER TABLE quiz_sessions
+    ADD COLUMN IF NOT EXISTS total_rounds INTEGER;
+ALTER TABLE quiz_sessions
+    ADD COLUMN IF NOT EXISTS completed_rounds INTEGER DEFAULT 0;
+ALTER TABLE quiz_sessions
+    ADD COLUMN IF NOT EXISTS enable_ai_host BOOLEAN DEFAULT FALSE;
+ALTER TABLE quiz_sessions
+    ADD COLUMN IF NOT EXISTS total_duration_seconds INTEGER;
+ALTER TABLE quiz_sessions
+    ADD COLUMN IF NOT EXISTS creator_id BIGINT NOT NULL;
+
+
+ALTER TABLE quiz_rounds
+    ADD COLUMN IF NOT EXISTS team_answer VARCHAR (500);
+ALTER TABLE quiz_rounds
+    ADD COLUMN IF NOT EXISTS player_who_answered VARCHAR (200);
+ALTER TABLE quiz_rounds
+    ADD COLUMN IF NOT EXISTS discussion_notes VARCHAR (2000);
+ALTER TABLE quiz_rounds
+    ADD COLUMN IF NOT EXISTS round_started_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE quiz_rounds
+    ADD COLUMN IF NOT EXISTS discussion_started_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE quiz_rounds
+    ADD COLUMN IF NOT EXISTS answer_submitted_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE quiz_rounds
+    ADD COLUMN IF NOT EXISTS discussion_duration_seconds INTEGER;
+ALTER TABLE quiz_rounds
+    ADD COLUMN IF NOT EXISTS total_round_duration_seconds INTEGER;
+ALTER TABLE quiz_rounds
+    ADD COLUMN IF NOT EXISTS hint_used BOOLEAN DEFAULT FALSE;
+ALTER TABLE quiz_rounds
+    ADD COLUMN IF NOT EXISTS voice_recording_used BOOLEAN DEFAULT FALSE;
+ALTER TABLE quiz_rounds
+    ADD COLUMN IF NOT EXISTS ai_feedback VARCHAR (1000);
+
+-- Rename existing columns to match H2 if needed
+-- ALTER TABLE quiz_rounds RENAME COLUMN answered_at TO answer_submitted_at;
+-- ALTER TABLE quiz_rounds RENAME COLUMN time_taken TO total_round_duration_seconds;
+
+-- 7. Update quiz_questions table with missing fields
+ALTER TABLE quiz_questions
+    ADD COLUMN IF NOT EXISTS challenge_id BIGINT;
+ALTER TABLE quiz_questions
+    ADD COLUMN IF NOT EXISTS media_url VARCHAR (500);
+ALTER TABLE quiz_questions
+    ADD COLUMN IF NOT EXISTS has_media BOOLEAN DEFAULT FALSE;
+ALTER TABLE quiz_questions
+    ADD COLUMN IF NOT EXISTS media_type media_type; -- IMAGE, VIDEO, AUDIO
+ALTER TABLE quiz_questions
+    ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+
+-- Add foreign key constraint
+ALTER TABLE quiz_questions
+    ADD CONSTRAINT fk_quiz_questions_challenge
+        FOREIGN KEY (challenge_id) REFERENCES challenges (id) ON DELETE CASCADE;
+
+-- 8. Update stakes table structure to match H2
+-- The H2 version doesn't have user_id and is_refunded fields
+-- ALTER TABLE stakes DROP COLUMN IF EXISTS user_id;
+-- ALTER TABLE stakes DROP COLUMN IF EXISTS is_refunded;
+ALTER TABLE stakes
+    ADD COLUMN IF NOT EXISTS collective_pool BOOLEAN DEFAULT FALSE;
+
+-- 9. Update challenge_progress table (fields already added via ALTER in H2, but let's ensure)
+ALTER TABLE challenge_progress
+    ADD COLUMN IF NOT EXISTS streak INTEGER;
+ALTER TABLE challenge_progress
+    ADD COLUMN IF NOT EXISTS total_rewards_earned DOUBLE PRECISION;
+
+-- 10. Ensure reward_users table exists (junction table)
+CREATE TABLE IF NOT EXISTS reward_users
+(
+    reward_id
+    BIGINT,
+    user_id
+    BIGINT,
+    awarded_date
+    TIMESTAMP
+    WITH
+    TIME
+    ZONE
+    DEFAULT
+    CURRENT_TIMESTAMP,
+    PRIMARY
+    KEY
+(
+    reward_id,
+    user_id
+),
+    FOREIGN KEY
+(
+    reward_id
+) REFERENCES rewards
+(
+    id
+) ON DELETE CASCADE,
+    FOREIGN KEY
+(
+    user_id
+) REFERENCES users
+(
+    id
+)
+  ON DELETE CASCADE
+    );

@@ -38,13 +38,13 @@ public class TaskCompletion {
     @Column(nullable = false)
     private CompletionStatus status;
 
-    @Column(name = "completion_date")
+    @Column(name = "completed_at")
     private LocalDateTime completionDate;
 
-    @Column(name = "verification_date")
+    @Column(name = "verified_at")
     private LocalDateTime verificationDate;
 
-    @Column(name = "verification_proof")
+    @Column(name = "completion_data")
     private String verificationProof; // URL or metadata
 
     private String notes;

@@ -20,8 +20,10 @@ public class Stake {
 
     private Double amount;
 
+    @Enumerated(EnumType.STRING)
     private CurrencyType currency;
 
+    @Column(name = "collective_pool")
     private boolean collectivePool;
 
     @Column(name = "challenge_id")

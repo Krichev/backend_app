@@ -19,16 +19,16 @@ spring:
 
   # JPA Configuration - Development Settings
   jpa:
-    hibernate:
-#      ddl-auto: create-drop # Creates and drops schema on startup/shutdown
-      ddl-auto: validate # Creates and drops schema on startup/shutdown
-#      naming:
-#        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
-#        implicit-strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyLegacyJpaImpl
+    #    hibernate:
+    #      ddl-auto: create-drop # Creates and drops schema on startup/shutdown
+    #      ddl-auto: validate
+    #      naming:
+    #        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+    #        implicit-strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyLegacyJpaImpl
     properties:
       hibernate:
         hbm2ddl:
-         auto: validate
+          auto: validate
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
         show_sql: true
@@ -46,7 +46,7 @@ spring:
         order_updates: true
         batch_versioned_data: true
     show-sql: true
-#    generate-ddl: true
+  #    generate-ddl: true
 
   # Flyway Configuration - Disabled for development (using create-drop)
   flyway:
@@ -86,7 +86,7 @@ spring:
 
 # Server Configuration - Development
 server:
-  port: 8080
+  #  port: 8080
   servlet:
     context-path: /api
   compression:
@@ -168,9 +168,10 @@ logging:
     org.hibernate.SQL: DEBUG
     org.hibernate.boot.model: DEBUG
     org.hibernate.cfg.annotations: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.hibernate.type.descriptor.sql.BasicBinder: DEBUG
     org.springframework.web: DEBUG
     org.springframework.boot.autoconfigure: INFO
+    org.hibernate.boot.model.internal.CollectionBinder: DEBUG
     org.springframework.transaction: DEBUG
     org.springframework.orm.jpa: DEBUG
     org.springframework.web.servlet.mvc.method.annotation: DEBUG
@@ -201,29 +202,29 @@ debug: true
 
 # PostgreSQL specific development configurations
 ---
-spring:
-  config:
-    activate:
-      on-profile: dev-postgres
-  datasource:
-    # Alternative PostgreSQL configuration for different dev scenarios
-    url: jdbc:postgresql://localhost:5433/challenger_dev_db # Different port
-    username: postgres
-    password: postgres
-    hikari:
-      schema: public
-      connection-init-sql: |
-        CREATE SCHEMA IF NOT EXISTS challenger;
-        SET search_path TO challenger, public;
+#spring:
+#  config:
+#    activate:
+#      on-profile: dev-postgres
+#  datasource:
+#    # Alternative PostgreSQL configuration for different dev scenarios
+#    url: jdbc:postgresql://localhost:5433/challenger_dev_db # Different port
+#    username: postgres
+#    password: postgres
+#    hikari:
+#      schema: public
+#      connection-init-sql: |
+#        CREATE SCHEMA IF NOT EXISTS challenger;
+#        SET search_path TO challenger, public;
 
 # Docker PostgreSQL Development Configuration
 ---
-spring:
-  config:
-    activate:
-      on-profile: dev-docker
-  datasource:
-    url: jdbc:postgresql://postgres:5432/challenger_dev_db
-    username: challenger_user
-    password: challenger_password
+#spring:
+#  config:
+#    activate:
+#      on-profile: dev-docker
+#  datasource:
+#    url: jdbc:postgresql://postgres:5432/challenger_dev_db
+#    username: challenger_user
+#    password: challenger_password
 
