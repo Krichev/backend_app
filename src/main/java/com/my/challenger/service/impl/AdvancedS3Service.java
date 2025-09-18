@@ -29,7 +29,7 @@ public class AdvancedS3Service {
     private final S3AsyncClient s3AsyncClient;
     private final S3Presigner s3Presigner;
 
-    @Value("${app.s3.bucket-name}")
+    @Value("${app.storage.s3.bucket-name}")
     private String bucketName;
 
     @Value("${app.s3.region:us-east-1}")

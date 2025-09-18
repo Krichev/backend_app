@@ -42,16 +42,16 @@ public class S3PhotoStorageService implements PhotoStorageService {
     @Autowired(required = false)
     private PhotoMetricsService metricsService;
 
-    @Value("${app.s3.bucket-name}")
+    @Value("${app.storage.s3.bucket-name}")
     private String bucketName;
 
-    @Value("${app.s3.region}")
+    @Value("${app.storage.s3.region}")
     private String region;
 
-    @Value("${app.s3.cloudfront-domain:}")
+    @Value("${app.storage.s3.cloudfront-domain:}")
     private String cloudFrontDomain;
 
-    @Value("${app.upload.max-file-size:10485760}")
+    @Value("${app.storage.s3.upload.max-file-size:10485760}")
     private long maxFileSize;
 
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("jpg", "jpeg", "png", "gif", "webp");
