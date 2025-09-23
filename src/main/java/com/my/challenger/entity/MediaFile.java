@@ -6,8 +6,7 @@ import com.my.challenger.entity.enums.MediaType;
 import com.my.challenger.entity.enums.ProcessingStatus;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
-import lombok.Builder;
-import lombok.EqualsAndHashCode;
+import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.GenericGenerator;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -30,12 +29,15 @@ import java.util.UUID;
  * @author Your Name
  * @version 1.0
  */
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
 @Entity
 @Table(
         name = "media_files"
 )
 @EntityListeners(AuditingEntityListener.class)
-@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+@Data
 public class MediaFile {
 
     @Id
