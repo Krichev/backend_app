@@ -1,6 +1,7 @@
 // src/main/java/com/my/challenger/repository/QuizQuestionRepository.java
 package com.my.challenger.repository;
 
+import com.my.challenger.entity.enums.QuestionType;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.quiz.QuizQuestion;
 import com.my.challenger.entity.quiz.QuizSession;
@@ -14,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 @Repository
 public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long> {
@@ -38,6 +38,7 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
 
     @Query("SELECT COUNT(q) FROM QuizQuestion q WHERE q.creator.id = :creatorId AND q.isActive = true")
     Long countByCreatorIdAndIsActiveTrue(@Param("creatorId") Long creatorId);
+
     // Alternative if FUNCTION('RANDOM') doesn't work in your DB:
     @Query(value = "SELECT * FROM quiz_questions q WHERE q.difficulty = :difficulty " +
             "ORDER BY RAND() LIMIT :limit", nativeQuery = true)
@@ -105,15 +106,15 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
     List<QuizQuestion> findByCreatorIdAndSourceContaining(@Param("creatorId") Long creatorId,
                                                           @Param("sourcePattern") String sourcePattern);
 
-    /**
-     * Get questions by multiple difficulties for mixed quizzes
-     */
-    @Query("SELECT q FROM QuizQuestion q WHERE q.difficulty IN :difficulties " +
-            "AND (q.lastUsed IS NULL OR q.lastUsed < :cutoffTime) " +
-            "ORDER BY FUNCTION('RANDOM')")
-    List<QuizQuestion> findRandomQuestionsByDifficulties(@Param("difficulties") List<QuizDifficulty> difficulties,
-                                                         @Param("cutoffTime") LocalDateTime cutoffTime,
-                                                         Pageable pageable);
+//    /**
+//     * Get questions by multiple difficulties for mixed quizzes
+//     */
+//    @Query("SELECT q FROM QuizQuestion q WHERE q.difficulty IN :difficulties " +
+//            "AND (q.lastUsed IS NULL OR q.lastUsed < :cutoffTime) " +
+//            "ORDER BY FUNCTION('RANDOM')")
+//    List<QuizQuestion> findRandomQuestionsByDifficulties(@Param("difficulties") List<QuizDifficulty> difficulties,
+//                                                         @Param("cutoffTime") LocalDateTime cutoffTime,
+//                                                         Pageable pageable);
 
     /**
      * Find sessions by challenge ID (without ordering)
@@ -139,5 +140,52 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
      */
     long countByCreatorIdAndSourceContaining(Long creatorId, String sourceText);
 
+    List<QuizQuestion> findByCreatorIdOrderByCreatedAtDesc(Long creatorId);
+
+//    List<QuizQuestion> findByIsUserCreatedTrueOrderByCreatedAtDesc();
+
+    List<QuizQuestion> findByDifficultyOrderByCreatedAtDesc(
+            com.my.challenger.entity.enums.QuizDifficulty difficulty
+    );
+
+    // New multimedia-specific methods
+    List<QuizQuestion> findByQuestionTypeOrderByCreatedAtDesc(QuestionType questionType, Pageable pageable);
+
+    List<QuizQuestion> findByCreatorIdAndQuestionTypeNotOrderByCreatedAtDesc(Long creatorId, QuestionType questionType);
+
+    List<QuizQuestion> findByQuestionTypeAndIsUserCreatedOrderByCreatedAtDesc(
+            QuestionType questionType, Boolean isUserCreated
+    );
+
+    boolean existsByQuestionMediaId(String questionMediaId);
+
+    @Query("SELECT COUNT(q) FROM QuizQuestion q WHERE q.questionType != :questionType")
+    Long countByQuestionTypeNot(@Param("questionType") QuestionType questionType);
+
+    @Query("SELECT COUNT(q) FROM QuizQuestion q WHERE q.questionType = :questionType")
+    Long countByQuestionType(@Param("questionType") QuestionType questionType);
+
+    @Query("SELECT COUNT(q) FROM QuizQuestion q WHERE q.creatorId = :creatorId AND q.questionType = :questionType")
+    Long countByCreatorIdAndQuestionType(@Param("creatorId") Long creatorId, @Param("questionType") QuestionType questionType);
+
+    @Query("SELECT q FROM QuizQuestion q WHERE q.questionMediaUrl IS NOT NULL")
+    List<QuizQuestion> findQuestionsWithMedia();
+
+    @Query("SELECT q FROM QuizQuestion q WHERE q.questionMediaId IS NULL AND q.questionType != 'TEXT'")
+    List<QuizQuestion> findInconsistentMultimediaQuestions();
+
+    @Query("""
+            SELECT q FROM QuizQuestion q 
+            WHERE q.creator.id = :creatorId 
+            AND (:questionType IS NULL OR q.questionType = :questionType)
+            AND (:isUserCreated IS NULL OR q.isUserCreated = :isUserCreated)
+            ORDER BY q.createdAt DESC
+            """)
+    List<QuizQuestion> findUserQuestionsFiltered(
+            @Param("creatorId") Long creatorId,
+            @Param("questionType") QuestionType questionType,
+            @Param("isUserCreated") Boolean isUserCreated,
+            Pageable pageable
+    );
 }
 

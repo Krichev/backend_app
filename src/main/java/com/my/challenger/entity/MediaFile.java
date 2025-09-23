@@ -1,36 +1,87 @@
 package com.my.challenger.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.my.challenger.entity.enums.MediaCategory;
 import com.my.challenger.entity.enums.MediaType;
 import com.my.challenger.entity.enums.ProcessingStatus;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
+import jakarta.validation.constraints.*;
 import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.EqualsAndHashCode;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.GenericGenerator;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
 
+/**
+ * Entity representing a media file in the system.
+ * Supports images, videos, audio, documents and other file types.
+ *
+ * @author Your Name
+ * @version 1.0
+ */
 @Entity
-@Table(name = "media_files")
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Table(
+        name = "media_files"
+)
+@EntityListeners(AuditingEntityListener.class)
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class MediaFile {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @EqualsAndHashCode.Include
     private Long id;
 
+    // Basic file information
+    @NotBlank(message = "Original filename cannot be blank")
+    @Size(max = 255, message = "Original filename cannot exceed 255 characters")
     @Column(name = "original_filename", nullable = false)
     private String originalFilename;
 
+    @NotBlank(message = "Filename cannot be blank")
+    @Size(max = 255, message = "Filename cannot exceed 255 characters")
     @Column(name = "filename", nullable = false, unique = true)
     private String filename;
 
+    @NotBlank(message = "Content type cannot be blank")
+    @Size(max = 100, message = "Content type cannot exceed 100 characters")
+    @Column(name = "content_type", nullable = false)
+    private String contentType;
+
+    @NotNull(message = "File size cannot be null")
+    @Positive(message = "File size must be positive")
+    @Column(name = "file_size", nullable = false)
+    private Long fileSize;
+
+    // Media classification
+    @NotNull(message = "Media type cannot be null")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "media_type", nullable = false)
+    private MediaType mediaType;
+
+    @NotNull(message = "Media category cannot be null")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "media_category", nullable = false)
+    private MediaCategory mediaCategory;
+
+    @NotNull(message = "Processing status cannot be null")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "processing_status", nullable = false)
+    private ProcessingStatus processingStatus = ProcessingStatus.PENDING;
+
+    // File paths and storage
+    @NotBlank(message = "File path cannot be blank")
     @Column(name = "file_path", nullable = false)
     private String filePath;
 
@@ -40,101 +91,68 @@ public class MediaFile {
     @Column(name = "thumbnail_path")
     private String thumbnailPath;
 
-    @Column(name = "content_type", nullable = false)
-    private String contentType;
-
-    @Column(name = "file_size", nullable = false)
-    private Long fileSize;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "media_type", nullable = false)
-    private MediaType mediaType;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "media_category", nullable = false)
-    private MediaCategory mediaCategory;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "processing_status", nullable = false)
-    private ProcessingStatus processingStatus = ProcessingStatus.PENDING;
-
-    @Column(name = "entity_id")
-    private Long entityId;
-
-    @Column(name = "uploaded_by", nullable = false)
-    private Long uploadedBy;
-
-    @CreationTimestamp
-    @Column(name = "uploaded_at", nullable = false)
-    private LocalDateTime uploadedAt;
-
-    @CreationTimestamp
-    @Column(name = "created_at")
-    private LocalDateTime createdAt;
-
-    @UpdateTimestamp
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
-
-    // Media metadata fields
-    @Column(name = "width")
-    private Integer width;
-
-    @Column(name = "height")
-    private Integer height;
-
-    @Column(name = "duration_seconds")
-    private Double durationSeconds;
-
-    @Column(name = "bitrate")
-    private Long bitrate;
-
-    @Column(name = "frame_rate")
-    private Double frameRate;
-
-    @Column(name = "resolution")
-    private String resolution;
-
+    // Cloud storage fields
     @Column(name = "s3_key")
     private String s3Key;
 
     @Column(name = "s3_url")
     private String s3Url;
 
-    // **MISSING METHOD: getMimeType() - maps to contentType field**
-    public String getMimeType() {
-        return this.contentType;
-    }
+    // Media metadata and dimensions
+    @Positive(message = "Width must be positive")
+    @Column(name = "width")
+    private Integer width;
 
-    public void setMimeType(String mimeType) {
-        this.contentType = mimeType;
-    }
+    @Positive(message = "Height must be positive")
+    @Column(name = "height")
+    private Integer height;
 
-    // Additional utility methods
-    public boolean isImage() {
-        return mediaCategory == MediaCategory.IMAGE;
-    }
+    @PositiveOrZero(message = "Duration must be zero or positive")
+    @Column(name = "duration_seconds")
+    private Double durationSeconds;
 
-    public boolean isVideo() {
-        return mediaCategory == MediaCategory.VIDEO;
-    }
+    @PositiveOrZero(message = "Bitrate must be zero or positive")
+    @Column(name = "bitrate")
+    private Long bitrate;
 
-    public boolean isAudio() {
-        return mediaCategory == MediaCategory.AUDIO;
-    }
+    @PositiveOrZero(message = "Frame rate must be zero or positive")
+    @Column(name = "frame_rate")
+    private Double frameRate;
 
-    public boolean isProcessingCompleted() {
-        return processingStatus == ProcessingStatus.COMPLETED;
-    }
+    @Size(max = 50, message = "Resolution cannot exceed 50 characters")
+    @Column(name = "resolution")
+    private String resolution;
 
-    public boolean isProcessingFailed() {
-        return processingStatus == ProcessingStatus.FAILED;
-    }
+    // Relationships and ownership
+    @Column(name = "entity_id")
+    private Long entityId;
 
-    public String getFileExtension() {
-        if (originalFilename == null || !originalFilename.contains(".")) {
-            return "";
+    @NotNull(message = "Uploaded by cannot be null")
+    @Column(name = "uploaded_by", nullable = false)
+    private Long uploadedBy;
+
+    @CreatedDate
+    @CreationTimestamp
+    @Column(name = "uploaded_at", nullable = false, updatable = false)
+    private LocalDateTime uploadedAt;
+
+    @CreatedDate
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @LastModifiedDate
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
+
+
+    // Utility methods
+    private static String extractFileExtension(String filename) {
+        if (filename == null || !filename.contains(".")) {
+            return null;
         }
-        return originalFilename.substring(originalFilename.lastIndexOf('.') + 1).toLowerCase();
+        return filename.substring(filename.lastIndexOf(".") + 1).toLowerCase();
     }
+
 }
