@@ -88,7 +88,7 @@ spring:
 server:
   #  port: 8080
   servlet:
-    context-path: /api
+    context-path: /challenger
   compression:
     enabled: false # Disable compression for easier debugging
   error:
@@ -169,14 +169,14 @@ management:
 logging:
   level:
     com.my.challenger: DEBUG
-    org.springframework.security: DEBUG
+    org.springframework.security: warn
     org.hibernate.SQL: DEBUG
-    org.hibernate.boot.model: DEBUG
+    org.hibernate.boot.model: warn
     org.hibernate.cfg.annotations: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: warn
     org.springframework.web: DEBUG
     org.springframework.boot.autoconfigure: INFO
-    org.hibernate.boot.model.internal.CollectionBinder: DEBUG
+    org.hibernate.boot.model.internal.CollectionBinder: warn
     org.springframework.transaction: DEBUG
     org.springframework.orm.jpa: DEBUG
     org.springframework.web.servlet.mvc.method.annotation: DEBUG

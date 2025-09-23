@@ -58,10 +58,10 @@ public class ChallengeServiceImpl implements ChallengeService {
                         ChallengeType.valueOf((String) filters.get("type")) : null;
 
                 Boolean visibility = filters.get("visibility") != null ?
-                        "PUBLIC".equals(filters.get("visibility")) : null;
+                        "PUBLIC".equals(filters.get("visibility")) : true;
 
                 ChallengeStatus status = filters.get("status") != null ?
-                        ChallengeStatus.valueOf((String) filters.get("status")) : null;
+                        ChallengeStatus.valueOf((String) filters.get("status")) : ChallengeStatus.ACTIVE;
 
                 String targetGroup = (String) filters.get("targetGroup");
 

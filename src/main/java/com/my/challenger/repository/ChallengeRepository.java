@@ -1,6 +1,8 @@
 // Additional repository for challenge-related statistics
 package com.my.challenger.repository;
+
 import com.my.challenger.entity.challenge.Challenge;
+import com.my.challenger.entity.enums.ChallengeDifficulty;
 import com.my.challenger.entity.enums.ChallengeStatus;
 import com.my.challenger.entity.enums.ChallengeType;
 import org.springframework.data.domain.Pageable;
@@ -11,7 +13,6 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * Repository for Challenge entity
@@ -336,4 +337,212 @@ public interface ChallengeRepository extends JpaRepository<Challenge, Long> {
             @Param("minParticipants") Long minParticipants,
             @Param("minCompletion") Double minCompletion);
 
+        /**
+         * Find challenges by difficulty level
+         */
+        List<Challenge> findByDifficulty(ChallengeDifficulty difficulty);
+
+        /**
+         * Find active public challenges by difficulty
+         */
+        @Query("SELECT c FROM Challenge c WHERE " +
+                "c.difficulty = :difficulty " +
+                "AND c.status = 'ACTIVE' " +
+                "AND c.isPublic = true " +
+                "ORDER BY c.startDate DESC")
+        List<Challenge> findActivePublicChallengesByDifficulty(
+                @Param("difficulty") ChallengeDifficulty difficulty,
+                Pageable pageable);
+
+        /**
+         * Find challenges by difficulty range (e.g., EASY to HARD)
+         */
+        @Query("SELECT c FROM Challenge c WHERE " +
+                "c.difficulty >= :minDifficulty " +
+                "AND c.difficulty <= :maxDifficulty " +
+                "AND c.status = 'ACTIVE' " +
+                "ORDER BY c.difficulty, c.startDate DESC")
+        List<Challenge> findByDifficultyRange(
+                @Param("minDifficulty") ChallengeDifficulty minDifficulty,
+                @Param("maxDifficulty") ChallengeDifficulty maxDifficulty,
+                Pageable pageable);
+
+        /**
+         * Find challenges easier than specified difficulty
+         */
+        @Query("SELECT c FROM Challenge c WHERE " +
+                "c.difficulty < :maxDifficulty " +
+                "AND c.status = 'ACTIVE' " +
+                "ORDER BY c.difficulty DESC, c.startDate DESC")
+        List<Challenge> findEasierThan(
+                @Param("maxDifficulty") ChallengeDifficulty maxDifficulty,
+                Pageable pageable);
+
+        /**
+         * Find challenges harder than specified difficulty
+         */
+        @Query("SELECT c FROM Challenge c WHERE " +
+                "c.difficulty > :minDifficulty " +
+                "AND c.status = 'ACTIVE' " +
+                "ORDER BY c.difficulty ASC, c.startDate DESC")
+        List<Challenge> findHarderThan(
+                @Param("minDifficulty") ChallengeDifficulty minDifficulty,
+                Pageable pageable);
+
+        /**
+         * Count challenges by difficulty
+         */
+        long countByDifficulty(ChallengeDifficulty difficulty);
+
+        /**
+         * Count active challenges by difficulty
+         */
+        @Query("SELECT COUNT(c) FROM Challenge c WHERE " +
+                "c.difficulty = :difficulty AND c.status = 'ACTIVE'")
+        long countActiveByDifficulty(@Param("difficulty") ChallengeDifficulty difficulty);
+
+        /**
+         * Find user's challenges by difficulty
+         */
+        @Query("SELECT c FROM Challenge c WHERE " +
+                "c.creator.id = :userId " +
+                "AND c.difficulty = :difficulty " +
+                "ORDER BY c.startDate DESC")
+        List<Challenge> findByCreatorIdAndDifficulty(
+                @Param("userId") Long userId,
+                @Param("difficulty") ChallengeDifficulty difficulty);
+
+        /**
+         * Get difficulty distribution statistics
+         */
+        @Query("SELECT c.difficulty, COUNT(c) as count, " +
+                "AVG((SELECT COUNT(cp) FROM ChallengeProgress cp WHERE cp.challenge = c)) as avgParticipants, " +
+                "COUNT(CASE WHEN c.status = 'COMPLETED' THEN 1 END) as completedCount " +
+                "FROM Challenge c " +
+                "GROUP BY c.difficulty " +
+                "ORDER BY c.difficulty")
+        List<Object[]> getDifficultyStatistics();
+
+        /**
+         * Find trending challenges by difficulty
+         */
+        @Query("SELECT c, COUNT(cp) as participantCount FROM Challenge c " +
+                "LEFT JOIN c.progress cp " +
+                "WHERE c.difficulty = :difficulty " +
+                "AND c.status = 'ACTIVE' " +
+                "AND c.isPublic = true " +
+                "AND c.startDate >= :sinceDate " +
+                "GROUP BY c " +
+                "ORDER BY participantCount DESC, c.startDate DESC")
+        List<Object[]> findTrendingByDifficulty(
+                @Param("difficulty") ChallengeDifficulty difficulty,
+                @Param("sinceDate") LocalDateTime sinceDate,
+                Pageable pageable);
+
+        /**
+         * Search challenges by keyword and difficulty
+         */
+        @Query("SELECT c FROM Challenge c WHERE " +
+                "c.difficulty = :difficulty " +
+                "AND (LOWER(c.title) LIKE LOWER(CONCAT('%', :query, '%')) " +
+                "     OR LOWER(c.description) LIKE LOWER(CONCAT('%', :query, '%'))) " +
+                "ORDER BY c.startDate DESC")
+        List<Challenge> searchByKeywordAndDifficulty(
+                @Param("query") String query,
+                @Param("difficulty") ChallengeDifficulty difficulty,
+                Pageable pageable);
+
+    /**
+     * Find recommended challenges based on user's completed difficulty levels
+     */
+    @Query("SELECT c FROM Challenge c WHERE " +
+            "c.status = com.my.challenger.entity.enums.ChallengeStatus.ACTIVE " +
+            "AND c.isPublic = true " +
+            "AND FUNCTION('ORDINAL', c.difficulty) = (" +
+            "    SELECT " +
+            "    CASE " +
+            "        WHEN AVG(FUNCTION('ORDINAL', cc.difficulty)) < 1 THEN 1 " +  // EASY
+            "        WHEN AVG(FUNCTION('ORDINAL', cc.difficulty)) < 2 THEN 2 " +  // MEDIUM
+            "        WHEN AVG(FUNCTION('ORDINAL', cc.difficulty)) < 3 THEN 3 " +  // HARD
+            "        ELSE 4 " +                                                   // EXPERT
+            "    END " +
+            "    FROM Challenge cc " +
+            "    JOIN cc.progress ccp " +
+            "    WHERE ccp.user.id = :userId " +
+            "    AND cc.status = com.my.challenger.entity.enums.ChallengeStatus.COMPLETED" +
+            ") " +
+            "AND NOT EXISTS (SELECT cp FROM c.progress cp WHERE cp.user.id = :userId) " +
+            "ORDER BY c.startDate DESC")
+    List<Challenge> findRecommendedByUserHistory(@Param("userId") Long userId, Pageable pageable);
+
+    // Option 2: Alternative native query approach (more reliable)
+    @Query(value = "SELECT c.* FROM challenges c WHERE " +
+            "c.status = 'ACTIVE' " +
+            "AND c.is_public = true " +
+            "AND c.difficulty = (" +
+            "    SELECT " +
+            "    CASE " +
+            "        WHEN AVG(CASE cc.difficulty " +
+            "            WHEN 'BEGINNER' THEN 1 " +
+            "            WHEN 'EASY' THEN 2 " +
+            "            WHEN 'MEDIUM' THEN 3 " +
+            "            WHEN 'HARD' THEN 4 " +
+            "            WHEN 'EXPERT' THEN 5 " +
+            "            WHEN 'EXTREME' THEN 6 " +
+            "        END) < 2 THEN 'EASY' " +
+            "        WHEN AVG(CASE cc.difficulty " +
+            "            WHEN 'BEGINNER' THEN 1 " +
+            "            WHEN 'EASY' THEN 2 " +
+            "            WHEN 'MEDIUM' THEN 3 " +
+            "            WHEN 'HARD' THEN 4 " +
+            "            WHEN 'EXPERT' THEN 5 " +
+            "            WHEN 'EXTREME' THEN 6 " +
+            "        END) < 3 THEN 'MEDIUM' " +
+            "        WHEN AVG(CASE cc.difficulty " +
+            "            WHEN 'BEGINNER' THEN 1 " +
+            "            WHEN 'EASY' THEN 2 " +
+            "            WHEN 'MEDIUM' THEN 3 " +
+            "            WHEN 'HARD' THEN 4 " +
+            "            WHEN 'EXPERT' THEN 5 " +
+            "            WHEN 'EXTREME' THEN 6 " +
+            "        END) < 4 THEN 'HARD' " +
+            "        ELSE 'EXPERT' " +
+            "    END " +
+            "    FROM challenges cc " +
+            "    JOIN challenge_progress ccp ON cc.id = ccp.challenge_id " +
+            "    WHERE ccp.user_id = :userId " +
+            "    AND cc.status = 'COMPLETED'" +
+            ") " +
+            "AND NOT EXISTS (SELECT 1 FROM challenge_progress cp WHERE cp.challenge_id = c.id AND cp.user_id = :userId) " +
+            "ORDER BY c.start_date DESC",
+            nativeQuery = true)
+    List<Challenge> findRecommendedByUserHistoryNative(@Param("userId") Long userId, Pageable pageable);
+
+    // Option 3: Cleaner Java-based approach (Recommended)
+// Move complex logic to service layer for better maintainability
+    @Query("SELECT c FROM Challenge c WHERE " +
+            "c.status = com.my.challenger.entity.enums.ChallengeStatus.ACTIVE " +
+            "AND c.isPublic = true " +
+            "AND c.difficulty = :recommendedDifficulty " +
+            "AND NOT EXISTS (SELECT cp FROM c.progress cp WHERE cp.user.id = :userId) " +
+            "ORDER BY c.startDate DESC")
+    List<Challenge> findRecommendedByDifficulty(@Param("userId") Long userId,
+                                                @Param("recommendedDifficulty") ChallengeDifficulty recommendedDifficulty,
+                                                Pageable pageable);
+
+    // Supporting method to get user's average difficulty
+    @Query("SELECT AVG(CASE c.difficulty " +
+            "WHEN com.my.challenger.entity.enums.ChallengeDifficulty.BEGINNER THEN 1.0 " +
+            "WHEN com.my.challenger.entity.enums.ChallengeDifficulty.EASY THEN 2.0 " +
+            "WHEN com.my.challenger.entity.enums.ChallengeDifficulty.MEDIUM THEN 3.0 " +
+            "WHEN com.my.challenger.entity.enums.ChallengeDifficulty.HARD THEN 4.0 " +
+            "WHEN com.my.challenger.entity.enums.ChallengeDifficulty.EXPERT THEN 5.0 " +
+            "WHEN com.my.challenger.entity.enums.ChallengeDifficulty.EXTREME THEN 6.0 " +
+            "ELSE 0.0 " +
+            "END) " +
+            "FROM Challenge c " +
+            "JOIN c.progress cp " +
+            "WHERE cp.user.id = :userId " +
+            "AND c.status = com.my.challenger.entity.enums.ChallengeStatus.COMPLETED")
+    Double getAverageDifficultyForUser(@Param("userId") Long userId);
 }

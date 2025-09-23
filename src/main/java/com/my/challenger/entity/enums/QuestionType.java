@@ -1,58 +1,53 @@
 package com.my.challenger.entity.enums;
 
+
 /**
- * Enumeration of question types supported in the quiz system
+ * Types of quiz questions based on content type
  */
 public enum QuestionType {
     /**
-     * Text-only question (traditional format)
+     * Text-only questions
      */
     TEXT,
 
     /**
-     * Question with an associated image
+     * Questions with images
      */
     IMAGE,
 
     /**
-     * Question with an associated video file
+     * Questions with audio files
+     */
+    AUDIO,
+
+    /**
+     * Questions with video content
      */
     VIDEO,
 
     /**
-     * Question with an associated audio file
+     * Questions with mixed multimedia content
      */
-    AUDIO;
+    MULTIMEDIA;
 
     /**
-     * Check if this question type requires media
+     * Check if this question type supports media content
      */
-    public boolean requiresMedia() {
+    public boolean hasMedia() {
         return this != TEXT;
     }
 
     /**
-     * Get the expected media type prefix for this question type
+     * Check if this question type is visual
      */
-    public String getMediaTypePrefix() {
-        switch (this) {
-            case IMAGE: return "image/";
-            case VIDEO: return "video/";
-            case AUDIO: return "audio/";
-            default: return null;
-        }
+    public boolean isVisual() {
+        return this == IMAGE || this == VIDEO || this == MULTIMEDIA;
     }
 
     /**
-     * Determine question type from media MIME type
+     * Check if this question type has audio
      */
-    public static QuestionType fromMediaType(String mimeType) {
-        if (mimeType == null) return TEXT;
-
-        if (mimeType.startsWith("image/")) return IMAGE;
-        if (mimeType.startsWith("video/")) return VIDEO;
-        if (mimeType.startsWith("audio/")) return AUDIO;
-
-        return TEXT;
+    public boolean hasAudio() {
+        return this == AUDIO || this == VIDEO || this == MULTIMEDIA;
     }
 }

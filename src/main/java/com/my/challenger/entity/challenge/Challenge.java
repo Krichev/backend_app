@@ -4,6 +4,7 @@ import com.my.challenger.entity.ChallengeProgress;
 import com.my.challenger.entity.Group;
 import com.my.challenger.entity.Task;
 import com.my.challenger.entity.User;
+import com.my.challenger.entity.enums.ChallengeDifficulty;
 import com.my.challenger.entity.enums.ChallengeStatus;
 import com.my.challenger.entity.enums.ChallengeType;
 import com.my.challenger.entity.enums.FrequencyType;
@@ -47,9 +48,6 @@ public class Challenge {
     @OneToMany(mappedBy = "challenge", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<ChallengeProgress> progress = new ArrayList<>();
 
-    //    @ManyToMany(mappedBy = "challenges")
-//    private List<User> participants;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "group_id")
     private Group group;
@@ -80,40 +78,57 @@ public class Challenge {
     private ChallengeStatus status = ChallengeStatus.PENDING;
 
     @Column(name = "quiz_config", columnDefinition = "TEXT")
-    private String quizConfig; // JSON string of quiz configuration
+    private String quizConfig; // JSON string
 
-    @Column(name = "created_at")
-    private LocalDateTime createdAt = LocalDateTime.now();
+    // NEW: Difficulty field
+    @Enumerated(EnumType.STRING)
+    @Column(name = "difficulty", nullable = false)
+    private ChallengeDifficulty difficulty = ChallengeDifficulty.MEDIUM; // Default to MEDIUM
+
+    // Audit fields
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
 
     @Column(name = "updated_at")
-    private LocalDateTime updatedAt = LocalDateTime.now();
+    private LocalDateTime updatedAt;
 
-    // Update timestamp before update
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+
+        // Set default difficulty if not specified
+        if (this.difficulty == null) {
+            this.difficulty = ChallengeDifficulty.MEDIUM;
+        }
+    }
+
     @PreUpdate
-    public void preUpdate() {
+    protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
 
-    // Helper methods to work with participants through ChallengeProgress
-    public List<User> getParticipants() {
-        return progress.stream()
-                .map(ChallengeProgress::getUser)
-                .toList();
+    // Convenience methods for difficulty
+    public boolean isEasyDifficulty() {
+        return this.difficulty == ChallengeDifficulty.BEGINNER ||
+                this.difficulty == ChallengeDifficulty.EASY;
     }
 
-    public boolean hasParticipant(User user) {
-        return progress.stream()
-                .anyMatch(cp -> cp.getUser().getId().equals(user.getId()));
+    public boolean isHardDifficulty() {
+        return this.difficulty == ChallengeDifficulty.HARD ||
+                this.difficulty == ChallengeDifficulty.EXPERT ||
+                this.difficulty == ChallengeDifficulty.EXTREME;
     }
 
-    public int getParticipantCount() {
-        return progress.size();
+    public int getDifficultyLevel() {
+        return this.difficulty != null ? this.difficulty.getLevel() : 3; // Default to medium level
     }
 
-    public ChallengeProgress getProgressForUser(User user) {
-        return progress.stream()
-                .filter(cp -> cp.getUser().getId().equals(user.getId()))
-                .findFirst()
-                .orElse(null);
+    public String getDifficultyDisplayName() {
+        return this.difficulty != null ? this.difficulty.getDisplayName() : "Medium";
+    }
+
+    public String getDifficultyDescription() {
+        return this.difficulty != null ? this.difficulty.getDescription() : "Moderate difficulty";
     }
 }

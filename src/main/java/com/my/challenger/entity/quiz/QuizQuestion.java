@@ -1,13 +1,10 @@
 // src/main/java/com/my/challenger/entity/quiz/QuizQuestion.java
 package com.my.challenger.entity.quiz;
-
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.enums.QuizDifficulty;
+import com.my.challenger.entity.enums.QuestionType;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -19,13 +16,11 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(callSuper = false)
 public class QuizQuestion {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(name = "challenge_id")
-    private Long challengeId;
 
     @Column(nullable = false, length = 1000)
     private String question;
@@ -37,72 +32,74 @@ public class QuizQuestion {
     @Column(nullable = false)
     private QuizDifficulty difficulty;
 
-    @Column(length = 200)
+    @Column(length = 100)
     private String topic;
 
-    @Column(length = 500)
-    private String source; // Source identifier (e.g., "APP_GENERATED", "USER_CREATED")
+    @Column(length = 100)
+    private String source;
 
-    @Column(name = "additional_info", length = 1000)
+    @Column(length = 500)
     private String additionalInfo;
 
-    @Column(name = "is_user_created", nullable = false)
+    @Column(nullable = false)
+    @Builder.Default
     private Boolean isUserCreated = false;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "creator_id")
     private User creator;
 
+    @Column(name = "usage_count")
+    @Builder.Default
+    private Integer usageCount = 0;
+
     @Column(name = "external_id", length = 100)
-    private String externalId; // For tracking original question ID
+    private String externalId;
 
-    @Column(name = "usage_count", nullable = false)
-    private Integer usageCount = 0; // Track how many times this question has been used
+    // New multimedia fields
+    @Enumerated(EnumType.STRING)
+    @Column(name = "question_type", nullable = false)
+    @Builder.Default
+    private QuestionType questionType = QuestionType.TEXT;
 
-    @Column(name = "is_active", nullable = false)
-    private Boolean isActive = true;
+    @Column(name = "question_media_url", length = 500)
+    private String questionMediaUrl;
+
+    @Column(name = "question_media_id", length = 100)
+    private String questionMediaId;
+
+    @Column(name = "question_media_type", length = 50)
+    private String questionMediaType;
+
+    @Column(name = "question_thumbnail_url", length = 500)
+    private String questionThumbnailUrl;
 
     @CreationTimestamp
-    @Column(name = "created_at", nullable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    @Column(name = "last_used")
-    private LocalDateTime lastUsed; // Track when this question was last used
-
-    @PrePersist
-    protected void onCreate() {
-        if (createdAt == null) {
-            createdAt = LocalDateTime.now();
-        }
-        if (updatedAt == null) {
-            updatedAt = LocalDateTime.now();
-        }
-        if (usageCount == null) {
-            usageCount = 0;
-        }
-        if (isUserCreated == null) {
-            isUserCreated = false;
-        }
-        if (isActive == null) {
-            isActive = true;
-        }
+    // Helper methods for multimedia
+    public boolean hasMedia() {
+        return questionMediaUrl != null && !questionMediaUrl.trim().isEmpty();
     }
 
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
+    public boolean isVideoQuestion() {
+        return questionType == QuestionType.VIDEO;
     }
 
-    /**
-     * Increment usage count and update last used timestamp
-     */
-    public void incrementUsage() {
-        this.usageCount = (this.usageCount != null ? this.usageCount : 0) + 1;
-        this.lastUsed = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
+    public boolean isAudioQuestion() {
+        return questionType == QuestionType.AUDIO;
+    }
+
+    public boolean isImageQuestion() {
+        return questionType == QuestionType.IMAGE;
+    }
+
+    public boolean isTextOnlyQuestion() {
+        return questionType == QuestionType.TEXT;
     }
 }

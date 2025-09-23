@@ -1,10 +1,13 @@
+// src/main/java/com/my/challenger/service/impl/QuizService.java - Enhanced for Multimedia
 package com.my.challenger.service.impl;
 
 import com.my.challenger.dto.quiz.*;
+import com.my.challenger.entity.MediaFile;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.challenge.Challenge;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.enums.QuizSessionStatus;
+import com.my.challenger.entity.enums.QuestionType;
 import com.my.challenger.entity.quiz.QuizQuestion;
 import com.my.challenger.entity.quiz.QuizRound;
 import com.my.challenger.entity.quiz.QuizSession;
@@ -15,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -32,78 +36,175 @@ public class QuizService {
     protected final QuizRoundRepository quizRoundRepository;
     protected final ChallengeRepository challengeRepository;
     protected final UserRepository userRepository;
+    protected final MediaFileRepository mediaFileRepository;
     protected final WWWGameService gameService;
-    protected final TaskRepository taskRepository;
+    protected final MediaStorageService mediaStorageService;
 
     // =============================================================================
-    // QUESTION MANAGEMENT METHODS
+    // MULTIMEDIA QUESTION MANAGEMENT METHODS
     // =============================================================================
-
-    @Transactional
-    public QuizSessionDTO startQuizSession(StartQuizSessionRequest request, Long hostUserId) {
-        log.info("Starting quiz session for host: {} with question source: {}", hostUserId, request.getQuestionSource());
-
-        // Validate challenge exists
-        Challenge challenge = challengeRepository.findById(request.getChallengeId())
-                .orElseThrow(() -> new IllegalArgumentException("Challenge not found"));
-
-        User hostUser = userRepository.findById(hostUserId)
-                .orElseThrow(() -> new IllegalArgumentException("Host user not found"));
-
-        // Create quiz session
-        QuizSession session = QuizSession.builder()
-                .challenge(challenge)
-                .creatorId(hostUserId)
-                .hostUser(hostUser)
-                .teamName(request.getTeamName())
-                .teamMembers(String.join(",", request.getTeamMembers()))
-                .difficulty(request.getDifficulty())
-                .roundTimeSeconds(request.getRoundTimeSeconds())
-                .totalRounds(request.getTotalRounds())
-                .enableAiHost(request.getEnableAiHost())
-                .questionSource(request.getQuestionSource())
-                .status(QuizSessionStatus.CREATED)
-                .build();
-
-        QuizSession savedSession = quizSessionRepository.save(session);
-
-        // Create quiz rounds with questions - ENHANCED VERSION
-        createQuizRounds(savedSession, request);
-
-        log.info("Created quiz session with ID: {} and {} rounds", savedSession.getId(), savedSession.getTotalRounds());
-        return convertSessionToDTO(savedSession);
-    }
 
     @Transactional
     public QuizQuestionDTO createUserQuestion(CreateQuizQuestionRequest request, Long creatorId) {
-        log.info("Creating user question for creator: {}", creatorId);
+        log.info("Creating user question for creator: {} with type: {}", creatorId, request.getQuestionType());
 
         User creator = userRepository.findById(creatorId)
                 .orElseThrow(() -> new IllegalArgumentException("Creator not found"));
 
-        QuizQuestion question = QuizQuestion.builder()
+        QuizQuestion.QuizQuestionBuilder questionBuilder = QuizQuestion.builder()
                 .question(request.getQuestion())
                 .answer(request.getAnswer())
                 .difficulty(request.getDifficulty())
                 .topic(request.getTopic())
                 .source(request.getSource())
                 .additionalInfo(request.getAdditionalInfo())
+                .questionType(request.getQuestionType() != null ? request.getQuestionType() : QuestionType.TEXT)
                 .isUserCreated(true)
                 .creator(creator)
-                .usageCount(0)
-                .build();
+                .usageCount(0);
 
-        QuizQuestion saved = quizQuestionRepository.save(question);
-        log.info("Created question with ID: {}", saved.getId());
+        // Handle media if provided
+        if (request.getQuestionMediaId() != null) {
+            Optional<MediaFile> mediaFile = mediaFileRepository.findById(Long.parseLong(request.getQuestionMediaId()));
+            if (mediaFile.isPresent()) {
+                questionBuilder
+                        .questionMediaId(request.getQuestionMediaId())
+                        .questionMediaUrl(mediaStorageService.getMediaUrl(mediaFile.get()))
+                        .questionMediaType(mediaFile.get().getContentType())
+                        .questionThumbnailUrl(mediaFile.get().getThumbnailPath());
+
+                log.info("Associated media file {} with question", request.getQuestionMediaId());
+            }
+        } else if (request.getQuestionMediaUrl() != null) {
+            questionBuilder
+                    .questionMediaUrl(request.getQuestionMediaUrl())
+                    .questionMediaType(inferMediaTypeFromUrl(request.getQuestionMediaUrl()));
+        }
+
+        QuizQuestion saved = quizQuestionRepository.save(questionBuilder.build());
+        log.info("Created multimedia question with ID: {} and type: {}", saved.getId(), saved.getQuestionType());
+
         return convertQuestionToDTO(saved);
     }
 
-    /**
-     * Enhanced createQuizRounds method that handles all question sources and saves them
-     */
     @Transactional
-    protected void createQuizRounds(QuizSession session, StartQuizSessionRequest request) {
-        log.info("Creating quiz rounds for session {} with source: {}", session.getId(), request.getQuestionSource());
+    public QuizQuestionDTO updateQuestionMedia(Long questionId, String mediaId, Long userId) {
+        log.info("Updating media for question {} with media {}", questionId, mediaId);
+
+        QuizQuestion question = quizQuestionRepository.findById(questionId)
+                .orElseThrow(() -> new IllegalArgumentException("Question not found"));
+
+        // Verify ownership
+        if (question.getIsUserCreated() && !question.getCreator().getId().equals(userId)) {
+            throw new IllegalArgumentException("You can only update your own questions");
+        }
+
+        // Get media file
+        MediaFile mediaFile = mediaFileRepository.findById(Long.parseLong(mediaId))
+                .orElseThrow(() -> new IllegalArgumentException("Media file not found"));
+
+        // Update question with media
+        question.setQuestionMediaId(mediaId);
+        question.setQuestionMediaUrl(mediaStorageService.getMediaUrl(mediaFile));
+        question.setQuestionMediaType(mediaFile.getContentType());
+        question.setQuestionThumbnailUrl(mediaFile.getThumbnailPath());
+
+        // Update question type based on media
+        question.setQuestionType(inferQuestionTypeFromMedia(mediaFile.getContentType()));
+
+        QuizQuestion updated = quizQuestionRepository.save(question);
+        log.info("Successfully updated question {} with media", questionId);
+
+        return convertQuestionToDTO(updated);
+    }
+
+    @Transactional
+    public boolean removeQuestionMedia(Long questionId, Long userId) {
+        log.info("Removing media from question {} by user {}", questionId, userId);
+
+        QuizQuestion question = quizQuestionRepository.findById(questionId)
+                .orElseThrow(() -> new IllegalArgumentException("Question not found"));
+
+        // Verify ownership
+        if (question.getIsUserCreated() && !question.getCreator().getId().equals(userId)) {
+            throw new IllegalArgumentException("You can only modify your own questions");
+        }
+
+        // Store old media ID for cleanup
+        String oldMediaId = question.getQuestionMediaId();
+
+        // Remove media references
+        question.setQuestionMediaId(null);
+        question.setQuestionMediaUrl(null);
+        question.setQuestionMediaType(null);
+        question.setQuestionThumbnailUrl(null);
+        question.setQuestionType(QuestionType.TEXT);
+
+        quizQuestionRepository.save(question);
+
+        // Optionally delete the media file if not used elsewhere
+        if (oldMediaId != null) {
+            cleanupUnusedMediaFile(Long.parseLong(oldMediaId));
+        }
+
+        log.info("Successfully removed media from question {}", questionId);
+        return true;
+    }
+
+    // =============================================================================
+    // ENHANCED SESSION CREATION WITH MULTIMEDIA SUPPORT
+    // =============================================================================
+
+    @Transactional
+    public QuizSessionResponseDTO startQuizSession(StartQuizSessionRequest request) {
+        log.info("Starting multimedia quiz session for challenge: {}", request.getChallengeId());
+
+        // Validate challenge
+        Challenge challenge = challengeRepository.findById(Long.parseLong(request.getChallengeId()))
+                .orElseThrow(() -> new IllegalArgumentException("Challenge not found"));
+
+        User hostUser = userRepository.findById(challenge.getCreatedBy())
+                .orElseThrow(() -> new IllegalArgumentException("Host user not found"));
+
+        // Create quiz session
+        QuizSession session = QuizSession.builder()
+                .challenge(challenge)
+                .hostUser(hostUser)
+                .teamName(request.getTeamName())
+                .teamMembers(String.join(",", request.getTeamMembers()))
+                .difficulty(request.getDifficulty())
+                .roundTimeSeconds(request.getRoundTimeSeconds())
+                .totalRounds(request.getTotalRounds())
+                .currentRound(0)
+                .status(QuizSessionStatus.WAITING)
+                .enableAiHost(request.isEnableAiHost())
+                .questionSource(request.getQuestionSource())
+                .build();
+
+        session = quizSessionRepository.save(session);
+        log.info("Created quiz session with ID: {}", session.getId());
+
+        // Create rounds with multimedia support
+        createMultimediaQuizRounds(session, request);
+
+        // Update session status
+        session.setStatus(QuizSessionStatus.IN_PROGRESS);
+        session = quizSessionRepository.save(session);
+
+        return QuizSessionResponseDTO.builder()
+                .sessionId(session.getId().toString())
+                .challengeId(request.getChallengeId())
+                .teamName(request.getTeamName())
+                .status(session.getStatus().name())
+                .totalRounds(session.getTotalRounds())
+                .hasMultimedia(hasMultimediaQuestions(session.getId()))
+                .build();
+    }
+
+    @Transactional
+    protected void createMultimediaQuizRounds(QuizSession session, StartQuizSessionRequest request) {
+        log.info("Creating multimedia quiz rounds for session {} with source: {}",
+                session.getId(), request.getQuestionSource());
 
         List<QuizQuestion> questionsToUse = new ArrayList<>();
 
@@ -121,11 +222,10 @@ public class QuizService {
         // Create rounds from the selected/created questions
         createRoundsFromQuestions(session, questionsToUse);
 
-        log.info("Successfully created {} rounds for session {}", questionsToUse.size(), session.getId());
+        log.info("Successfully created {} multimedia rounds for session {}",
+                questionsToUse.size(), session.getId());
     }
-    /**
-     * Handle app-generated questions - save them to database
-     */
+
     private List<QuizQuestion> handleAppQuestions(StartQuizSessionRequest request, User hostUser) {
         List<QuizQuestion> questions = new ArrayList<>();
 
@@ -133,61 +233,61 @@ public class QuizService {
             log.info("Saving {} app-generated questions to database", request.getAppQuestions().size());
 
             for (AppQuestionData appQuestion : request.getAppQuestions()) {
-                // Create and save the question
-                QuizQuestion question = QuizQuestion.builder()
+                QuizQuestion.QuizQuestionBuilder questionBuilder = QuizQuestion.builder()
                         .question(appQuestion.getQuestion())
                         .answer(appQuestion.getAnswer())
                         .difficulty(appQuestion.getDifficulty())
                         .topic(appQuestion.getTopic())
                         .additionalInfo(appQuestion.getAdditionalInfo())
-                        .creator(hostUser) // Mark the user as creator
-                        .isUserCreated(false) // It's an app question, but saved by user
-                        .externalId(appQuestion.getExternalId()) // Track original ID
+                        .creator(hostUser)
+                        .isUserCreated(false)
+                        .externalId(appQuestion.getExternalId())
                         .source(appQuestion.getSource() != null ? appQuestion.getSource() : "APP_GENERATED")
-                        .build();
+                        .questionType(appQuestion.getQuestionType() != null ? appQuestion.getQuestionType() : QuestionType.TEXT);
 
-                QuizQuestion savedQuestion = quizQuestionRepository.save(question);
+                // Handle multimedia for app questions
+                if (appQuestion.getQuestionMediaUrl() != null) {
+                    questionBuilder
+                            .questionMediaUrl(appQuestion.getQuestionMediaUrl())
+                            .questionMediaType(inferMediaTypeFromUrl(appQuestion.getQuestionMediaUrl()));
+
+                    if (appQuestion.getQuestionMediaId() != null) {
+                        questionBuilder.questionMediaId(appQuestion.getQuestionMediaId());
+                    }
+                }
+
+                QuizQuestion savedQuestion = quizQuestionRepository.save(questionBuilder.build());
                 questions.add(savedQuestion);
 
-                log.debug("Saved app question: {} (ID: {})", question.getQuestion(), savedQuestion.getId());
+                log.debug("Created multimedia app question: {} (ID: {}, Type: {})",
+                        savedQuestion.getQuestion(), savedQuestion.getId(), savedQuestion.getQuestionType());
             }
-        } else {
-            log.warn("No app questions provided, using random questions instead");
-            // Fallback to random questions if no app questions provided
-            questions = getRandomQuestionsByDifficulty(request.getDifficulty(), request.getTotalRounds());
+        }
+
+        if (questions.isEmpty()) {
+            throw new IllegalArgumentException("No app questions provided");
         }
 
         return questions;
     }
 
-    /**
-     * Handle user questions - mix of existing and new ones
-     */
     private List<QuizQuestion> handleUserQuestions(StartQuizSessionRequest request, User hostUser) {
         List<QuizQuestion> questions = new ArrayList<>();
 
         // Add existing user questions
         if (request.getCustomQuestionIds() != null && !request.getCustomQuestionIds().isEmpty()) {
-            log.info("Loading {} existing user questions", request.getCustomQuestionIds().size());
-
             List<QuizQuestion> existingQuestions = quizQuestionRepository.findAllById(request.getCustomQuestionIds());
-
-            // Validate ownership
-            for (QuizQuestion question : existingQuestions) {
-                if (!question.getCreator().getId().equals(hostUser.getId())) {
-                    throw new IllegalStateException("User can only use their own questions");
-                }
-            }
-
             questions.addAll(existingQuestions);
+
+            log.info("Added {} existing user questions", existingQuestions.size());
         }
 
-        // Create and add new custom questions
+        // Create new custom questions with multimedia support
         if (request.getNewCustomQuestions() != null && !request.getNewCustomQuestions().isEmpty()) {
             log.info("Creating {} new custom questions", request.getNewCustomQuestions().size());
 
             for (CreateQuestionRequest newQuestion : request.getNewCustomQuestions()) {
-                QuizQuestion question = QuizQuestion.builder()
+                QuizQuestion.QuizQuestionBuilder questionBuilder = QuizQuestion.builder()
                         .question(newQuestion.getQuestion())
                         .answer(newQuestion.getAnswer())
                         .difficulty(newQuestion.getDifficulty())
@@ -196,16 +296,27 @@ public class QuizService {
                         .creator(hostUser)
                         .isUserCreated(true)
                         .source("USER_CREATED")
-                        .build();
+                        .questionType(newQuestion.getQuestionType() != null ? newQuestion.getQuestionType() : QuestionType.TEXT);
 
-                QuizQuestion savedQuestion = quizQuestionRepository.save(question);
+                // Handle multimedia for new custom questions
+                if (newQuestion.getQuestionMediaUrl() != null) {
+                    questionBuilder
+                            .questionMediaUrl(newQuestion.getQuestionMediaUrl())
+                            .questionMediaType(inferMediaTypeFromUrl(newQuestion.getQuestionMediaUrl()));
+
+                    if (newQuestion.getQuestionMediaId() != null) {
+                        questionBuilder.questionMediaId(newQuestion.getQuestionMediaId());
+                    }
+                }
+
+                QuizQuestion savedQuestion = quizQuestionRepository.save(questionBuilder.build());
                 questions.add(savedQuestion);
 
-                log.debug("Created new user question: {} (ID: {})", question.getQuestion(), savedQuestion.getId());
+                log.debug("Created new multimedia user question: {} (ID: {}, Type: {})",
+                        savedQuestion.getQuestion(), savedQuestion.getId(), savedQuestion.getQuestionType());
             }
         }
 
-        // If no questions provided, throw error
         if (questions.isEmpty()) {
             throw new IllegalArgumentException("No questions provided for user question source");
         }
@@ -213,9 +324,6 @@ public class QuizService {
         return questions;
     }
 
-    /**
-     * Create quiz rounds from a list of questions
-     */
     private void createRoundsFromQuestions(QuizSession session, List<QuizQuestion> questions) {
         for (int i = 0; i < questions.size() && i < session.getTotalRounds(); i++) {
             QuizQuestion question = questions.get(i);
@@ -227,394 +335,67 @@ public class QuizService {
                     .isCorrect(false)
                     .hintUsed(false)
                     .voiceRecordingUsed(false)
+                    .mediaInteractionCount(0)
                     .build();
 
             quizRoundRepository.save(round);
         }
     }
 
-    /**
-     * Fallback method to get random questions by difficulty
-     */
-    private List<QuizQuestion> getRandomQuestionsByDifficulty(QuizDifficulty difficulty, int count) {
-        return quizQuestionRepository.findByDifficultyOrderByRandom(difficulty)
-                .stream()
-                .limit(count)
-                .collect(Collectors.toList());
+    // =============================================================================
+    // MULTIMEDIA UTILITY METHODS
+    // =============================================================================
+
+    private QuestionType inferQuestionTypeFromMedia(String mimeType) {
+        if (mimeType == null) return QuestionType.TEXT;
+
+        if (mimeType.startsWith("video/")) return QuestionType.VIDEO;
+        if (mimeType.startsWith("audio/")) return QuestionType.AUDIO;
+        if (mimeType.startsWith("image/")) return QuestionType.IMAGE;
+
+        return QuestionType.TEXT;
     }
 
-    /**
-     * Convert QuizSession entity to DTO
-     */
-    protected QuizSessionDTO convertSessionToDTO(QuizSession session) {
-        // Implementation of conversion logic
-        return QuizSessionDTO.builder()
-                .id(session.getId())
-                .challengeId(session.getChallenge().getId())
-                .teamName(session.getTeamName())
-                .teamMembers(List.of(session.getTeamMembers().split(",")))
-                .difficulty(session.getDifficulty())
-                .roundTimeSeconds(session.getRoundTimeSeconds())
-                .totalRounds(session.getTotalRounds())
-                .enableAiHost(session.getEnableAiHost())
-                .questionSource(session.getQuestionSource())
-                .status(session.getStatus())
-                .createdAt(session.getCreatedAt())
-                .startedAt(session.getStartedAt())
-                .completedAt(session.getCompletedAt())
-                .build();
-    }
+    private String inferMediaTypeFromUrl(String url) {
+        if (url == null) return null;
 
-
-    public List<QuizQuestionDTO> getUserQuestions(Long userId) {
-        log.info("Getting user questions for user: {}", userId);
-
-        List<QuizQuestion> questions = quizQuestionRepository
-                .findByCreatorIdAndIsUserCreatedTrueOrderByCreatedAtDesc(userId);
-
-        return questions.stream()
-                .map(this::convertQuestionToDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Transactional
-    public void deleteUserQuestion(Long questionId, Long userId) {
-        log.info("Deleting question {} for user: {}", questionId, userId);
-
-        QuizQuestion question = quizQuestionRepository.findById(questionId)
-                .orElseThrow(() -> new IllegalArgumentException("Question not found"));
-
-        if (!question.getCreator().getId().equals(userId)) {
-            throw new IllegalStateException("You can only delete your own questions");
+        String lowerUrl = url.toLowerCase();
+        if (lowerUrl.contains(".mp4") || lowerUrl.contains(".mov") || lowerUrl.contains(".avi")) {
+            return "video/mp4";
+        }
+        if (lowerUrl.contains(".mp3") || lowerUrl.contains(".wav") || lowerUrl.contains(".m4a")) {
+            return "audio/mpeg";
+        }
+        if (lowerUrl.contains(".jpg") || lowerUrl.contains(".jpeg") || lowerUrl.contains(".png")) {
+            return "image/jpeg";
         }
 
-        if (!question.getIsUserCreated()) {
-            throw new IllegalStateException("Cannot delete system questions");
+        return "application/octet-stream";
+    }
+
+    private boolean hasMultimediaQuestions(Long sessionId) {
+        return quizRoundRepository.existsByQuizSessionIdAndQuestionQuestionTypeNot(sessionId, QuestionType.TEXT);
+    }
+
+    private void cleanupUnusedMediaFile(Long mediaId) {
+        try {
+            // Check if media is used by other questions
+            boolean isUsed = quizQuestionRepository.existsByQuestionMediaId(mediaId.toString());
+
+            if (!isUsed) {
+                mediaStorageService.deleteMedia(mediaId); // System cleanup
+                log.info("Cleaned up unused media file: {}", mediaId);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to cleanup media file {}: {}", mediaId, e.getMessage());
         }
-
-        quizQuestionRepository.delete(question);
-    }
-
-    public List<QuizQuestionDTO> getQuestionsByDifficulty(QuizDifficulty difficulty, int count) {
-        log.info("Getting {} questions by difficulty: {}", count, difficulty);
-
-        List<QuizQuestion> questions = quizQuestionRepository
-                .findByDifficultyOrderByUsageCountAsc(difficulty, PageRequest.of(0, count));
-
-        return questions.stream()
-                .map(this::convertQuestionToDTO)
-                .collect(Collectors.toList());
-    }
-
-    public List<QuizQuestionDTO> searchQuestions(String keyword, int limit) {
-        log.info("Searching questions with keyword: {} (limit: {})", keyword, limit);
-
-        List<QuizQuestion> questions = quizQuestionRepository
-                .searchByKeyword(keyword, PageRequest.of(0, limit));
-
-        return questions.stream()
-                .map(this::convertQuestionToDTO)
-                .collect(Collectors.toList());
     }
 
     // =============================================================================
-    // QUIZ SESSION MANAGEMENT METHODS
+    // ENHANCED DTO CONVERSION WITH MULTIMEDIA SUPPORT
     // =============================================================================
 
-    @Transactional
-    public QuizSessionDTO beginQuizSession(Long sessionId, Long userId) {
-        log.info("Beginning quiz session {} for user: {}", sessionId, userId);
-
-        QuizSession session = findUserSession(sessionId, userId);
-
-        if (session.getStatus() != QuizSessionStatus.CREATED) {
-            throw new IllegalStateException("Session must be in CREATED status to begin");
-        }
-
-        session.setStatus(QuizSessionStatus.IN_PROGRESS);
-        session.setStartedAt(LocalDateTime.now());
-
-        QuizSession updated = quizSessionRepository.save(session);
-        return convertSessionToDTO(updated);
-    }
-
-    @Transactional
-    public QuizRoundDTO submitRoundAnswer(Long sessionId, SubmitRoundAnswerRequest request, Long userId) {
-        log.info("Submitting answer for session {} round {} by user: {}",
-                sessionId, request.getRoundNumber(), userId);
-
-        QuizSession session = findUserSession(sessionId, userId);
-
-        if (session.getStatus() != QuizSessionStatus.IN_PROGRESS) {
-            throw new IllegalStateException("Session must be in progress to submit answers");
-        }
-
-        QuizRound round = quizRoundRepository
-                .findByQuizSessionIdAndRoundNumber(sessionId, request.getRoundNumber())
-                .orElseThrow(() -> new IllegalArgumentException("Round not found"));
-
-        if (round.getAnswerSubmittedAt() != null) {
-            throw new IllegalStateException("Answer already submitted for this round");
-        }
-
-        // Validate answer
-        boolean isCorrect = gameService.validateAnswer(
-                request.getTeamAnswer(),
-                round.getQuestion().getAnswer()
-        );
-
-        // Update round
-        round.setTeamAnswer(request.getTeamAnswer());
-        round.setIsCorrect(isCorrect);
-        round.setPlayerWhoAnswered(request.getPlayerWhoAnswered());
-        round.setDiscussionNotes(request.getDiscussionNotes());
-        round.setHintUsed(request.getHintUsed() != null ? request.getHintUsed() : false);
-        round.setVoiceRecordingUsed(request.getVoiceRecordingUsed() != null ? request.getVoiceRecordingUsed() : false);
-        round.setAnswerSubmittedAt(LocalDateTime.now());
-
-        // Generate AI feedback if enabled
-        if (session.getEnableAiHost()) {
-            String feedback = gameService.generateRoundFeedback(round, isCorrect);
-            round.setAiFeedback(feedback);
-        }
-
-        QuizRound savedRound = quizRoundRepository.save(round);
-
-        // Update session progress
-        updateSessionProgress(session);
-
-        return convertRoundToDTO(savedRound);
-    }
-
-    @Transactional
-    public QuizSessionDTO completeQuizSession(Long sessionId, Long userId) {
-        log.info("Completing quiz session {} for user: {}", sessionId, userId);
-
-        QuizSession session = findUserSession(sessionId, userId);
-
-        if (session.getStatus() == QuizSessionStatus.COMPLETED) {
-            throw new IllegalStateException("Session is already completed");
-        }
-
-        session.setStatus(QuizSessionStatus.COMPLETED);
-        session.setCompletedAt(LocalDateTime.now());
-
-        // Calculate total duration if started
-        if (session.getStartedAt() != null) {
-            long durationSeconds = java.time.Duration
-                    .between(session.getStartedAt(), session.getCompletedAt())
-                    .getSeconds();
-            session.setTotalDurationSeconds((int) durationSeconds);
-        }
-
-        QuizSession updated = quizSessionRepository.save(session);
-        return convertSessionToDTO(updated);
-    }
-
-    public QuizSessionDTO getQuizSession(Long sessionId, Long userId) {
-        log.info("Getting quiz session {} for user: {}", sessionId, userId);
-
-        QuizSession session = findUserSession(sessionId, userId);
-        return convertSessionToDTO(session);
-    }
-
-    public List<QuizSessionDTO> getUserQuizSessions(Long userId, int limit) {
-        log.info("Getting user quiz sessions for user: {} (limit: {})", userId, limit);
-
-        // FIXED: Use correct repository method based on creatorId
-        List<QuizSession> sessions = quizSessionRepository
-                .findByCreatorIdOrderByCreatedAtDesc(userId, PageRequest.of(0, limit));
-
-        return sessions.stream()
-                .map(this::convertSessionToDTO)
-                .collect(Collectors.toList());
-    }
-
-    public List<QuizRoundDTO> getQuizRounds(Long sessionId, Long userId) {
-        log.info("Getting quiz rounds for session {} by user: {}", sessionId, userId);
-
-        // Verify user has access to this session
-        findUserSession(sessionId, userId);
-
-        List<QuizRound> rounds = quizRoundRepository
-                .findByQuizSessionIdOrderByRoundNumber(sessionId);
-
-        return rounds.stream()
-                .map(this::convertRoundToDTO)
-                .collect(Collectors.toList());
-    }
-
-    // =============================================================================
-    // ENHANCED SEARCH METHODS (Fixed repository calls)
-    // =============================================================================
-
-    public List<QuizSessionDTO> getSessionsByQuestionSourceContaining(Long creatorId, String questionSource) {
-        log.info("Getting sessions by creator {} with questionSource containing: {}", creatorId, questionSource);
-
-        // FIXED: Now uses correct repository method name
-        List<QuizSession> sessions = quizSessionRepository
-                .findByCreatorIdAndQuestionSourceContaining(creatorId, questionSource);
-
-        return sessions.stream()
-                .map(this::convertSessionToDTO)
-                .collect(Collectors.toList());
-    }
-
-    public List<QuizSessionDTO> getSessionsByExactQuestionSource(Long creatorId, String questionSource) {
-        log.info("Getting sessions by creator {} with exact questionSource: {}", creatorId, questionSource);
-
-        // FIXED: Now uses correct repository method name
-        List<QuizSession> sessions = quizSessionRepository
-                .findByCreatorIdAndQuestionSource(creatorId, questionSource);
-
-        return sessions.stream()
-                .map(this::convertSessionToDTO)
-                .collect(Collectors.toList());
-    }
-
-    public List<QuizSessionDTO> getRecentSessions(Long creatorId, int daysBack) {
-        log.info("Getting recent sessions for creator {} ({} days back)", creatorId, daysBack);
-
-        LocalDateTime since = LocalDateTime.now().minusDays(daysBack);
-        List<QuizSession> sessions = quizSessionRepository
-                .findRecentSessionsByCreator(creatorId, since);
-
-        return sessions.stream()
-                .map(this::convertSessionToDTO)
-                .collect(Collectors.toList());
-    }
-
-    public List<QuizSessionDTO> searchSessions(QuizSessionSearchCriteria criteria) {
-        log.info("Searching sessions with criteria: {}", criteria);
-
-        PageRequest pageRequest = PageRequest.of(0, criteria.getLimit());
-        List<QuizSession> sessions = quizSessionRepository.findSessionsWithCriteria(
-                criteria.getCreatorId(),
-                criteria.getQuestionSource(),
-                criteria.getStatus(),
-                pageRequest
-        );
-
-        return sessions.stream()
-                .map(this::convertSessionToDTO)
-                .collect(Collectors.toList());
-    }
-
-    public QuizSessionStatsDTO getSessionStats(Long creatorId) {
-        log.info("Getting session stats for creator: {}", creatorId);
-
-        long totalSessions = quizSessionRepository.countByCreatorId(creatorId);
-        long completedSessions = quizSessionRepository.countByCreatorIdAndStatus(creatorId, QuizSessionStatus.COMPLETED);
-        long activeSessions = quizSessionRepository.countByCreatorIdAndStatus(creatorId, QuizSessionStatus.IN_PROGRESS);
-
-        return QuizSessionStatsDTO.builder()
-                .totalSessions(totalSessions)
-                .completedSessions(completedSessions)
-                .activeSessions(activeSessions)
-                .completionRate(totalSessions > 0 ? (double) completedSessions / totalSessions * 100 : 0)
-                .build();
-    }
-
-    public QuizRoundDTO getCurrentRound(Long sessionId, Long userId) {
-        log.info("Getting current round for session {} by user: {}", sessionId, userId);
-
-        // Verify user has access to this session
-        findUserSession(sessionId, userId);
-
-        // Find the first round that hasn't been submitted yet
-        List<QuizRound> rounds = quizRoundRepository
-                .findByQuizSessionIdOrderByRoundNumber(sessionId);
-
-        Optional<QuizRound> currentRound = rounds.stream()
-                .filter(round -> round.getAnswerSubmittedAt() == null)
-                .findFirst();
-
-        if (currentRound.isEmpty()) {
-            throw new IllegalStateException("No current round found - all rounds may be completed");
-        }
-
-        return convertRoundToDTO(currentRound.get());
-    }
-
-    @Transactional
-    public QuizSessionDTO updateSessionConfig(Long sessionId, UpdateQuizSessionConfigRequest request, Long userId) {
-        log.info("Updating session {} config for user: {}", sessionId, userId);
-
-        QuizSession session = findUserSession(sessionId, userId);
-
-        if (session.getStatus() != QuizSessionStatus.CREATED) {
-            throw new IllegalStateException("Can only update configuration for sessions that haven't started");
-        }
-
-        // Update configurable fields
-        if (request.getRoundTimeSeconds() != null) {
-            session.setRoundTimeSeconds(request.getRoundTimeSeconds());
-        }
-        if (request.getEnableAiHost() != null) {
-            session.setEnableAiHost(request.getEnableAiHost());
-        }
-        if (request.getTeamName() != null) {
-            session.setTeamName(request.getTeamName());
-        }
-        if (request.getTeamMembers() != null) {
-            session.setTeamMembers(request.getTeamMembers());
-        }
-
-        session.setUpdatedAt(LocalDateTime.now());
-        QuizSession updated = quizSessionRepository.save(session);
-
-        return convertSessionToDTO(updated);
-    }
-
-    @Transactional
-    public void updateSessionStatus(Long sessionId, QuizSessionStatus status, Long userId) {
-        log.info("Updating session {} status to {} for user: {}", sessionId, status, userId);
-
-        QuizSession session = findUserSession(sessionId, userId);
-        session.setStatus(status);
-        session.setUpdatedAt(LocalDateTime.now());
-
-        quizSessionRepository.save(session);
-    }
-
-    // =============================================================================
-    // HELPER METHODS
-    // =============================================================================
-
-    private QuizSession findUserSession(Long sessionId, Long userId) {
-        QuizSession session = quizSessionRepository.findById(sessionId)
-                .orElseThrow(() -> new IllegalArgumentException("Session not found"));
-
-        if (!session.getCreatorId().equals(userId)) {
-            throw new IllegalStateException("You can only access your own sessions");
-        }
-
-        return session;
-    }
-
-    private void updateSessionProgress(QuizSession session) {
-        long completedRounds = quizRoundRepository
-                .countByQuizSessionIdAndAnswerSubmittedAtIsNotNull(session.getId());
-        long correctAnswers = quizRoundRepository
-                .countByQuizSessionIdAndIsCorrectTrue(session.getId());
-
-        session.setCompletedRounds((int) completedRounds);
-        session.setCorrectAnswers((int) correctAnswers);
-
-        // If all rounds completed, mark session as complete
-        if (completedRounds >= session.getTotalRounds()) {
-            session.setStatus(QuizSessionStatus.COMPLETED);
-            session.setCompletedAt(LocalDateTime.now());
-        }
-
-        quizSessionRepository.save(session);
-    }
-
-    // =============================================================================
-    // DTO CONVERSION METHODS
-    // =============================================================================
-
-    protected QuizQuestionDTO convertQuestionToDTO(QuizQuestion question) {
+    private QuizQuestionDTO convertQuestionToDTO(QuizQuestion question) {
         return QuizQuestionDTO.builder()
                 .id(question.getId())
                 .question(question.getQuestion())
@@ -625,37 +406,110 @@ public class QuizService {
                 .additionalInfo(question.getAdditionalInfo())
                 .isUserCreated(question.getIsUserCreated())
                 .creatorId(question.getCreator() != null ? question.getCreator().getId() : null)
-                .externalId(question.getExternalId())
-                .usageCount(question.getUsageCount())
+                .creatorName(question.getCreator() != null ? question.getCreator().getUsername() : null)
                 .createdAt(question.getCreatedAt())
-                .lastUsed(question.getLastUsed())
+                .usageCount(question.getUsageCount())
+                .questionType(question.getQuestionType())
+                .questionMediaUrl(question.getQuestionMediaUrl())
+                .questionMediaId(question.getQuestionMediaId())
+                .questionMediaType(question.getQuestionMediaType())
+                .questionThumbnailUrl(question.getQuestionThumbnailUrl())
                 .build();
     }
 
-    private QuizRoundDTO convertRoundToDTO(QuizRound round) {
-        return QuizRoundDTO.builder()
-                .id(round.getId())
-                .quizSessionId(round.getQuizSession().getId())
-                .question(convertQuestionToDTO(round.getQuestion()))
-                .roundNumber(round.getRoundNumber())
-                .teamAnswer(round.getTeamAnswer())
-                .isCorrect(round.getIsCorrect())
-                .playerWhoAnswered(round.getPlayerWhoAnswered())
-                .discussionNotes(round.getDiscussionNotes())
-                .roundStartedAt(round.getRoundStartedAt())
-                .answerSubmittedAt(round.getAnswerSubmittedAt())
-                .discussionDurationSeconds(round.getDiscussionDurationSeconds())
-                .totalRoundDurationSeconds(round.getTotalRoundDurationSeconds())
-                .hintUsed(round.getHintUsed())
-                .voiceRecordingUsed(round.getVoiceRecordingUsed())
-                .aiFeedback(round.getAiFeedback())
+    // =============================================================================
+    // QUERY METHODS FOR MULTIMEDIA QUESTIONS
+    // =============================================================================
+
+    public List<QuizQuestionDTO> getMultimediaQuestionsByType(QuestionType questionType, int limit) {
+        PageRequest pageRequest = PageRequest.of(0, limit);
+        return quizQuestionRepository.findByQuestionTypeOrderByCreatedAtDesc(questionType, pageRequest)
+                .stream()
+                .map(this::convertQuestionToDTO)
+                .collect(Collectors.toList());
+    }
+
+    public List<QuizQuestionDTO> getUserMultimediaQuestions(Long userId) {
+        return quizQuestionRepository.findByCreatorIdAndQuestionTypeNotOrderByCreatedAtDesc(userId, QuestionType.TEXT)
+                .stream()
+                .map(this::convertQuestionToDTO)
+                .collect(Collectors.toList());
+    }
+
+    public MediaUsageStatsDTO getMediaUsageStats(Long userId) {
+        // This would require additional repository methods
+        // Placeholder implementation
+        return MediaUsageStatsDTO.builder()
+                .totalMediaQuestions(0L)
+                .videoQuestions(0L)
+                .audioQuestions(0L)
+                .imageQuestions(0L)
+                .totalStorageUsedMB(0.0)
                 .build();
     }
 
-    private Double calculateScorePercentage(QuizSession session) {
-        if (session.getTotalRounds() == null || session.getTotalRounds() == 0) {
-            return 0.0;
+    // =============================================================================
+    // EXISTING METHODS (UNCHANGED)
+    // =============================================================================
+
+    public List<QuizQuestionDTO> getUserQuestions(Long userId) {
+        List<QuizQuestion> questions = quizQuestionRepository.findByCreatorIdOrderByCreatedAtDesc(userId);
+        return questions.stream()
+                .map(this::convertQuestionToDTO)
+                .collect(Collectors.toList());
+    }
+
+    public Optional<QuizQuestionDTO> getQuestionById(Long questionId) {
+        return quizQuestionRepository.findById(questionId)
+                .map(this::convertQuestionToDTO);
+    }
+
+    public boolean deleteUserQuestion(Long questionId, Long userId) {
+        Optional<QuizQuestion> questionOpt = quizQuestionRepository.findById(questionId);
+
+        if (questionOpt.isEmpty()) {
+            return false;
         }
-        return (double) session.getCorrectAnswers() / session.getTotalRounds() * 100;
+
+        QuizQuestion question = questionOpt.get();
+
+        if (!question.getIsUserCreated() || !question.getCreator().getId().equals(userId)) {
+            throw new IllegalArgumentException("You can only delete your own questions");
+        }
+
+        // Cleanup media if exists
+        if (question.getQuestionMediaId() != null) {
+            cleanupUnusedMediaFile(Long.parseLong(question.getQuestionMediaId()));
+        }
+
+        quizQuestionRepository.delete(question);
+        return true;
     }
+}
+
+// Additional DTO classes for multimedia support
+
+@lombok.Data
+@lombok.Builder
+@lombok.NoArgsConstructor
+@lombok.AllArgsConstructor
+class MediaUsageStatsDTO {
+    private Long totalMediaQuestions;
+    private Long videoQuestions;
+    private Long audioQuestions;
+    private Long imageQuestions;
+    private Double totalStorageUsedMB;
+}
+
+@lombok.Data
+@lombok.Builder
+@lombok.NoArgsConstructor
+@lombok.AllArgsConstructor
+class QuizSessionResponseDTO {
+    private String sessionId;
+    private String challengeId;
+    private String teamName;
+    private String status;
+    private Integer totalRounds;
+    private Boolean hasMultimedia;
 }
