@@ -27,6 +27,7 @@ public class EnhancedQuizService extends QuizService {
 
     private final ObjectMapper objectMapper;
     private final QuizRoundRepository quizRoundRepository;
+    private final TaskRepository taskRepository;
 
     public EnhancedQuizService(
             QuizQuestionRepository quizQuestionRepository,
@@ -35,14 +36,17 @@ public class EnhancedQuizService extends QuizService {
             ChallengeRepository challengeRepository,
             UserRepository userRepository,
             WWWGameService gameService,
-            TaskRepository taskRepository,
-            ObjectMapper objectMapper) {
+            MediaStorageService mediaStorageService,
+            MediaFileRepository mediaFileRepository,
+            ObjectMapper objectMapper,
+            TaskRepository taskRepository) {
 
         super(quizQuestionRepository, quizSessionRepository, quizRoundRepository,
-                challengeRepository, userRepository, gameService, taskRepository);
+                challengeRepository, userRepository, mediaFileRepository, gameService, mediaStorageService);
 
         this.objectMapper = objectMapper;
         this.quizRoundRepository = quizRoundRepository;
+        this.taskRepository = taskRepository;
     }
 
     /**

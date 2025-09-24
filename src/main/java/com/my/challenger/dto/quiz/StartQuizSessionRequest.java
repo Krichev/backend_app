@@ -15,7 +15,7 @@ import java.util.List;
 @AllArgsConstructor
 public class StartQuizSessionRequest {
     @NotBlank(message = "Challenge ID is required")
-    private String challengeId;
+    private Long challengeId;
 
     @NotBlank(message = "Team name is required")
     @Size(max = 100, message = "Team name must not exceed 100 characters")

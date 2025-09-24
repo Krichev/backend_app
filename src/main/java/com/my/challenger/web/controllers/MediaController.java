@@ -49,9 +49,8 @@ public class MediaController {
                 }
             }
 
-            MediaFile mediaFile = mediaStorageService.saveMedia(
+            MediaFile mediaFile = mediaStorageService.storeMedia(
                     file,
-                    MediaType.QUIZ_QUESTION,
                     entityId,
                     userId
             );
@@ -67,12 +66,6 @@ public class MediaController {
                     "fileSize", mediaFile.getFileSize(),
                     "duration", mediaFile.getDurationSeconds(),
                     "message", "Media uploaded successfully"
-            ));
-        } catch (IOException e) {
-            log.error("Error uploading quiz media", e);
-            return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "message", "Failed to upload media: " + e.getMessage()
             ));
         } catch (Exception e) {
             log.error("Unexpected error uploading quiz media", e);
@@ -130,7 +123,7 @@ public class MediaController {
             @AuthenticationPrincipal UserDetails userDetails) {
 
         try {
-            Optional<MediaFile> mediaFileOptional = mediaStorageService.getMedia(Long.parseLong(mediaId));
+            Optional<MediaFile> mediaFileOptional = mediaStorageService.getMediaFile(Long.parseLong(mediaId));
 
             if (mediaFileOptional.isEmpty()) {
                 return ResponseEntity.notFound().build();

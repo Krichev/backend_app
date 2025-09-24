@@ -1,5 +1,7 @@
+// src/main/java/com/my/challenger/repository/QuizRoundRepository.java
 package com.my.challenger.repository;
 
+import com.my.challenger.entity.enums.QuestionType;
 import com.my.challenger.entity.quiz.QuizRound;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -71,4 +73,53 @@ public interface QuizRoundRepository extends JpaRepository<QuizRound, Long> {
     @Query("DELETE FROM QuizRound qr WHERE qr.quizSession.id = :sessionId")
     void deleteByQuizSessionId(@Param("sessionId") Long sessionId);
 
+    // =====================================================================
+    // MISSING METHODS THAT NEED TO BE ADDED
+    // =====================================================================
+
+    /**
+     * Check if session has multimedia questions (questions that are NOT text-only)
+     * This method was missing and causing compilation errors
+     */
+    @Query("SELECT CASE WHEN COUNT(qr) > 0 THEN true ELSE false END FROM QuizRound qr " +
+            "WHERE qr.quizSession.id = :sessionId AND qr.question.questionType <> :questionType")
+    boolean existsByQuizSessionIdAndQuestionQuestionTypeNot(@Param("sessionId") Long sessionId,
+                                                            @Param("questionType") QuestionType questionType);
+
+    /**
+     * Alternative method to check for multimedia questions
+     */
+    @Query("SELECT COUNT(qr) FROM QuizRound qr " +
+            "WHERE qr.quizSession.id = :sessionId AND qr.question.questionType <> 'TEXT'")
+    long countMultimediaQuestionsBySession(@Param("sessionId") Long sessionId);
+
+    /**
+     * Find all rounds with multimedia questions for a session
+     */
+    @Query("SELECT qr FROM QuizRound qr " +
+            "WHERE qr.quizSession.id = :sessionId AND qr.question.questionType <> 'TEXT'")
+    List<QuizRound> findMultimediaRoundsBySession(@Param("sessionId") Long sessionId);
+
+    /**
+     * Count rounds by question type for a session
+     */
+    @Query("SELECT COUNT(qr) FROM QuizRound qr " +
+            "WHERE qr.quizSession.id = :sessionId AND qr.question.questionType = :questionType")
+    long countBySessionIdAndQuestionType(@Param("sessionId") Long sessionId,
+                                         @Param("questionType") QuestionType questionType);
+
+    /**
+     * Find rounds with high media interaction count
+     */
+    @Query("SELECT qr FROM QuizRound qr " +
+            "WHERE qr.quizSession.id = :sessionId AND qr.mediaInteractionCount > :minCount")
+    List<QuizRound> findHighInteractionRounds(@Param("sessionId") Long sessionId,
+                                              @Param("minCount") Integer minCount);
+
+    /**
+     * Get total media interaction count for a session
+     */
+    @Query("SELECT SUM(qr.mediaInteractionCount) FROM QuizRound qr " +
+            "WHERE qr.quizSession.id = :sessionId")
+    Long getTotalMediaInteractionsBySession(@Param("sessionId") Long sessionId);
 }

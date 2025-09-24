@@ -92,6 +92,61 @@ public class MediaStorageService {
     }
 
     /**
+     * Get media URL by media ID
+     */
+    public String getMediaUrl(Long mediaId) {
+        if (mediaId == null) {
+            return null;
+        }
+
+        Optional<MediaFile> mediaFile = mediaFileRepository.findById(mediaId);
+        if (mediaFile.isPresent()) {
+            return String.format("%s/%d", baseUrl, mediaId);
+        }
+
+        log.warn("Media file not found for ID: {}", mediaId);
+        return null;
+    }
+
+    /**
+     * Get media URL by media ID
+     */
+    public String getMediaUrl(MediaFile mediaFile) {
+        return String.format("%s/%d", baseUrl, mediaFile.getId());
+    }
+
+    /**
+     * Get media URL by filename
+     */
+    public String getMediaUrl(String filename) {
+        if (filename == null || filename.trim().isEmpty()) {
+            return null;
+        }
+
+        Optional<MediaFile> mediaFile = mediaFileRepository.findByFilename(filename);
+        if (mediaFile.isPresent()) {
+            return String.format("%s/%d", baseUrl, mediaFile.get().getId());
+        }
+
+        log.warn("Media file not found for filename: {}", filename);
+        return null;
+    }
+
+    /**
+     * Get media file by ID
+     */
+    public Optional<MediaFile> getMediaFile(Long mediaId) {
+        return mediaFileRepository.findById(mediaId);
+    }
+
+    /**
+     * Get media file by filename
+     */
+    public Optional<MediaFile> getMediaFile(String filename) {
+        return mediaFileRepository.findByFilename(filename);
+    }
+
+    /**
      * Store media with automatic category determination based on context
      */
     @Transactional
@@ -390,7 +445,7 @@ public class MediaStorageService {
     }
 
     @Transactional
-    public void deleteMedia(Long mediaId) {
+    public boolean deleteMedia(Long mediaId) {
         Optional<MediaFile> mediaFile = mediaFileRepository.findById(mediaId);
         if (mediaFile.isPresent()) {
             try {
@@ -408,11 +463,13 @@ public class MediaStorageService {
                 mediaFileRepository.deleteById(mediaId);
 
                 log.info("Media file deleted successfully: {}", mediaId);
+                return true;
             } catch (IOException e) {
                 log.error("Failed to delete media file: {}", mediaId, e);
                 throw new MediaProcessingException("Failed to delete media file", e);
             }
         }
+        return false;
     }
 
     /**
