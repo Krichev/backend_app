@@ -35,13 +35,4 @@ public class QuizSessionDTO {
     private LocalDateTime completedAt;
     private Integer totalDurationSeconds;
     private LocalDateTime createdAt;
-    private Integer currentRound;
-    private Long mediaInteractionCount;
-
-    // Add getters and setters
-    public Integer getCurrentRound() { return currentRound; }
-    public void setCurrentRound(Integer currentRound) { this.currentRound = currentRound; }
-
-    public Long getMediaInteractionCount() { return mediaInteractionCount; }
-    public void setMediaInteractionCount(Long mediaInteractionCount) { this.mediaInteractionCount = mediaInteractionCount; }
 }

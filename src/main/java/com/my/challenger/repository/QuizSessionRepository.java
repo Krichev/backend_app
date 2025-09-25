@@ -113,4 +113,9 @@ public interface QuizSessionRepository extends JpaRepository<QuizSession, Long> 
      */
     List<QuizSession> findByChallengeIdOrderByCreatedAtDesc(Long challengeId, Pageable pageable);
 
+    List<QuizSession> findByHostUserIdAndStatus(Long userId, QuizSessionStatus status);
+
+    List<QuizSession> findByHostUserId(Long userId);
+
+    long countByHostUserId(Long userId);
 }

@@ -1,11 +1,13 @@
 package com.my.challenger.dto.quiz;
 
 import com.my.challenger.entity.enums.QuizDifficulty;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import jakarta.validation.constraints.*;
 
 import java.util.List;
 
@@ -14,44 +16,34 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class StartQuizSessionRequest {
-    @NotBlank(message = "Challenge ID is required")
+    
+    @NotNull(message = "Challenge ID is required")
     private Long challengeId;
-
-    @NotBlank(message = "Team name is required")
-    @Size(max = 100, message = "Team name must not exceed 100 characters")
+    
+    @NotNull(message = "Team name is required")
+    @Size(min = 1, max = 200, message = "Team name must be between 1 and 200 characters")
     private String teamName;
-
-    @NotEmpty(message = "At least one team member is required")
-    @Size(max = 10, message = "Maximum 10 team members allowed")
-    private List<@NotBlank @Size(max = 50) String> teamMembers;
-
+    
+    @NotNull(message = "Team members are required")
+    @Size(min = 1, message = "At least one team member is required")
+    private List<String> teamMembers;
+    
     @NotNull(message = "Difficulty is required")
     private QuizDifficulty difficulty;
-
-    @Min(value = 10, message = "Round time must be at least 10 seconds")
-    @Max(value = 300, message = "Round time must not exceed 300 seconds")
-    private int roundTimeSeconds;
-
+    
+    @NotNull(message = "Total rounds is required")
     @Min(value = 1, message = "Must have at least 1 round")
-    @Max(value = 50, message = "Maximum 50 rounds allowed")
-    private int totalRounds;
-
-    @Builder.Default
-    private boolean enableAiHost = false;
-
-    @NotBlank(message = "Question source is required")
-    @Pattern(regexp = "^(app|user)$", message = "Question source must be 'app' or 'user'")
-    private String questionSource;
-
-    // For existing user questions
-    @Size(max = 50, message = "Maximum 50 custom questions allowed")
+    private Integer totalRounds;
+    
+    @NotNull(message = "Round time is required")
+    @Min(value = 10, message = "Round time must be at least 10 seconds")
+    private Integer roundTimeSeconds;
+    
+    private Boolean enableAiHost;
+    
+    @NotNull(message = "Question source is required")
+    private String questionSource; // "app" or "user"
+    
+    // For user-selected questions
     private List<Long> customQuestionIds;
-
-    // For new custom questions with multimedia support
-    @Size(max = 50, message = "Maximum 50 new questions allowed")
-    private List<CreateQuestionRequest> newCustomQuestions;
-
-    // For app-generated questions to be saved
-    @Size(max = 50, message = "Maximum 50 app questions allowed")
-    private List<AppQuestionData> appQuestions;
 }

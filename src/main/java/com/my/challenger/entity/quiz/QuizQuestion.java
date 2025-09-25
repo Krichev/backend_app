@@ -1,8 +1,10 @@
 // src/main/java/com/my/challenger/entity/quiz/QuizQuestion.java
 package com.my.challenger.entity.quiz;
+
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.enums.QuestionType;
+import com.my.challenger.entity.enums.MediaType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -56,7 +58,7 @@ public class QuizQuestion {
     @Column(name = "external_id", length = 100)
     private String externalId;
 
-    // New multimedia fields
+    // New multimedia fields with proper enum types
     @Enumerated(EnumType.STRING)
     @Column(name = "question_type", nullable = false)
     @Builder.Default
@@ -68,8 +70,9 @@ public class QuizQuestion {
     @Column(name = "question_media_id", length = 100)
     private String questionMediaId;
 
-    @Column(name = "question_media_type", length = 50)
-    private String questionMediaType;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "question_media_type")
+    private MediaType questionMediaType;
 
     @Column(name = "question_thumbnail_url", length = 500)
     private String questionThumbnailUrl;
@@ -101,5 +104,93 @@ public class QuizQuestion {
 
     public boolean isTextOnlyQuestion() {
         return questionType == QuestionType.TEXT;
+    }
+
+    // New enhanced helper methods
+    public boolean hasVideoMedia() {
+        return questionMediaType == MediaType.VIDEO;
+    }
+
+    public boolean hasImageMedia() {
+        return questionMediaType == MediaType.IMAGE;
+    }
+
+    public boolean hasAudioMedia() {
+        return questionMediaType == MediaType.AUDIO;
+    }
+
+    public boolean hasDocumentMedia() {
+        return questionMediaType == MediaType.DOCUMENT;
+    }
+
+    /**
+     * Check if question type and media type are consistent
+     */
+    public boolean isMediaTypeConsistent() {
+        if (questionType == QuestionType.TEXT) {
+            return questionMediaType == null;
+        }
+
+        if (questionType == QuestionType.IMAGE) {
+            return questionMediaType == MediaType.IMAGE || questionMediaType == MediaType.QUIZ_QUESTION;
+        }
+
+        if (questionType == QuestionType.AUDIO) {
+            return questionMediaType == MediaType.AUDIO || questionMediaType == MediaType.QUIZ_QUESTION;
+        }
+
+        if (questionType == QuestionType.VIDEO) {
+            return questionMediaType == MediaType.VIDEO || questionMediaType == MediaType.QUIZ_QUESTION;
+        }
+
+        if (questionType == QuestionType.MULTIMEDIA) {
+            return questionMediaType != null;
+        }
+
+        return true;
+    }
+
+    /**
+     * Get the expected media type based on question type
+     */
+    public MediaType getExpectedMediaType() {
+        switch (questionType) {
+            case IMAGE:
+                return MediaType.IMAGE;
+            case AUDIO:
+                return MediaType.AUDIO;
+            case VIDEO:
+                return MediaType.VIDEO;
+            case MULTIMEDIA:
+                return MediaType.QUIZ_QUESTION;
+            case TEXT:
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * Set media type automatically based on question type
+     */
+    public void autoSetMediaType() {
+        this.questionMediaType = getExpectedMediaType();
+    }
+
+    /**
+     * Validate that the media fields are consistent
+     */
+    public boolean isValid() {
+        // If it's a text-only question, it shouldn't have media
+        if (questionType == QuestionType.TEXT) {
+            return questionMediaUrl == null && questionMediaId == null && questionMediaType == null;
+        }
+
+        // If it has media type but no URL/ID, it's inconsistent
+        if (questionMediaType != null && (questionMediaUrl == null && questionMediaId == null)) {
+            return false;
+        }
+
+        // Check media type consistency
+        return isMediaTypeConsistent();
     }
 }

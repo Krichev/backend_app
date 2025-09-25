@@ -1465,3 +1465,145 @@ COMMENT ON COLUMN quiz_questions.question_thumbnail_url IS 'URL to thumbnail for
 -- GRANT SELECT, INSERT, UPDATE, DELETE ON media_files TO quiz_app_user;
 -- GRANT SELECT, UPDATE ON quiz_questions TO quiz_app_user;
 -- GRANT USAGE, SELECT ON SEQUENCE media_files_id_seq TO quiz_app_user;
+
+
+        -- Create question_type enum (if not exists)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'question_type_enum') THEN
+CREATE TYPE question_type_enum AS ENUM (
+            'TEXT',
+            'IMAGE',
+            'AUDIO',
+            'VIDEO',
+            'MULTIMEDIA'
+        );
+END IF;
+END$$;
+
+-- Create media_type enum (if not exists)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'media_type_enum') THEN
+CREATE TYPE media_type_enum AS ENUM (
+            'IMAGE',
+            'VIDEO',
+            'AUDIO',
+            'DOCUMENT',
+            'QUIZ_QUESTION',
+            'AVATAR'
+        );
+END IF;
+END$$;
+
+-- 2. Migration script to convert question_media_type from text to enum
+-- =====================================================
+
+-- Step 1: Add new enum column
+ALTER TABLE quiz_questions
+    ADD COLUMN question_media_type_enum media_type_enum;
+
+-- Step 2: Update existing data - map string values to enum values
+UPDATE quiz_questions
+SET question_media_type_enum =
+        CASE
+            WHEN LOWER(question_media_type) IN ('image', 'img', 'jpeg', 'jpg', 'png', 'gif', 'webp')
+                THEN 'IMAGE'::media_type_enum
+            WHEN LOWER(question_media_type) IN ('video', 'mp4', 'mov', 'avi', 'webm', 'mkv')
+                THEN 'VIDEO'::media_type_enum
+            WHEN LOWER(question_media_type) IN ('audio', 'mp3', 'wav', 'ogg', 'm4a', 'aac')
+                THEN 'AUDIO'::media_type_enum
+            WHEN LOWER(question_media_type) IN ('document', 'pdf', 'doc', 'docx', 'txt')
+                THEN 'DOCUMENT'::media_type_enum
+            WHEN LOWER(question_media_type) IN ('quiz_question', 'quiz', 'question')
+                THEN 'QUIZ_QUESTION'::media_type_enum
+            WHEN LOWER(question_media_type) IN ('avatar', 'profile')
+                THEN 'AVATAR'::media_type_enum
+            WHEN question_media_type IS NULL OR question_media_type = ''
+                THEN NULL
+            ELSE 'QUIZ_QUESTION'::media_type_enum -- Default fallback
+            END
+WHERE question_media_type_enum IS NULL;
+
+-- Step 3: Drop old column and rename new column
+ALTER TABLE quiz_questions DROP COLUMN IF EXISTS question_media_type;
+ALTER TABLE quiz_questions RENAME COLUMN question_media_type_enum TO question_media_type;
+
+-- Step 4: Ensure question_type is also using enum (if not already)
+-- Check if question_type column exists and is not already an enum
+DO $$
+BEGIN
+    -- Add enum column if question_type is still text
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'quiz_questions'
+        AND column_name = 'question_type'
+        AND data_type = 'character varying'
+    ) THEN
+        -- Add new enum column
+ALTER TABLE quiz_questions ADD COLUMN question_type_enum question_type_enum;
+
+-- Update existing data
+UPDATE quiz_questions
+SET question_type_enum =
+        CASE
+            WHEN UPPER(question_type) = 'TEXT' THEN 'TEXT'::question_type_enum
+            WHEN UPPER(question_type) = 'IMAGE' THEN 'IMAGE'::question_type_enum
+            WHEN UPPER(question_type) = 'AUDIO' THEN 'AUDIO'::question_type_enum
+            WHEN UPPER(question_type) = 'VIDEO' THEN 'VIDEO'::question_type_enum
+            WHEN UPPER(question_type) = 'MULTIMEDIA' THEN 'MULTIMEDIA'::question_type_enum
+            ELSE 'TEXT'::question_type_enum -- Default fallback
+            END
+WHERE question_type_enum IS NULL;
+
+-- Drop old column and rename
+ALTER TABLE quiz_questions DROP COLUMN question_type;
+ALTER TABLE quiz_questions RENAME COLUMN question_type_enum TO question_type;
+
+-- Make question_type NOT NULL with default
+ALTER TABLE quiz_questions ALTER COLUMN question_type SET NOT NULL;
+ALTER TABLE quiz_questions ALTER COLUMN question_type SET DEFAULT 'TEXT'::question_type_enum;
+END IF;
+END$$;
+
+-- 3. Add indexes for better performance
+-- =====================================================
+CREATE INDEX IF NOT EXISTS idx_quiz_questions_question_type ON quiz_questions(question_type);
+CREATE INDEX IF NOT EXISTS idx_quiz_questions_question_media_type ON quiz_questions(question_media_type);
+CREATE INDEX IF NOT EXISTS idx_quiz_questions_type_media_composite ON quiz_questions(question_type, question_media_type);
+
+-- 4. Add constraints
+-- =====================================================
+-- Add check constraint to ensure media type aligns with question type
+ALTER TABLE quiz_questions DROP CONSTRAINT IF EXISTS chk_question_media_consistency;
+ALTER TABLE quiz_questions ADD CONSTRAINT chk_question_media_consistency
+    CHECK (
+        (question_type = 'TEXT' AND question_media_type IS NULL) OR
+        (question_type = 'IMAGE' AND question_media_type IN ('IMAGE', 'QUIZ_QUESTION')) OR
+        (question_type = 'AUDIO' AND question_media_type IN ('AUDIO', 'QUIZ_QUESTION')) OR
+        (question_type = 'VIDEO' AND question_media_type IN ('VIDEO', 'QUIZ_QUESTION')) OR
+        (question_type = 'MULTIMEDIA' AND question_media_type IS NOT NULL)
+        );
+
+-- 5. Verify the migration
+-- =====================================================
+-- Check enum types exist
+SELECT typname, typcategory, typowner
+FROM pg_type
+WHERE typname IN ('question_type_enum', 'media_type_enum');
+
+-- Check table structure
+SELECT column_name, data_type, udt_name, is_nullable, column_default
+FROM information_schema.columns
+WHERE table_name = 'quiz_questions'
+  AND column_name IN ('question_type', 'question_media_type')
+ORDER BY ordinal_position;
+
+-- Check data distribution
+SELECT
+    question_type,
+    question_media_type,
+    COUNT(*) as count
+FROM quiz_questions
+GROUP BY question_type, question_media_type
+ORDER BY question_type, question_media_type;

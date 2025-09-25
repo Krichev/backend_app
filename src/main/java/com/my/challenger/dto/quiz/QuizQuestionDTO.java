@@ -1,8 +1,7 @@
-// src/main/java/com/my/challenger/dto/quiz/QuizQuestionDTO.java
 package com.my.challenger.dto.quiz;
 
-import com.my.challenger.entity.enums.QuestionType;
 import com.my.challenger.entity.enums.QuizDifficulty;
+import com.my.challenger.entity.enums.MediaType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -16,7 +15,6 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class QuizQuestionDTO {
     private Long id;
-    private Long challengeId;
     private String question;
     private String answer;
     private QuizDifficulty difficulty;
@@ -25,18 +23,13 @@ public class QuizQuestionDTO {
     private String additionalInfo;
     private Boolean isUserCreated;
     private Long creatorId;
+    private String creatorUsername;
     private String externalId;
     private Integer usageCount;
     private LocalDateTime createdAt;
     private LocalDateTime lastUsed;
-
-    @Builder.Default
-    private QuestionType questionType = QuestionType.TEXT;
-
-    private String questionMediaUrl;
-    private String questionMediaId;
-    private String questionMediaType;
-    private String questionThumbnailUrl;
-
+    
+    // Media properties
+    private String mediaUrl;
+    private MediaType mediaType;
 }
-
