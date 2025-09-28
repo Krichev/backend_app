@@ -65,31 +65,31 @@ public class QuizController {
         return ResponseEntity.ok(new MessageResponse("Question deleted successfully"));
     }
 
-    @GetMapping("/questions/difficulty/{difficulty}")
-    @Operation(summary = "Get questions by difficulty level")
-    public ResponseEntity<List<QuizQuestionDTO>> getQuestionsByDifficulty(
-            @PathVariable String difficulty,
-            @RequestParam(defaultValue = "10") int count) {
-
-        try {
-            com.my.challenger.entity.enums.QuizDifficulty diff =
-                    com.my.challenger.entity.enums.QuizDifficulty.valueOf(difficulty.toUpperCase());
-            List<QuizQuestionDTO> questions = quizService.getQuestionsByDifficulty(diff, count);
-            return ResponseEntity.ok(questions);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
-        }
-    }
-
-    @GetMapping("/questions/search")
-    @Operation(summary = "Search questions by keyword")
-    public ResponseEntity<List<QuizQuestionDTO>> searchQuestions(
-            @RequestParam String keyword,
-            @RequestParam(defaultValue = "20") int limit) {
-
-        List<QuizQuestionDTO> questions = quizService.searchQuestions(keyword, limit);
-        return ResponseEntity.ok(questions);
-    }
+//    @GetMapping("/questions/difficulty/{difficulty}")
+//    @Operation(summary = "Get questions by difficulty level")
+//    public ResponseEntity<List<QuizQuestionDTO>> getQuestionsByDifficulty(
+//            @PathVariable String difficulty,
+//            @RequestParam(defaultValue = "10") int count) {
+//
+//        try {
+//            com.my.challenger.entity.enums.QuizDifficulty diff =
+//                    com.my.challenger.entity.enums.QuizDifficulty.valueOf(difficulty.toUpperCase());
+//            List<QuizQuestionDTO> questions = quizService.getQuestionsByDifficulty(diff, count);
+//            return ResponseEntity.ok(questions);
+//        } catch (IllegalArgumentException e) {
+//            return ResponseEntity.badRequest().build();
+//        }
+//    }
+//
+//    @GetMapping("/questions/search")
+//    @Operation(summary = "Search questions by keyword")
+//    public ResponseEntity<List<QuizQuestionDTO>> searchQuestions(
+//            @RequestParam String keyword,
+//            @RequestParam(defaultValue = "20") int limit) {
+//
+//        List<QuizQuestionDTO> questions = quizService.searchQuestions(keyword, limit);
+//        return ResponseEntity.ok(questions);
+//    }
 
     // =============================================================================
     // QUIZ SESSION MANAGEMENT ENDPOINTS
@@ -118,154 +118,154 @@ public class QuizController {
         return ResponseEntity.ok(session);
     }
 
-    @PostMapping("/sessions/{sessionId}/rounds/submit")
-    @Operation(summary = "Submit an answer for current round")
-    public ResponseEntity<QuizRoundDTO> submitRoundAnswer(
-            @PathVariable Long sessionId,
-            @Valid @RequestBody SubmitRoundAnswerRequest request,
-            @AuthenticationPrincipal UserDetails userDetails) {
+//    @PostMapping("/sessions/{sessionId}/rounds/submit")
+//    @Operation(summary = "Submit an answer for current round")
+//    public ResponseEntity<QuizRoundDTO> submitRoundAnswer(
+//            @PathVariable Long sessionId,
+//            @Valid @RequestBody SubmitRoundAnswerRequest request,
+//            @AuthenticationPrincipal UserDetails userDetails) {
+//
+//        User user = getUserFromUserDetails(userDetails);
+//        QuizRoundDTO round = quizService.submitRoundAnswer(sessionId, request, user.getId());
+//        return ResponseEntity.ok(round);
+//    }
 
-        User user = getUserFromUserDetails(userDetails);
-        QuizRoundDTO round = quizService.submitRoundAnswer(sessionId, request, user.getId());
-        return ResponseEntity.ok(round);
-    }
-
-    @PostMapping("/sessions/{sessionId}/complete")
-    @Operation(summary = "Complete a quiz session")
-    public ResponseEntity<QuizSessionDTO> completeQuizSession(
-            @PathVariable Long sessionId,
-            @AuthenticationPrincipal UserDetails userDetails) {
-
-        User user = getUserFromUserDetails(userDetails);
-        QuizSessionDTO session = quizService.completeQuizSession(sessionId, user.getId());
-        return ResponseEntity.ok(session);
-    }
-
-    @GetMapping("/sessions/{sessionId}")
-    @Operation(summary = "Get quiz session details")
-    public ResponseEntity<QuizSessionDTO> getQuizSession(
-            @PathVariable Long sessionId,
-            @AuthenticationPrincipal UserDetails userDetails) {
-
-        User user = getUserFromUserDetails(userDetails);
-        QuizSessionDTO session = quizService.getQuizSession(sessionId, user.getId());
-        return ResponseEntity.ok(session);
-    }
-
-    @GetMapping("/sessions/me")
-    @Operation(summary = "Get current user's quiz sessions")
-    public ResponseEntity<List<QuizSessionDTO>> getUserQuizSessions(
-            @RequestParam(defaultValue = "20") int limit,
-            @AuthenticationPrincipal UserDetails userDetails) {
-
-        User user = getUserFromUserDetails(userDetails);
-        List<QuizSessionDTO> sessions = quizService.getUserQuizSessions(user.getId(), limit);
-        return ResponseEntity.ok(sessions);
-    }
+//    @PostMapping("/sessions/{sessionId}/complete")
+//    @Operation(summary = "Complete a quiz session")
+//    public ResponseEntity<QuizSessionDTO> completeQuizSession(
+//            @PathVariable Long sessionId,
+//            @AuthenticationPrincipal UserDetails userDetails) {
+//
+//        User user = getUserFromUserDetails(userDetails);
+//        QuizSessionDTO session = quizService.completeQuizSession(sessionId, user.getId());
+//        return ResponseEntity.ok(session);
+//    }
+//
+//    @GetMapping("/sessions/{sessionId}")
+//    @Operation(summary = "Get quiz session details")
+//    public ResponseEntity<QuizSessionDTO> getQuizSession(
+//            @PathVariable Long sessionId,
+//            @AuthenticationPrincipal UserDetails userDetails) {
+//
+//        User user = getUserFromUserDetails(userDetails);
+//        QuizSessionDTO session = quizService.getQuizSession(sessionId, user.getId());
+//        return ResponseEntity.ok(session);
+//    }
+//
+//    @GetMapping("/sessions/me")
+//    @Operation(summary = "Get current user's quiz sessions")
+//    public ResponseEntity<List<QuizSessionDTO>> getUserQuizSessions(
+//            @RequestParam(defaultValue = "20") int limit,
+//            @AuthenticationPrincipal UserDetails userDetails) {
+//
+//        User user = getUserFromUserDetails(userDetails);
+//        List<QuizSessionDTO> sessions = quizService.getUserQuizSessions(user.getId(), limit);
+//        return ResponseEntity.ok(sessions);
+//    }
 
     // =============================================================================
     // ENHANCED SESSION SEARCH & FILTERING (Fixed repository methods)
     // =============================================================================
 
-    @GetMapping("/sessions/me/by-source")
-    @Operation(summary = "Get sessions by question source")
-    public ResponseEntity<List<QuizSessionDTO>> getSessionsByQuestionSource(
-            @RequestParam String questionSource,
-            @RequestParam(defaultValue = "false") boolean exactMatch,
-            @AuthenticationPrincipal UserDetails userDetails) {
+//    @GetMapping("/sessions/me/by-source")
+//    @Operation(summary = "Get sessions by question source")
+//    public ResponseEntity<List<QuizSessionDTO>> getSessionsByQuestionSource(
+//            @RequestParam String questionSource,
+//            @RequestParam(defaultValue = "false") boolean exactMatch,
+//            @AuthenticationPrincipal UserDetails userDetails) {
+//
+//        User user = getUserFromUserDetails(userDetails);
+//        List<QuizSessionDTO> sessions;
+//
+//        if (exactMatch) {
+//            sessions = quizService.getSessionsByExactQuestionSource(user.getId(), questionSource);
+//        } else {
+//            // FIXED: Now uses correct property name 'questionSource'
+//            sessions = quizService.getSessionsByQuestionSourceContaining(user.getId(), questionSource);
+//        }
+//
+//        return ResponseEntity.ok(sessions);
+//    }
 
-        User user = getUserFromUserDetails(userDetails);
-        List<QuizSessionDTO> sessions;
+//    @GetMapping("/sessions/me/user-questions")
+//    @Operation(summary = "Get sessions using user-created questions")
+//    public ResponseEntity<List<QuizSessionDTO>> getUserQuestionSessions(
+//            @AuthenticationPrincipal UserDetails userDetails) {
+//
+//        User user = getUserFromUserDetails(userDetails);
+//        List<QuizSessionDTO> sessions = quizService.getSessionsByExactQuestionSource(user.getId(), "user");
+//        return ResponseEntity.ok(sessions);
+//    }
+//
+//    @GetMapping("/sessions/me/app-questions")
+//    @Operation(summary = "Get sessions using app-generated questions")
+//    public ResponseEntity<List<QuizSessionDTO>> getAppQuestionSessions(
+//            @AuthenticationPrincipal UserDetails userDetails) {
+//
+//        User user = getUserFromUserDetails(userDetails);
+//        List<QuizSessionDTO> sessions = quizService.getSessionsByExactQuestionSource(user.getId(), "app");
+//        return ResponseEntity.ok(sessions);
+//    }
 
-        if (exactMatch) {
-            sessions = quizService.getSessionsByExactQuestionSource(user.getId(), questionSource);
-        } else {
-            // FIXED: Now uses correct property name 'questionSource'
-            sessions = quizService.getSessionsByQuestionSourceContaining(user.getId(), questionSource);
-        }
+//    @GetMapping("/sessions/me/search")
+//    @Operation(summary = "Search sessions with flexible criteria")
+//    public ResponseEntity<List<QuizSessionDTO>> searchSessions(
+//            @RequestParam(required = false) String questionSource,
+//            @RequestParam(required = false) QuizSessionStatus status,
+//            @RequestParam(required = false) String teamName,
+//            @RequestParam(defaultValue = "20") int limit,
+//            @AuthenticationPrincipal UserDetails userDetails) {
+//
+//        User user = getUserFromUserDetails(userDetails);
+//
+//        // Create search criteria
+//        QuizSessionSearchCriteria criteria = QuizSessionSearchCriteria.builder()
+//                .creatorId(user.getId())
+//                .questionSource(questionSource)
+//                .status(status)
+//                .teamNameFilter(teamName)
+//                .limit(limit)
+//                .build();
+//
+//        List<QuizSessionDTO> sessions = quizService.searchSessions(criteria);
+//        return ResponseEntity.ok(sessions);
+//    }
 
-        return ResponseEntity.ok(sessions);
-    }
+//    @GetMapping("/sessions/me/recent")
+//    @Operation(summary = "Get recent sessions")
+//    public ResponseEntity<List<QuizSessionDTO>> getRecentSessions(
+//            @RequestParam(defaultValue = "30") int daysBack,
+//            @AuthenticationPrincipal UserDetails userDetails) {
+//
+//        User user = getUserFromUserDetails(userDetails);
+//        List<QuizSessionDTO> sessions = quizService.getRecentSessions(user.getId(), daysBack);
+//        return ResponseEntity.ok(sessions);
+//    }
 
-    @GetMapping("/sessions/me/user-questions")
-    @Operation(summary = "Get sessions using user-created questions")
-    public ResponseEntity<List<QuizSessionDTO>> getUserQuestionSessions(
-            @AuthenticationPrincipal UserDetails userDetails) {
-
-        User user = getUserFromUserDetails(userDetails);
-        List<QuizSessionDTO> sessions = quizService.getSessionsByExactQuestionSource(user.getId(), "user");
-        return ResponseEntity.ok(sessions);
-    }
-
-    @GetMapping("/sessions/me/app-questions")
-    @Operation(summary = "Get sessions using app-generated questions")
-    public ResponseEntity<List<QuizSessionDTO>> getAppQuestionSessions(
-            @AuthenticationPrincipal UserDetails userDetails) {
-
-        User user = getUserFromUserDetails(userDetails);
-        List<QuizSessionDTO> sessions = quizService.getSessionsByExactQuestionSource(user.getId(), "app");
-        return ResponseEntity.ok(sessions);
-    }
-
-    @GetMapping("/sessions/me/search")
-    @Operation(summary = "Search sessions with flexible criteria")
-    public ResponseEntity<List<QuizSessionDTO>> searchSessions(
-            @RequestParam(required = false) String questionSource,
-            @RequestParam(required = false) QuizSessionStatus status,
-            @RequestParam(required = false) String teamName,
-            @RequestParam(defaultValue = "20") int limit,
-            @AuthenticationPrincipal UserDetails userDetails) {
-
-        User user = getUserFromUserDetails(userDetails);
-
-        // Create search criteria
-        QuizSessionSearchCriteria criteria = QuizSessionSearchCriteria.builder()
-                .creatorId(user.getId())
-                .questionSource(questionSource)
-                .status(status)
-                .teamNameFilter(teamName)
-                .limit(limit)
-                .build();
-
-        List<QuizSessionDTO> sessions = quizService.searchSessions(criteria);
-        return ResponseEntity.ok(sessions);
-    }
-
-    @GetMapping("/sessions/me/recent")
-    @Operation(summary = "Get recent sessions")
-    public ResponseEntity<List<QuizSessionDTO>> getRecentSessions(
-            @RequestParam(defaultValue = "30") int daysBack,
-            @AuthenticationPrincipal UserDetails userDetails) {
-
-        User user = getUserFromUserDetails(userDetails);
-        List<QuizSessionDTO> sessions = quizService.getRecentSessions(user.getId(), daysBack);
-        return ResponseEntity.ok(sessions);
-    }
-
-    @GetMapping("/sessions/me/stats")
-    @Operation(summary = "Get session statistics")
-    public ResponseEntity<QuizSessionStatsDTO> getSessionStats(
-            @AuthenticationPrincipal UserDetails userDetails) {
-
-        User user = getUserFromUserDetails(userDetails);
-        QuizSessionStatsDTO stats = quizService.getSessionStats(user.getId());
-        return ResponseEntity.ok(stats);
-    }
+//    @GetMapping("/sessions/me/stats")
+//    @Operation(summary = "Get session statistics")
+//    public ResponseEntity<QuizSessionStatsDTO> getSessionStats(
+//            @AuthenticationPrincipal UserDetails userDetails) {
+//
+//        User user = getUserFromUserDetails(userDetails);
+//        QuizSessionStatsDTO stats = quizService.getSessionStats(user.getId());
+//        return ResponseEntity.ok(stats);
+//    }
 
     // =============================================================================
     // ROUND MANAGEMENT
     // =============================================================================
 
-    @GetMapping("/sessions/{sessionId}/rounds")
-    @Operation(summary = "Get all rounds for a session")
-    public ResponseEntity<List<QuizRoundDTO>> getQuizRounds(
-            @PathVariable Long sessionId,
-            @AuthenticationPrincipal UserDetails userDetails) {
-
-        User user = getUserFromUserDetails(userDetails);
-        List<QuizRoundDTO> rounds = quizService.getQuizRounds(sessionId, user.getId());
-        return ResponseEntity.ok(rounds);
-    }
+//    @GetMapping("/sessions/{sessionId}/rounds")
+//    @Operation(summary = "Get all rounds for a session")
+//    public ResponseEntity<List<QuizRoundDTO>> getQuizRounds(
+//            @PathVariable Long sessionId,
+//            @AuthenticationPrincipal UserDetails userDetails) {
+//
+//        User user = getUserFromUserDetails(userDetails);
+//        List<QuizRoundDTO> rounds = quizService.getQuizRounds(sessionId, user.getId());
+//        return ResponseEntity.ok(rounds);
+//    }
 
     @GetMapping("/sessions/{sessionId}/current-round")
     @Operation(summary = "Get current active round")

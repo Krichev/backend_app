@@ -107,19 +107,4 @@ public interface QuizRoundRepository extends JpaRepository<QuizRound, Long> {
             "WHERE qr.quizSession.id = :sessionId AND qr.question.questionType = :questionType")
     long countBySessionIdAndQuestionType(@Param("sessionId") Long sessionId,
                                          @Param("questionType") QuestionType questionType);
-
-    /**
-     * Find rounds with high media interaction count
-     */
-    @Query("SELECT qr FROM QuizRound qr " +
-            "WHERE qr.quizSession.id = :sessionId AND qr.mediaInteractionCount > :minCount")
-    List<QuizRound> findHighInteractionRounds(@Param("sessionId") Long sessionId,
-                                              @Param("minCount") Integer minCount);
-
-    /**
-     * Get total media interaction count for a session
-     */
-    @Query("SELECT SUM(qr.mediaInteractionCount) FROM QuizRound qr " +
-            "WHERE qr.quizSession.id = :sessionId")
-    Long getTotalMediaInteractionsBySession(@Param("sessionId") Long sessionId);
 }

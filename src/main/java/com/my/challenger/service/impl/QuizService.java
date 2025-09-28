@@ -1,5 +1,6 @@
 package com.my.challenger.service.impl;
 
+import com.my.challenger.dto.SessionStatsDTO;
 import com.my.challenger.dto.quiz.*;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.challenge.Challenge;
@@ -8,11 +9,15 @@ import com.my.challenger.entity.enums.QuizSessionStatus;
 import com.my.challenger.entity.quiz.QuizQuestion;
 import com.my.challenger.entity.quiz.QuizRound;
 import com.my.challenger.entity.quiz.QuizSession;
+import com.my.challenger.exception.ResourceNotFoundException;
 import com.my.challenger.repository.*;
 import com.my.challenger.service.WWWGameService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -92,7 +97,7 @@ public class QuizService {
 
     public List<QuizQuestionDTO> getQuestionsByDifficulty(QuizDifficulty difficulty) {
         log.info("Getting questions by difficulty: {}", difficulty);
-        List<QuizQuestion> questions = quizQuestionRepository.findByDifficultyOrderByRandom(difficulty);
+        List<QuizQuestion> questions = quizQuestionRepository.findByDifficulty(difficulty);
         return questions.stream()
                 .map(this::convertQuestionToDTO)
                 .collect(Collectors.toList());
@@ -543,4 +548,166 @@ public class QuizService {
         }
         return (double) session.getCorrectAnswers() / session.getTotalRounds() * 100;
     }
+
+    /**
+     * Update the status of a quiz session
+     */
+    public QuizSession updateSessionStatus(Long sessionId, QuizSessionStatus status, Long userId) {
+        log.debug("Updating session {} status to {}", sessionId, status);
+
+        QuizSession session = quizSessionRepository.findById(sessionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Quiz session not found with id: " + sessionId));
+
+        session.setStatus(status);
+        session.setUpdatedAt(LocalDateTime.now());
+
+        if (QuizSessionStatus.COMPLETED.equals(status)) {
+            session.setCompletedAt(LocalDateTime.now());
+        }
+
+        return quizSessionRepository.save(session);
+    }
+
+    /**
+     * Get statistics for a specific session
+     */
+    public SessionStatsDTO getSessionStats(Long sessionId) {
+        log.debug("Getting stats for session {}", sessionId);
+
+        QuizSession session = quizSessionRepository.findById(sessionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Quiz session not found with id: " + sessionId));
+
+        SessionStatsDTO stats = new SessionStatsDTO();
+        stats.setSessionId(sessionId);
+//        stats.setTotalQuestions(session.getTotalQuestions());
+        stats.setCorrectAnswers(session.getCorrectAnswers());
+//        stats.setIncorrectAnswers(session.getTotalQuestions() - session.getCorrectAnswers());
+//        stats.setScore(session.getScore());
+//        stats.setAccuracy(calculateAccuracy(session));
+//        stats.setDuration(session.getDuration());
+//        stats.setStatus(session.getStatus());
+        stats.setQuestionSource(session.getQuestionSource());
+        stats.setCreatedAt(session.getCreatedAt());
+        stats.setCompletedAt(session.getCompletedAt());
+
+        // Calculate additional stats
+//        stats.setAverageTimePerQuestion(calculateAverageTimePerQuestion(session));
+//        stats.setPerformanceLevel(determinePerformanceLevel(session));
+
+        return stats;
+    }
+
+    /**
+     * Get recent quiz sessions with pagination
+     */
+    public Page<QuizSession> getRecentSessions(int page, int size) {
+        log.debug("Getting recent sessions - page: {}, size: {}", page, size);
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return quizSessionRepository.findAll(pageable);
+    }
+
+    /**
+     * Get sessions by question source containing a specific text
+     */
+    public List<QuizSession> getSessionsByQuestionSourceContaining(String source) {
+        log.debug("Getting sessions with question source containing: {}", source);
+
+        return quizSessionRepository.findByQuestionSourceContainingIgnoreCase(source);
+    }
+
+    /**
+     * Get sessions by exact question source
+     */
+    public List<QuizSession> getSessionsByExactQuestionSource(String source) {
+        log.debug("Getting sessions with exact question source: {}", source);
+
+        return quizSessionRepository.findByQuestionSource(source);
+    }
+
+//    /**
+//     * Get all quiz sessions for a specific user
+//     */
+//    public List<QuizSession> getUserQuizSessions(Long userId) {
+//        log.debug("Getting quiz sessions for user: {}", userId);
+//
+//        User user = userService.findById(userId)
+//                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+//
+//        return quizSessionRepository.findByUserOrderByCreatedAtDesc(user);
+//    }
+//
+//    /**
+//     * Get user quiz sessions with pagination
+//     */
+//    public Page<QuizSession> getUserQuizSessionsPaged(Long userId, int page, int size) {
+//        log.debug("Getting paged quiz sessions for user: {}", userId);
+//
+//        User user = userService.findById(userId)
+//                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+//
+//        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+//        return quizSessionRepository.findByUser(user, pageable);
+//    }
+
+//    /**
+//     * Get user statistics summary
+//     */
+//    public Map<String, Object> getUserStatsSummary(Long userId) {
+//        List<QuizSession> sessions = getUserQuizSessions(userId);
+//
+//        Map<String, Object> summary = new HashMap<>();
+//        summary.put("totalSessions", sessions.size());
+//        summary.put("completedSessions", sessions.stream()
+//                .filter(s -> "COMPLETED".equalsIgnoreCase(s.getStatus()))
+//                .count());
+//
+//        if (!sessions.isEmpty()) {
+//            double averageScore = sessions.stream()
+//                    .filter(s -> s.getScore() != null)
+//                    .mapToDouble(QuizSession::getScore)
+//                    .average()
+//                    .orElse(0.0);
+//
+//            int totalQuestions = sessions.stream()
+//                    .mapToInt(QuizSession::getTotalQuestions)
+//                    .sum();
+//
+//            int totalCorrect = sessions.stream()
+//                    .mapToInt(QuizSession::getCorrectAnswers)
+//                    .sum();
+//
+//            summary.put("averageScore", averageScore);
+//            summary.put("totalQuestionsAnswered", totalQuestions);
+//            summary.put("totalCorrectAnswers", totalCorrect);
+//            summary.put("overallAccuracy", totalQuestions > 0 ?
+//                    (double) totalCorrect / totalQuestions * 100 : 0.0);
+//        }
+//
+//        return summary;
+//    }
+
+    // Helper methods
+//    private double calculateAccuracy(QuizSession session) {
+//        if (session.getTotalQuestions() == 0) {
+//            return 0.0;
+//        }
+//        return (double) session.getCorrectAnswers() / session.getTotalQuestions() * 100;
+//    }
+//
+//    private Double calculateAverageTimePerQuestion(QuizSession session) {
+//        if (session.getDuration() == null || session.getTotalQuestions() == 0) {
+//            return null;
+//        }
+//        return (double) session.getDuration() / session.getTotalQuestions();
+//    }
+
+//    private String determinePerformanceLevel(QuizSession session) {
+//        double accuracy = calculateAccuracy(session);
+//        if (accuracy >= 90) return "EXCELLENT";
+//        if (accuracy >= 80) return "VERY_GOOD";
+//        if (accuracy >= 70) return "GOOD";
+//        if (accuracy >= 60) return "FAIR";
+//        return "NEEDS_IMPROVEMENT";
+//    }
 }

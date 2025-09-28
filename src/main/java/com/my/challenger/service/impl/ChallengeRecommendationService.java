@@ -8,8 +8,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
+/**
+ * Service for providing intelligent challenge recommendations based on user history
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -19,148 +25,211 @@ public class ChallengeRecommendationService {
 
     /**
      * Find recommended challenges based on user's completed difficulty levels
-     * This method implements the complex logic that was previously in the repository
+     * This replaces the complex repository method with clean business logic
      */
     public List<Challenge> findRecommendedByUserHistory(Long userId, Pageable pageable) {
-        // Get user's average difficulty from completed challenges
-        Double averageDifficulty = challengeRepository.getAverageDifficultyForUser(userId);
-        
-        // Determine recommended difficulty based on user's history
-        ChallengeDifficulty recommendedDifficulty = determineRecommendedDifficulty(averageDifficulty);
-        
-        log.debug("User {} average difficulty: {}, recommended: {}", 
-                 userId, averageDifficulty, recommendedDifficulty);
-        
-        // Find challenges with the recommended difficulty
-        return challengeRepository.findRecommendedByDifficulty(userId, recommendedDifficulty, pageable);
-    }
+        log.debug("Finding recommended challenges for user: {}", userId);
 
-    /**
-     * Determine recommended difficulty based on user's average performance
-     */
-    private ChallengeDifficulty determineRecommendedDifficulty(Double averageDifficulty) {
-        if (averageDifficulty == null || averageDifficulty == 0.0) {
-            // New user with no completed challenges - start with EASY
-            return ChallengeDifficulty.EASY;
-        }
-        
-        // Map average difficulty to recommended next level
-        if (averageDifficulty < 2.0) {
-            return ChallengeDifficulty.EASY;           // Still learning basics
-        } else if (averageDifficulty < 3.0) {
-            return ChallengeDifficulty.MEDIUM;         // Ready for moderate challenges
-        } else if (averageDifficulty < 4.0) {
-            return ChallengeDifficulty.HARD;           // Can handle difficult tasks
-        } else if (averageDifficulty < 5.0) {
-            return ChallengeDifficulty.EXPERT;         // Advanced user
-        } else {
-            return ChallengeDifficulty.EXTREME;        // Elite performer
-        }
-    }
-
-    /**
-     * Get personalized difficulty recommendation with explanation
-     */
-    public DifficultyRecommendation getPersonalizedRecommendation(Long userId) {
-        Double averageDifficulty = challengeRepository.getAverageDifficultyForUser(userId);
-        ChallengeDifficulty recommendedDifficulty = determineRecommendedDifficulty(averageDifficulty);
-        
-        String explanation = generateRecommendationExplanation(averageDifficulty, recommendedDifficulty);
-        
-        return new DifficultyRecommendation(
-            recommendedDifficulty,
-            averageDifficulty,
-            explanation
-        );
-    }
-
-    /**
-     * Generate human-readable explanation for the recommendation
-     */
-    private String generateRecommendationExplanation(Double averageDifficulty, ChallengeDifficulty recommended) {
-        if (averageDifficulty == null || averageDifficulty == 0.0) {
-            return "Since you're new to challenges, we recommend starting with " + 
-                   recommended.getDisplayName().toLowerCase() + " level challenges.";
-        }
-        
-        String avgLevel = ChallengeDifficulty.fromLevel((int) Math.round(averageDifficulty)).getDisplayName();
-        
-        return String.format(
-            "Based on your average performance at %s level (%.1f), we recommend trying %s challenges next.",
-            avgLevel.toLowerCase(), averageDifficulty, recommended.getDisplayName().toLowerCase()
-        );
-    }
-
-    /**
-     * Find challenges that are one level easier than user's average (for confidence building)
-     */
-    public List<Challenge> findEasierChallenges(Long userId, Pageable pageable) {
-        Double averageDifficulty = challengeRepository.getAverageDifficultyForUser(userId);
-        
-        if (averageDifficulty == null || averageDifficulty <= 1.0) {
-            // Already at minimum, stay at BEGINNER/EASY
+        // Check if user has completed any challenges
+        if (!challengeRepository.hasUserCompletedAnyChallenge(userId)) {
+            log.debug("User {} has no completed challenges, recommending BEGINNER level", userId);
             return challengeRepository.findRecommendedByDifficulty(userId, ChallengeDifficulty.BEGINNER, pageable);
         }
-        
-        // One level easier
-        ChallengeDifficulty easierDifficulty = ChallengeDifficulty.fromLevel(
-            Math.max(1, (int) Math.round(averageDifficulty) - 1)
-        );
-        
-        return challengeRepository.findRecommendedByDifficulty(userId, easierDifficulty, pageable);
+
+        // Get user's average difficulty
+        Optional<Double> avgDifficultyOpt = challengeRepository.getAverageDifficultyForUser(userId);
+
+        if (avgDifficultyOpt.isEmpty()) {
+            log.debug("No average difficulty found for user {}, defaulting to BEGINNER", userId);
+            return challengeRepository.findRecommendedByDifficulty(userId, ChallengeDifficulty.BEGINNER, pageable);
+        }
+
+        double avgDifficulty = avgDifficultyOpt.get();
+        log.debug("User {} average difficulty: {}", userId, avgDifficulty);
+
+        // Determine recommended difficulty based on average
+        ChallengeDifficulty recommendedDifficulty = determineRecommendedDifficulty(avgDifficulty);
+
+        log.debug("Recommended difficulty for user {}: {}", userId, recommendedDifficulty);
+
+        // Get challenges at recommended difficulty
+        List<Challenge> recommendations = challengeRepository.findRecommendedByDifficulty(
+                userId, recommendedDifficulty, pageable);
+
+        // If no challenges found at recommended level, try adjacent levels
+        if (recommendations.isEmpty()) {
+            log.debug("No challenges found at {} level for user {}, trying adjacent levels",
+                    recommendedDifficulty, userId);
+            recommendations = findAlternativeRecommendations(userId, recommendedDifficulty, pageable);
+        }
+
+        log.debug("Found {} recommended challenges for user {}", recommendations.size(), userId);
+        return recommendations;
     }
 
     /**
-     * Find challenges that are one level harder than user's average (for growth)
+     * Get adaptive recommendations that include multiple difficulty levels
+     * Based on user's completion history and performance
      */
-    public List<Challenge> findHarderChallenges(Long userId, Pageable pageable) {
-        Double averageDifficulty = challengeRepository.getAverageDifficultyForUser(userId);
-        
-        if (averageDifficulty == null) {
-            // New user - recommend EASY instead of MEDIUM
-            return challengeRepository.findRecommendedByDifficulty(userId, ChallengeDifficulty.EASY, pageable);
+    public List<Challenge> findAdaptiveRecommendations(Long userId, Pageable pageable) {
+        log.debug("Finding adaptive recommendations for user: {}", userId);
+
+        if (!challengeRepository.hasUserCompletedAnyChallenge(userId)) {
+            // New user - recommend beginner and easy levels
+            List<ChallengeDifficulty> difficulties = Arrays.asList(
+                    ChallengeDifficulty.BEGINNER, ChallengeDifficulty.EASY);
+            return challengeRepository.findRecommendedByMultipleDifficulties(userId, difficulties, pageable);
         }
-        
-        // One level harder, but cap at EXTREME
-        ChallengeDifficulty harderDifficulty = ChallengeDifficulty.fromLevel(
-            Math.min(6, (int) Math.round(averageDifficulty) + 1)
-        );
-        
-        return challengeRepository.findRecommendedByDifficulty(userId, harderDifficulty, pageable);
+
+        Optional<Double> avgDifficultyOpt = challengeRepository.getAverageDifficultyForUser(userId);
+        if (avgDifficultyOpt.isEmpty()) {
+            return challengeRepository.findRecommendedByDifficulty(userId, ChallengeDifficulty.BEGINNER, pageable);
+        }
+
+        double avgDifficulty = avgDifficultyOpt.get();
+        List<ChallengeDifficulty> recommendedDifficulties = getAdaptiveDifficulties(avgDifficulty);
+
+        return challengeRepository.findRecommendedByMultipleDifficulties(userId, recommendedDifficulties, pageable);
     }
 
     /**
-     * Data class for difficulty recommendations
+     * Get progressive recommendations that gradually increase difficulty
      */
-    public static class DifficultyRecommendation {
-        private final ChallengeDifficulty recommendedDifficulty;
-        private final Double currentAverageLevel;
-        private final String explanation;
+    public List<Challenge> findProgressiveRecommendations(Long userId, Pageable pageable) {
+        log.debug("Finding progressive recommendations for user: {}", userId);
 
-        public DifficultyRecommendation(ChallengeDifficulty recommendedDifficulty, 
-                                      Double currentAverageLevel, 
-                                      String explanation) {
-            this.recommendedDifficulty = recommendedDifficulty;
-            this.currentAverageLevel = currentAverageLevel;
-            this.explanation = explanation;
+        Optional<ChallengeDifficulty> highestCompleted = challengeRepository.getUserHighestCompletedDifficulty(userId);
+
+        if (highestCompleted.isEmpty()) {
+            // Start with beginner
+            return challengeRepository.findRecommendedByDifficulty(userId, ChallengeDifficulty.BEGINNER, pageable);
         }
 
-        public ChallengeDifficulty getRecommendedDifficulty() {
-            return recommendedDifficulty;
+        ChallengeDifficulty nextDifficulty = getNextProgressiveDifficulty(highestCompleted.get());
+        log.debug("User {} highest completed: {}, next progressive: {}",
+                userId, highestCompleted.get(), nextDifficulty);
+
+        return challengeRepository.findRecommendedByDifficulty(userId, nextDifficulty, pageable);
+    }
+
+    /**
+     * Determine recommended difficulty based on average completed difficulty
+     */
+    private ChallengeDifficulty determineRecommendedDifficulty(double avgDifficulty) {
+        if (avgDifficulty < 1.5) {
+            return ChallengeDifficulty.BEGINNER;
+        } else if (avgDifficulty < 2.5) {
+            return ChallengeDifficulty.EASY;
+        } else if (avgDifficulty < 3.5) {
+            return ChallengeDifficulty.MEDIUM;
+        } else if (avgDifficulty < 4.5) {
+            return ChallengeDifficulty.HARD;
+        } else if (avgDifficulty < 5.5) {
+            return ChallengeDifficulty.EXPERT;
+        } else {
+            return ChallengeDifficulty.EXTREME;
+        }
+    }
+
+    /**
+     * Get multiple difficulty levels for adaptive recommendations
+     */
+    private List<ChallengeDifficulty> getAdaptiveDifficulties(double avgDifficulty) {
+        List<ChallengeDifficulty> difficulties = new ArrayList<>();
+
+        ChallengeDifficulty primary = determineRecommendedDifficulty(avgDifficulty);
+        difficulties.add(primary);
+
+        // Add adjacent difficulties for variety
+        ChallengeDifficulty[] allDifficulties = ChallengeDifficulty.values();
+        int primaryIndex = primary.ordinal();
+
+        // Add one level below if possible
+        if (primaryIndex > 0) {
+            difficulties.add(allDifficulties[primaryIndex - 1]);
         }
 
-        public Double getCurrentAverageLevel() {
-            return currentAverageLevel;
+        // Add one level above if possible and user is progressing well
+        if (primaryIndex < allDifficulties.length - 1 && avgDifficulty > primary.getLevel() - 0.3) {
+            difficulties.add(allDifficulties[primaryIndex + 1]);
         }
 
-        public String getExplanation() {
-            return explanation;
+        return difficulties;
+    }
+
+    /**
+     * Get next difficulty level for progressive recommendations
+     */
+    private ChallengeDifficulty getNextProgressiveDifficulty(ChallengeDifficulty highest) {
+        ChallengeDifficulty[] allDifficulties = ChallengeDifficulty.values();
+        int currentIndex = highest.ordinal();
+
+        // Move to next level if not at maximum
+        if (currentIndex < allDifficulties.length - 1) {
+            return allDifficulties[currentIndex + 1];
         }
 
-        @Override
-        public String toString() {
-            return String.format("DifficultyRecommendation{recommended=%s, currentAverage=%.1f, explanation='%s'}", 
-                               recommendedDifficulty, currentAverageLevel, explanation);
+        // Stay at highest level if already at maximum
+        return highest;
+    }
+
+    /**
+     * Find alternative recommendations when none found at primary level
+     */
+    private List<Challenge> findAlternativeRecommendations(Long userId, ChallengeDifficulty primaryDifficulty, Pageable pageable) {
+        ChallengeDifficulty[] allDifficulties = ChallengeDifficulty.values();
+        int primaryIndex = primaryDifficulty.ordinal();
+
+        // Try one level below first
+        if (primaryIndex > 0) {
+            List<Challenge> alternatives = challengeRepository.findRecommendedByDifficulty(
+                    userId, allDifficulties[primaryIndex - 1], pageable);
+            if (!alternatives.isEmpty()) {
+                return alternatives;
+            }
         }
+
+        // Try one level above
+        if (primaryIndex < allDifficulties.length - 1) {
+            List<Challenge> alternatives = challengeRepository.findRecommendedByDifficulty(
+                    userId, allDifficulties[primaryIndex + 1], pageable);
+            if (!alternatives.isEmpty()) {
+                return alternatives;
+            }
+        }
+
+        // Fallback to any available challenges (excluding user's current challenges)
+        return challengeRepository.findRecommendedByMultipleDifficulties(
+                userId, Arrays.asList(allDifficulties), pageable);
+    }
+
+    /**
+     * Get user's completion statistics for analysis
+     */
+    public UserDifficultyStats getUserDifficultyStats(Long userId) {
+        List<Object[]> stats = challengeRepository.getUserCompletedChallengesByDifficulty(userId);
+        Optional<Double> avgDifficulty = challengeRepository.getAverageDifficultyForUser(userId);
+        Optional<ChallengeDifficulty> highest = challengeRepository.getUserHighestCompletedDifficulty(userId);
+
+        return UserDifficultyStats.builder()
+                .userId(userId)
+                .completedByDifficulty(stats)
+                .averageDifficulty(avgDifficulty.orElse(0.0))
+                .highestCompleted(highest.orElse(null))
+                .hasCompletedChallenges(challengeRepository.hasUserCompletedAnyChallenge(userId))
+                .build();
+    }
+
+    /**
+     * DTO for user difficulty statistics
+     */
+    @lombok.Builder
+    @lombok.Data
+    public static class UserDifficultyStats {
+        private Long userId;
+        private List<Object[]> completedByDifficulty;
+        private Double averageDifficulty;
+        private ChallengeDifficulty highestCompleted;
+        private Boolean hasCompletedChallenges;
     }
 }

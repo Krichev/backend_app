@@ -40,10 +40,10 @@ public class QuizQuestion {
     @Column(length = 100)
     private String source;
 
-    @Column(length = 500)
+    @Column(name = "additional_info", length = 500)
     private String additionalInfo;
 
-    @Column(nullable = false)
+    @Column(name = "is_user_created", nullable = false)
     @Builder.Default
     private Boolean isUserCreated = false;
 

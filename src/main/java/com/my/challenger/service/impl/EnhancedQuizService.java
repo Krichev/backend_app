@@ -14,6 +14,7 @@ import com.my.challenger.entity.quiz.QuizSession;
 import com.my.challenger.repository.*;
 import com.my.challenger.service.WWWGameService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -231,7 +232,7 @@ public class EnhancedQuizService extends QuizService {
         if (questions.size() < count) {
             int remainingCount = count - questions.size();
             List<QuizQuestion> appQuestions = quizQuestionRepository
-                    .findRandomQuestionsByDifficulty(difficulty.name(), remainingCount);
+                    .findByDifficulty(difficulty, PageRequest.of(0, remainingCount));
 
             List<QuizQuestionDTO> appQuestionDTOs = appQuestions.stream()
                     .map(this::convertQuestionToDTO)

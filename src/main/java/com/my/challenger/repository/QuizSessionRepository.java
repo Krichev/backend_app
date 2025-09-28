@@ -4,6 +4,7 @@ import com.my.challenger.entity.User;
 import com.my.challenger.entity.enums.QuizSessionStatus;
 import com.my.challenger.entity.quiz.QuizQuestion;
 import com.my.challenger.entity.quiz.QuizSession;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -118,4 +119,25 @@ public interface QuizSessionRepository extends JpaRepository<QuizSession, Long> 
     List<QuizSession> findByHostUserId(Long userId);
 
     long countByHostUserId(Long userId);
+
+    List<QuizSession> findTopByOrderByCreatedAtDesc();
+
+    List<QuizSession> findByQuestionSourceContainingIgnoreCase(String keyword);
+
+    List<QuizSession> findByHostUserIdOrderByCreatedAtDesc(Long userId);
+
+    // Find sessions by user
+    List<QuizSession> findByHostUserOrderByCreatedAtDesc(User user);
+
+    // Find sessions by user with pagination
+    Page<QuizSession> findByHostUser(User user, Pageable pageable);
+
+    // Find sessions created between dates
+    List<QuizSession> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+
+    // Count sessions by user
+    long countByHostUser(User user);
+
+    // Delete old sessions (for cleanup)
+    void deleteByCreatedAtBefore(LocalDateTime date);
 }

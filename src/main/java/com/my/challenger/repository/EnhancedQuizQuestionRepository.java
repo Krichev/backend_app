@@ -31,13 +31,4 @@ public interface EnhancedQuizQuestionRepository extends QuizQuestionRepository {
     List<QuizQuestion> findByCreatorIdAndSourceContaining(@Param("creatorId") Long creatorId, 
                                                           @Param("sourcePattern") String sourcePattern);
 
-    /**
-     * Get questions by multiple difficulties for mixed quizzes
-     */
-    @Query("SELECT q FROM QuizQuestion q WHERE q.difficulty IN :difficulties " +
-           "AND (q.lastUsed IS NULL OR q.lastUsed < :cutoffTime) " +
-           "ORDER BY FUNCTION('RANDOM')")
-    List<QuizQuestion> findRandomQuestionsByDifficulties(@Param("difficulties") List<QuizDifficulty> difficulties,
-                                                         @Param("cutoffTime") LocalDateTime cutoffTime,
-                                                         Pageable pageable);
 }

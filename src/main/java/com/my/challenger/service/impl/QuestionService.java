@@ -492,7 +492,7 @@ public class QuestionService {
                 .externalId(question.getExternalId())
                 .usageCount(question.getUsageCount())
                 .createdAt(question.getCreatedAt())
-                .lastUsed(question.getLastUsed())
+//                .lastUsed(question.getLastUsed())
                 .build();
     }
 
