@@ -1,5 +1,6 @@
 package com.my.challenger.dto.quiz;
 
+import com.my.challenger.entity.enums.QuestionSource;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.enums.QuizSessionStatus;
 import lombok.AllArgsConstructor;
@@ -29,7 +30,7 @@ public class QuizSessionDTO {
     private Integer correctAnswers;
     private Double scorePercentage;
     private Boolean enableAiHost;
-    private String questionSource;
+    private QuestionSource questionSource;
     private QuizSessionStatus status;
     private LocalDateTime startedAt;
     private LocalDateTime completedAt;

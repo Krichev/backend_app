@@ -33,7 +33,7 @@ spring:
         format_sql: true
         show_sql: true
         use_sql_comments: true
-        generate_statistics: true
+        generate_statistics: false
         jdbc:
           batch_size: 10
           fetch_size: 50
@@ -168,19 +168,19 @@ management:
 # Logging Configuration - Development (More verbose)
 logging:
   level:
-    com.my.challenger: DEBUG
+    com.my.challenger: warn
     org.springframework.security: warn
-    org.hibernate.SQL: DEBUG
+    org.hibernate.SQL: warn
     org.hibernate.boot.model: warn
-    org.hibernate.cfg.annotations: DEBUG
+    org.hibernate.cfg.annotations: warn
     org.hibernate.type.descriptor.sql.BasicBinder: warn
-    org.springframework.web: DEBUG
-    org.springframework.boot.autoconfigure: INFO
+    org.springframework.web: warn
+    org.springframework.boot.autoconfigure: warn
     org.hibernate.boot.model.internal.CollectionBinder: warn
-    org.springframework.transaction: DEBUG
-    org.springframework.orm.jpa: DEBUG
-    org.springframework.web.servlet.mvc.method.annotation: DEBUG
-    org.postgresql: DEBUG
+    org.springframework.transaction: warn
+    org.springframework.orm.jpa: warn
+    org.springframework.web.servlet.mvc.method.annotation: warn
+    org.postgresql: warn
   pattern:
     console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(%5p) %clr(${PID:- }){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n%wEx"
     file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

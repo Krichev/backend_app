@@ -3,6 +3,7 @@ package com.my.challenger.service.impl;
 import com.my.challenger.dto.quiz.*;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.challenge.Challenge;
+import com.my.challenger.entity.enums.QuestionSource;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.enums.QuizSessionStatus;
 import com.my.challenger.entity.quiz.QuizQuestion;
@@ -132,6 +133,7 @@ public class QuestionService {
         QuizSession session = QuizSession.builder()
                 .challenge(challenge)
                 .creatorId(hostUserId)
+                .userId(hostUserId)
                 .hostUser(hostUser)
                 .teamName(request.getTeamName())
                 .teamMembers(String.join(",", request.getTeamMembers()))
@@ -291,7 +293,7 @@ public class QuestionService {
                 .collect(Collectors.toList());
     }
 
-    public List<QuizSessionDTO> getSessionsByExactQuestionSource(Long creatorId, String questionSource) {
+    public List<QuizSessionDTO> getSessionsByExactQuestionSource(Long creatorId, QuestionSource questionSource) {
         log.info("Getting sessions by creator {} with exact questionSource: {}", creatorId, questionSource);
 
         // FIXED: Now uses correct repository method name

@@ -1,12 +1,12 @@
 // CreateQuizChallengeRequest.java
 package com.my.challenger.dto.quiz;
 
+
 import com.my.challenger.entity.enums.FrequencyType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
@@ -30,6 +30,8 @@ public class CreateQuizChallengeRequest {
     private LocalDateTime endDate;
     private FrequencyType frequency;
 
+    @NotNull(message = "Quiz configuration is required")
     private QuizChallengeConfig quizConfig;
+
     private List<CreateQuizQuestionRequest> customQuestions;
 }

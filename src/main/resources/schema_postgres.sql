@@ -43,7 +43,7 @@ CREATE TYPE quest_status AS ENUM ('OPEN', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED
 CREATE TYPE task_type AS ENUM ('DAILY', 'ONE_TIME', 'RECURRING', 'WEEKLY', 'MONTHLY');
 CREATE TYPE task_status AS ENUM ('NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'VERIFIED', 'FAILED');
 CREATE TYPE verification_method AS ENUM ('MANUAL', 'FITNESS_API', 'PHOTO', 'QUIZ', 'LOCATION', 'ACTIVITY');
-CREATE TYPE completion_status AS ENUM ('SUBMITTED', 'VERIFIED', 'REJECTED');
+CREATE TYPE completion_status AS ENUM ('SUBMITTED', 'VERIFIED', 'REJECTED', 'PENDING');
 CREATE TYPE reward_type AS ENUM ('MONETARY', 'POINTS', 'BADGE', 'CUSTOM');
 CREATE TYPE reward_source AS ENUM ('SYSTEM', 'USER', 'SPONSOR');
 CREATE TYPE connection_status AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED', 'BLOCKED');
@@ -1607,3 +1607,47 @@ SELECT
 FROM quiz_questions
 GROUP BY question_type, question_media_type
 ORDER BY question_type, question_media_type;
+
+
+
+-- ============================================================================
+-- Add created_by and frequency columns to tasks table
+-- ============================================================================
+
+-- Create frequency_type ENUM if not exists
+CREATE TYPE frequency_type AS ENUM ('DAILY', 'WEEKLY', 'MONTHLY', 'ONE_TIME', 'CUSTOM');
+
+-- Add created_by column
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_by BIGINT;
+
+-- Add frequency column
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS frequency frequency_type;
+
+-- Add foreign key constraint for created_by
+ALTER TABLE tasks
+    ADD CONSTRAINT fk_tasks_created_by
+        FOREIGN KEY (created_by)
+            REFERENCES users(id)
+            ON DELETE SET NULL;
+
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_tasks_created_by ON tasks(created_by);
+CREATE INDEX IF NOT EXISTS idx_tasks_frequency ON tasks(frequency);
+
+
+
+-- Step 1: Create the custom ENUM type (if not already exists)
+CREATE TYPE activity_type AS ENUM (
+    'TASK_COMPLETION',
+    'JOIN_GROUP',
+    'COMPLETE_QUEST',
+    'REWARD_EARNED',
+    'CONNECTION_MADE',
+    'CHALLENGE_JOINED',
+    'CHALLENGE_COMPLETED'
+);
+
+-- Step 2: Alter the column to use the new ENUM type
+ALTER TABLE user_activity_logs
+ALTER COLUMN activity_type TYPE activity_type
+    USING activity_type::activity_type;

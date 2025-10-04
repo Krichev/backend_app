@@ -6,6 +6,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Data
 @Entity
@@ -21,6 +23,8 @@ public class Stake {
     private Double amount;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "currency", nullable = false, columnDefinition = "currency_type")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private CurrencyType currency;
 
     @Column(name = "collective_pool")

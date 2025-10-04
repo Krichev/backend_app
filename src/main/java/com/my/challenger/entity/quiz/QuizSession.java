@@ -3,6 +3,7 @@ package com.my.challenger.entity.quiz;
 
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.challenge.Challenge;
+import com.my.challenger.entity.enums.QuestionSource;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.enums.QuizSessionStatus;
 import jakarta.persistence.*;
@@ -10,6 +11,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -33,6 +36,9 @@ public class QuizSession {
     @Column(name = "creator_id")
     private Long creatorId;
 
+    @Column(name = "user_id")
+    private Long userId;
+
     @ManyToOne
     @JoinColumn(name = "host_user_id", nullable = false)
     private User hostUser;
@@ -44,6 +50,8 @@ public class QuizSession {
     private String teamMembers; // JSON array of team member names
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "difficulty", nullable = false, columnDefinition = "quiz_difficulty")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private QuizDifficulty difficulty;
 
     @Column(name = "round_time_seconds")
@@ -61,10 +69,14 @@ public class QuizSession {
     @Column(name = "enable_ai_host")
     private Boolean enableAiHost = false;
 
-    @Column(name = "question_source")
-    private String questionSource; // 'app' or 'user'
+    @Enumerated(EnumType.STRING)
+    @Column(name = "question_source", nullable = false, columnDefinition = "question_source")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private QuestionSource questionSource;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, columnDefinition = "quiz_session_status")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private QuizSessionStatus status;
 
     @Column(name = "started_at")

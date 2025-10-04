@@ -9,6 +9,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
@@ -30,15 +33,18 @@ public class Quest {
     private String description;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "type", nullable = false, columnDefinition = "quest_type")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private QuestType type;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "visibility", nullable = false, columnDefinition = "quest_visibility")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private VisibilityType visibility;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "status", nullable = false, columnDefinition = "quest_status")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private QuestStatus status;
 
     @Column(name = "created_at")

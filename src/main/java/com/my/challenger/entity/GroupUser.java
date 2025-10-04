@@ -4,6 +4,8 @@ import com.my.challenger.entity.enums.UserRole;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -26,7 +28,8 @@ public class GroupUser {
     private User user;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "role", nullable = false, columnDefinition = "user_role")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private UserRole role;
 
     @Column(name = "joined_at")

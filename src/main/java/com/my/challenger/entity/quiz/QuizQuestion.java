@@ -8,7 +8,9 @@ import com.my.challenger.entity.enums.MediaType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -31,7 +33,8 @@ public class QuizQuestion {
     private String answer;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "difficulty", nullable = false, columnDefinition = "quiz_difficulty")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private QuizDifficulty difficulty;
 
     @Column(length = 100)
@@ -71,7 +74,8 @@ public class QuizQuestion {
     private String questionMediaId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "question_media_type")
+    @Column(name = "question_media_type", nullable = false, columnDefinition = "media_type_enum")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private MediaType questionMediaType;
 
     @Column(name = "question_thumbnail_url", length = 500)

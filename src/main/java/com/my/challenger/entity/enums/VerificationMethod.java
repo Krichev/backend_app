@@ -6,5 +6,5 @@ public enum VerificationMethod {
     PHOTO,       // Photo-based verification
     QUIZ,        // Quiz or question-based verification
     LOCATION,    // Location-based verification (GPS)
-    ACTIVITY     // Activity tracking verification
+    NONE, ACTIVITY     // Activity tracking verification
 }

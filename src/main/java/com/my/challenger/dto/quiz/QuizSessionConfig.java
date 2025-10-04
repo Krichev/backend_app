@@ -1,5 +1,6 @@
 package com.my.challenger.dto.quiz;
 
+import com.my.challenger.entity.enums.QuestionSource;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -22,5 +23,5 @@ public class QuizSessionConfig {
     private Integer roundTimeSeconds;
     private Integer totalRounds;
     private Boolean enableAiHost;
-    private String questionSource;
+    private QuestionSource questionSource;
 }

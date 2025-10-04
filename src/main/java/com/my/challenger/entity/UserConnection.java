@@ -6,6 +6,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -29,7 +31,8 @@ public class UserConnection {
     private User connectedUser;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "status", nullable = false, columnDefinition = "connection_status")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private ConnectionStatus status;
 
     @Column(name = "created_at")

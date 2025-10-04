@@ -2,6 +2,8 @@ package com.my.challenger.entity;
 
 import com.my.challenger.entity.enums.UserQuestStatus;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -26,7 +28,8 @@ public class UserQuest {
     private LocalDateTime joinDate;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "status", nullable = false, columnDefinition = "quiz_session_status")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private UserQuestStatus status;
 
     // Constructors, getter/setter methods

@@ -1,5 +1,6 @@
 package com.my.challenger.dto.quiz;
 
+import com.my.challenger.entity.enums.QuestionSource;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Min;
@@ -42,7 +43,7 @@ public class StartQuizSessionRequest {
     private Boolean enableAiHost;
     
     @NotNull(message = "Question source is required")
-    private String questionSource; // "app" or "user"
+    private QuestionSource questionSource; // "app" or "user"
     
     // For user-selected questions
     private List<Long> customQuestionIds;

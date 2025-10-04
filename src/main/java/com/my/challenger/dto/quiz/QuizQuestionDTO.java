@@ -1,12 +1,12 @@
 package com.my.challenger.dto.quiz;
 
-import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.enums.MediaType;
+import com.my.challenger.entity.enums.QuizDifficulty;
+import com.my.challenger.entity.enums.QuestionType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
 import java.time.LocalDateTime;
 
 @Data
@@ -26,6 +26,8 @@ public class QuizQuestionDTO {
     private String creatorUsername;
     private String externalId;
     private Integer usageCount;
+    private QuestionType questionType;
+    private String questionMediaUrl;
     private LocalDateTime createdAt;
     private LocalDateTime lastUsed;
     

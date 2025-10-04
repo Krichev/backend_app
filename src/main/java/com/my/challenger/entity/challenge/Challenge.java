@@ -12,6 +12,8 @@ import com.my.challenger.entity.enums.VerificationMethod;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -29,6 +31,8 @@ public class Challenge {
     private Long id;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "type", columnDefinition = "challenge_type")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private ChallengeType type;
 
     @Column(name = "title")
@@ -44,7 +48,6 @@ public class Challenge {
     @OneToMany(mappedBy = "challenge", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Set<Task> tasks = new HashSet<>();
 
-    // Relationship with ChallengeProgress instead of direct participants
     @OneToMany(mappedBy = "challenge", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<ChallengeProgress> progress = new ArrayList<>();
 
@@ -62,10 +65,13 @@ public class Challenge {
     private LocalDateTime endDate;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "frequency")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private FrequencyType frequency;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "verification_method")
+    @Column(name = "verification_method", columnDefinition = "verification_method_type")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private VerificationMethod verificationMethod;
 
     @OneToMany(mappedBy = "challenge", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
@@ -75,17 +81,19 @@ public class Challenge {
     private List<Stake> stake = new ArrayList<>();
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "status", columnDefinition = "challenge_status_type")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private ChallengeStatus status = ChallengeStatus.PENDING;
 
     @Column(name = "quiz_config", columnDefinition = "TEXT")
-    private String quizConfig; // JSON string
+    private String quizConfig;
 
-    // NEW: Difficulty field
+    // FIXED: Proper PostgreSQL ENUM handling for difficulty
     @Enumerated(EnumType.STRING)
-    @Column(name = "difficulty", nullable = false)
-    private ChallengeDifficulty difficulty = ChallengeDifficulty.MEDIUM; // Default to MEDIUM
+    @Column(name = "difficulty", nullable = false, columnDefinition = "challenge_difficulty_type")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private ChallengeDifficulty difficulty = ChallengeDifficulty.MEDIUM;
 
-    // Audit fields
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
@@ -94,41 +102,12 @@ public class Challenge {
 
     @PrePersist
     protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
-
-        // Set default difficulty if not specified
-        if (this.difficulty == null) {
-            this.difficulty = ChallengeDifficulty.MEDIUM;
-        }
+        createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
     }
 
     @PreUpdate
     protected void onUpdate() {
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    // Convenience methods for difficulty
-    public boolean isEasyDifficulty() {
-        return this.difficulty == ChallengeDifficulty.BEGINNER ||
-                this.difficulty == ChallengeDifficulty.EASY;
-    }
-
-    public boolean isHardDifficulty() {
-        return this.difficulty == ChallengeDifficulty.HARD ||
-                this.difficulty == ChallengeDifficulty.EXPERT ||
-                this.difficulty == ChallengeDifficulty.EXTREME;
-    }
-
-    public int getDifficultyLevel() {
-        return this.difficulty != null ? this.difficulty.getLevel() : 3; // Default to medium level
-    }
-
-    public String getDifficultyDisplayName() {
-        return this.difficulty != null ? this.difficulty.getDisplayName() : "Medium";
-    }
-
-    public String getDifficultyDescription() {
-        return this.difficulty != null ? this.difficulty.getDescription() : "Moderate difficulty";
+        updatedAt = LocalDateTime.now();
     }
 }

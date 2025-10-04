@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -50,19 +51,47 @@ public class EnhancedQuizService extends QuizService {
         this.taskRepository = taskRepository;
     }
 
+
     /**
-     * Create a quiz challenge with proper verification method setup
-     * FIXED: Ensures verificationMethod is always set before task creation
+     * Map quiz difficulty string to ChallengeDifficulty enum
+     */
+    private ChallengeDifficulty mapQuizDifficultyToChallengeDifficulty(String quizDifficulty) {
+        if (quizDifficulty == null) {
+            return ChallengeDifficulty.MEDIUM;
+        }
+
+        return switch (quizDifficulty.toUpperCase()) {
+            case "EASY" -> ChallengeDifficulty.EASY;
+            case "MEDIUM" -> ChallengeDifficulty.MEDIUM;
+            case "HARD" -> ChallengeDifficulty.HARD;
+            default -> {
+                log.warn("Unknown quiz difficulty: {}, defaulting to MEDIUM", quizDifficulty);
+                yield ChallengeDifficulty.MEDIUM;
+            }
+        };
+    }
+
+
+    /**
+     * Create a new quiz challenge with complete configuration
+     *
+     * @param request   The quiz challenge creation request
+     * @param creatorId The ID of the user creating the challenge
+     * @return The created challenge DTO with saved configuration
      */
     @Transactional
     public ChallengeDTO createQuizChallenge(CreateQuizChallengeRequest request, Long creatorId) {
         try {
-            log.info("Creating quiz challenge for user: {}", creatorId);
+            log.info("=== Starting Quiz Challenge Creation ===");
+            log.info("Creator ID: {}", creatorId);
+            log.info("Challenge Title: {}", request.getTitle());
 
+            // 1. Validate and fetch creator
             User creator = userRepository.findById(creatorId)
-                    .orElseThrow(() -> new IllegalArgumentException("Creator not found"));
+                    .orElseThrow(() -> new IllegalArgumentException("Creator not found with ID: " + creatorId));
+            log.info("Creator found: {}", creator.getUsername());
 
-            // 1. Create the quiz challenge with MANDATORY verification method
+            // 2. Create the Challenge entity
             Challenge challenge = new Challenge();
             challenge.setType(ChallengeType.QUIZ);
             challenge.setTitle(request.getTitle());
@@ -70,46 +99,92 @@ public class EnhancedQuizService extends QuizService {
             challenge.setCreator(creator);
             challenge.setPublic(request.getVisibility().equals("PUBLIC"));
 
-            // CRITICAL: Set verification method BEFORE saving
+            // Set verification method - CRITICAL for quiz challenges
             challenge.setVerificationMethod(VerificationMethod.QUIZ);
+            log.info("Verification method set to: QUIZ");
 
+            // Set dates
             challenge.setStartDate(request.getStartDate() != null ?
                     request.getStartDate() : LocalDateTime.now());
             challenge.setEndDate(request.getEndDate());
+
+            // Set frequency
             challenge.setFrequency(request.getFrequency() != null ?
                     request.getFrequency() : FrequencyType.ONE_TIME);
+
+            // Set status
             challenge.setStatus(ChallengeStatus.ACTIVE);
 
-            // 2. Save quiz configuration if provided
+            // 3. Save quiz configuration as JSON string
             if (request.getQuizConfig() != null) {
+                QuizChallengeConfig config = request.getQuizConfig();
+
+                // Log all configuration fields before saving
+                log.info("=== Quiz Configuration Details ===");
+                log.info("Game Type: {}", config.getGameType());
+                log.info("Team Name: {}", config.getTeamName());
+                log.info("Team Members: {}", config.getTeamMembers());
+                log.info("Team Members Count: {}", config.getTeamMembers() != null ? config.getTeamMembers().size() : 0);
+                log.info("Difficulty: {}", config.getDefaultDifficulty());
+                log.info("Round Time (seconds): {}", config.getDefaultRoundTimeSeconds());
+                log.info("Total Rounds: {}", config.getDefaultTotalRounds());
+                log.info("AI Host Enabled: {}", config.getEnableAiHost());
+                log.info("Question Source: {}", config.getQuestionSource());
+                log.info("Allow Custom Questions: {}", config.getAllowCustomQuestions());
+                log.info("Team Based: {}", config.getTeamBased());
+                log.info("================================");
+
                 try {
-                    String quizConfigJson = objectMapper.writeValueAsString(request.getQuizConfig());
+                    // Serialize the entire config object to JSON
+                    String quizConfigJson = objectMapper.writeValueAsString(config);
                     challenge.setQuizConfig(quizConfigJson);
-                    log.debug("Saved quiz config: {}", quizConfigJson);
+
+                    log.info("Quiz config serialized successfully");
+                    log.debug("Serialized JSON: {}", quizConfigJson);
+
                 } catch (JsonProcessingException e) {
-                    log.error("Error serializing quiz config", e);
-                    throw new RuntimeException("Invalid quiz configuration", e);
+                    log.error("Failed to serialize quiz configuration", e);
+                    throw new RuntimeException("Invalid quiz configuration: " + e.getMessage(), e);
                 }
+            } else {
+                log.warn("No quiz configuration provided!");
+                throw new IllegalArgumentException("Quiz configuration is required for quiz challenges");
             }
 
-            // 3. Save challenge FIRST (this ensures ID is generated)
+            // 4. Save the challenge first to generate ID
             Challenge savedChallenge = challengeRepository.save(challenge);
-            log.info("Saved challenge with ID: {} and verification method: {}",
-                    savedChallenge.getId(), savedChallenge.getVerificationMethod());
+            log.info("Challenge saved successfully with ID: {}", savedChallenge.getId());
+            log.info("Verification method confirmed: {}", savedChallenge.getVerificationMethod());
 
-            // 4. Save custom questions if provided
+            // 5. Save custom questions if provided
             if (request.getCustomQuestions() != null && !request.getCustomQuestions().isEmpty()) {
-                saveCustomQuestionsForChallenge(request.getCustomQuestions(), creator, savedChallenge.getId());
+                log.info("Saving {} custom questions", request.getCustomQuestions().size());
+                saveCustomQuestionsForChallenge(
+                        request.getCustomQuestions(),
+                        creator,
+                        savedChallenge.getId()
+                );
+            } else {
+                log.info("No custom questions provided");
             }
 
-            // 5. Create initial task with proper verification method
+            // 6. Create initial task for the challenge
             createQuizTask(savedChallenge, creator);
 
-            // 6. Convert to DTO and return
-            return convertChallengeToDTO(savedChallenge);
+            // 7. Convert to DTO and return
+            ChallengeDTO challengeDTO = convertChallengeToDTO(savedChallenge);
 
+            log.info("=== Quiz Challenge Created Successfully ===");
+            log.info("Challenge ID: {}", challengeDTO.getId());
+            log.info("Quiz Config in DTO: {}", challengeDTO.getQuizConfig());
+
+            return challengeDTO;
+
+        } catch (IllegalArgumentException e) {
+            log.error("Validation error: {}", e.getMessage());
+            throw e;
         } catch (Exception e) {
-            log.error("Error creating quiz challenge", e);
+            log.error("Unexpected error creating quiz challenge", e);
             throw new RuntimeException("Failed to create quiz challenge: " + e.getMessage(), e);
         }
     }
@@ -145,71 +220,73 @@ public class EnhancedQuizService extends QuizService {
     }
 
     /**
-     * FIXED: Create quiz-specific task with proper validation
+     * Create a task for the quiz challenge
      */
     private void createQuizTask(Challenge challenge, User creator) {
-        // Validate that challenge has verification method set
-        if (challenge.getVerificationMethod() == null) {
-            log.error("Challenge {} has null verification method, setting to QUIZ", challenge.getId());
-            challenge.setVerificationMethod(VerificationMethod.QUIZ);
-            challengeRepository.save(challenge); // Save the fix
+        log.info("Creating task for challenge ID: {}", challenge.getId());
+
+        try {
+            Task task = new Task();
+            task.setChallenge(challenge);
+            task.setAssignedToUser(creator);
+            task.setTitle("Complete Quiz: " + challenge.getTitle());
+            task.setDescription("Participate in the quiz challenge and answer all questions");
+            task.setStatus(TaskStatus.IN_PROGRESS);
+            task.setCreatedAt(LocalDateTime.now());
+            task.setUpdatedAt(LocalDateTime.now());
+
+            Task savedTask = taskRepository.save(task);
+            log.info("Task created successfully with ID: {}", savedTask.getId());
+
+        } catch (Exception e) {
+            log.error("Error creating task for challenge", e);
+            // Don't fail the entire challenge creation if task creation fails
         }
-
-        Task task = new Task();
-        task.setTitle(challenge.getTitle());
-        task.setDescription(challenge.getDescription());
-
-        // Set task type based on frequency
-        task.setType(challenge.getFrequency() != null ?
-                TaskType.valueOf(challenge.getFrequency().name()) : TaskType.ONE_TIME);
-
-        task.setStatus(TaskStatus.NOT_STARTED);
-
-        // CRITICAL: Ensure verification method is set
-        task.setVerificationMethod(challenge.getVerificationMethod());
-
-        task.setStartDate(challenge.getStartDate());
-        task.setEndDate(challenge.getEndDate());
-        task.setChallenge(challenge);
-        task.setAssignedToUser(creator);
-        task.setAssignedTo(creator.getId());
-        task.setCreatedAt(LocalDateTime.now());
-        task.setUpdatedAt(LocalDateTime.now());
-
-        Task savedTask = taskRepository.save(task);
-        log.info("Created quiz task with ID: {} and verification method: {}",
-                savedTask.getId(), savedTask.getVerificationMethod());
     }
+
 
     /**
      * Save custom questions for a challenge
      */
-    @Transactional
     public List<QuizQuestionDTO> saveCustomQuestionsForChallenge(
-            List<CreateQuizQuestionRequest> questionRequests, User creator, Long challengeId) {
+            List<CreateQuizQuestionRequest> questionRequests,
+            User creator,
+            Long challengeId) {
 
-        List<QuizQuestion> savedQuestions = questionRequests.stream()
-                .map(request -> {
-                    QuizQuestion question = QuizQuestion.builder()
-                            .question(request.getQuestion())
-                            .answer(request.getAnswer())
-                            .difficulty(request.getDifficulty())
-                            .topic(request.getTopic())
-                            .source("USER_CREATED_FOR_CHALLENGE_" + challengeId)
-                            .additionalInfo(request.getAdditionalInfo())
-                            .isUserCreated(true)
-                            .creator(creator)
-                            .usageCount(0)
-                            .build();
+        log.info("Saving custom questions for challenge ID: {}", challengeId);
+        List<QuizQuestionDTO> questions = new ArrayList<>();
+        for (CreateQuizQuestionRequest questionRequest : questionRequests) {
+            try {
+                QuizQuestion question = QuizQuestion.builder()
+                        .question(questionRequest.getQuestion())
+                        .answer(questionRequest.getAnswer())
+                        .difficulty(questionRequest.getDifficulty() != null ?
+                                questionRequest.getDifficulty() : QuizDifficulty.MEDIUM)
+                        .topic(questionRequest.getTopic() != null ?
+                                questionRequest.getTopic() : "General")
+                        .additionalInfo(questionRequest.getAdditionalInfo())
+                        .isUserCreated(true)
+                        .creator(creator)
+                        .usageCount(0)
+                        .source("USER_CREATED_FOR_CHALLENGE_" + challengeId)
+                        .questionType(QuestionType.TEXT)
+                        .build();
 
-                    return quizQuestionRepository.save(question);
-                })
-                .collect(Collectors.toList());
+                QuizQuestion savedQuestion = quizQuestionRepository.save(question);
+                log.debug("Saved question ID: {} - {}", savedQuestion.getId(),
+                        savedQuestion.getQuestion().substring(0, Math.min(50, savedQuestion.getQuestion().length())));
 
-        return savedQuestions.stream()
-                .map(this::convertQuestionToDTO)
-                .collect(Collectors.toList());
+                questions.add(convertQuestionToDTO(savedQuestion));
+            } catch (Exception e) {
+                log.error("Error saving question: {}", questionRequest.getQuestion(), e);
+                // Continue with other questions even if one fails
+            }
+        }
+
+        log.info("Finished saving custom questions");
+        return questions;
     }
+
 
     /**
      * Get quiz questions for a challenge (user questions + app questions if needed)
@@ -472,18 +549,60 @@ public class EnhancedQuizService extends QuizService {
                 .title(challenge.getTitle())
                 .description(challenge.getDescription())
                 .type(challenge.getType())
-                .creator_id(challenge.getCreator().getId())
-                .creatorUsername(challenge.getCreator().getUsername())
                 .visibility(challenge.isPublic() ?
                         VisibilityType.PUBLIC : VisibilityType.PRIVATE)
+                .status(challenge.getStatus())
+                .created_at(LocalDateTime.now())
+                .updated_at(LocalDateTime.now())
+                .creator_id(challenge.getCreator().getId())
+                .creatorUsername(challenge.getCreator().getUsername())
                 .verificationMethod(challenge.getVerificationMethod() != null ?
                         challenge.getVerificationMethod().toString() : null)
                 .startDate(challenge.getStartDate())
                 .endDate(challenge.getEndDate())
                 .frequency(challenge.getFrequency())
-                .status(challenge.getStatus())
-                .quizConfig(challenge.getQuizConfig())
+                .quizConfig(challenge.getQuizConfig()) // This contains the full JSON with all fields
+                .userIsCreator(true) // Set to true since we're the creator
                 .build();
+    }
+
+    /**
+     * Get quiz configuration from a challenge
+     * Parses the JSON string back into a QuizChallengeConfig object
+     */
+    public QuizChallengeConfig getQuizConfig(Long challengeId) {
+        log.info("Fetching quiz config for challenge ID: {}", challengeId);
+
+        Challenge challenge = challengeRepository.findById(challengeId)
+                .orElseThrow(() -> new IllegalArgumentException("Challenge not found with ID: " + challengeId));
+
+        if (challenge.getType() != ChallengeType.QUIZ) {
+            throw new IllegalArgumentException("Challenge is not a quiz type");
+        }
+
+        if (challenge.getQuizConfig() == null) {
+            log.warn("No quiz config found for challenge ID: {}", challengeId);
+            return null;
+        }
+
+        try {
+            QuizChallengeConfig config = objectMapper.readValue(
+                    challenge.getQuizConfig(),
+                    QuizChallengeConfig.class
+            );
+
+            log.info("Quiz config parsed successfully");
+            log.debug("Parsed config - Team: {}, Members: {}, Difficulty: {}",
+                    config.getTeamName(),
+                    config.getTeamMembers() != null ? config.getTeamMembers().size() : 0,
+                    config.getDefaultDifficulty());
+
+            return config;
+
+        } catch (JsonProcessingException e) {
+            log.error("Failed to parse quiz configuration", e);
+            throw new RuntimeException("Invalid quiz configuration format", e);
+        }
     }
 
     /**

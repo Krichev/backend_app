@@ -6,6 +6,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -35,7 +37,8 @@ public class TaskCompletion {
     private Long userId;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "status", nullable = false, columnDefinition = "completion_status")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private CompletionStatus status;
 
     @Column(name = "completed_at")

@@ -7,6 +7,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -50,11 +52,13 @@ public class Group {
     private Set<Quest> quests = new HashSet<>();
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "type", nullable = false, columnDefinition = "group_type")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private GroupType type;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "privacy_setting", nullable = false)
+    @Column(name = "privacy_setting", nullable = false, columnDefinition = "privacy_setting")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private PrivacySetting privacySetting;
 
     @PrePersist

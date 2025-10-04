@@ -8,6 +8,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -27,17 +29,21 @@ public class Reward {
     private String description;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "type", nullable = false, columnDefinition = "reward_type")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private RewardType type;
 
     @Column(name = "monetary_value")
     private Double monetaryValue;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "currency", nullable = false, columnDefinition = "currency_type")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private CurrencyType currency;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "reward_source", nullable = false)
+    @Column(name = "reward_source", nullable = false, columnDefinition = "reward_source")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private RewardSource rewardSource;
 
     @ManyToOne

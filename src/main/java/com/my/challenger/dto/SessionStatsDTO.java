@@ -1,5 +1,6 @@
 package com.my.challenger.dto;
 
+import com.my.challenger.entity.enums.QuestionSource;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
@@ -22,7 +23,7 @@ public class SessionStatsDTO {
     private Double accuracy;
     private Long duration; // in seconds
     private String status;
-    private String questionSource;
+    private QuestionSource questionSource;
     private Double averageTimePerQuestion;
     private String performanceLevel;
     

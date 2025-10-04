@@ -1,9 +1,6 @@
 package com.my.challenger.dto;
 
-import com.my.challenger.entity.enums.ChallengeStatus;
-import com.my.challenger.entity.enums.ChallengeType;
-import com.my.challenger.entity.enums.FrequencyType;
-import com.my.challenger.entity.enums.VisibilityType;
+import com.my.challenger.entity.enums.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -37,6 +34,7 @@ public class ChallengeDTO {
     private FrequencyType frequency;
     private LocalDateTime startDate;
     private LocalDateTime endDate;
+    private ChallengeDifficulty difficulty; // Added
     private Integer participantCount;
     private Boolean userIsCreator; // Flag to indicate if the current user is the creator
     private String userRole;

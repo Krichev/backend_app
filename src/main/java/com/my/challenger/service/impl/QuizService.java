@@ -118,6 +118,7 @@ public class QuizService {
         QuizSession session = QuizSession.builder()
                 .hostUser(host)
                 .creatorId(hostUserId)
+                .userId(hostUserId)
                 .status(QuizSessionStatus.CREATED)
                 .difficulty(request.getDifficulty())
                 .totalRounds(request.getTotalRounds())
@@ -151,21 +152,22 @@ public class QuizService {
 
         List<QuizQuestion> questions;
 
-        if ("user".equals(request.getQuestionSource()) && request.getCustomQuestionIds() != null) {
+//        if ("user".equals(request.getQuestionSource()) && request.getCustomQuestionIds() != null) {
             // Use user-specified questions
             questions = quizQuestionRepository.findAllById(request.getCustomQuestionIds());
             if (questions.size() < request.getTotalRounds()) {
                 throw new IllegalArgumentException("Not enough custom questions selected");
             }
-        } else {
+//        }
+        /*else {
             // Use random questions by difficulty
             PageRequest pageRequest = PageRequest.of(0, request.getTotalRounds());
             questions = quizQuestionRepository.findByDifficultyOrderByUsageCountAsc(
                     request.getDifficulty(), pageRequest);
             if (questions.size() < request.getTotalRounds()) {
                 throw new IllegalStateException("Not enough questions available for the selected difficulty");
-            }
-        }
+            }*/
+//        }
 
         // Create rounds
         for (int i = 0; i < request.getTotalRounds(); i++) {
@@ -605,15 +607,6 @@ public class QuizService {
 
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         return quizSessionRepository.findAll(pageable);
-    }
-
-    /**
-     * Get sessions by question source containing a specific text
-     */
-    public List<QuizSession> getSessionsByQuestionSourceContaining(String source) {
-        log.debug("Getting sessions with question source containing: {}", source);
-
-        return quizSessionRepository.findByQuestionSourceContainingIgnoreCase(source);
     }
 
     /**

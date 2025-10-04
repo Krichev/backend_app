@@ -1,8 +1,8 @@
 package com.my.challenger.repository;
 
 import com.my.challenger.entity.User;
+import com.my.challenger.entity.enums.QuestionSource;
 import com.my.challenger.entity.enums.QuizSessionStatus;
-import com.my.challenger.entity.quiz.QuizQuestion;
 import com.my.challenger.entity.quiz.QuizSession;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -14,7 +14,6 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 @Repository
 public interface QuizSessionRepository extends JpaRepository<QuizSession, Long> {
@@ -27,7 +26,7 @@ public interface QuizSessionRepository extends JpaRepository<QuizSession, Long> 
     /**
      * Find sessions by exact question source
      */
-    List<QuizSession> findByCreatorIdAndQuestionSource(Long creatorId, String questionSource);
+    List<QuizSession> findByCreatorIdAndQuestionSource(Long creatorId, QuestionSource questionSource);
 
     /**
      * Find sessions by question source containing text
@@ -121,8 +120,6 @@ public interface QuizSessionRepository extends JpaRepository<QuizSession, Long> 
     long countByHostUserId(Long userId);
 
     List<QuizSession> findTopByOrderByCreatedAtDesc();
-
-    List<QuizSession> findByQuestionSourceContainingIgnoreCase(String keyword);
 
     List<QuizSession> findByHostUserIdOrderByCreatedAtDesc(Long userId);
 

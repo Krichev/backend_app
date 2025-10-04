@@ -6,6 +6,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -25,7 +27,8 @@ public class UserActivityLog {
     private User user;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "activity_type", nullable = false)
+    @Column(name = "activity_type", nullable = false, columnDefinition = "activity_type")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private ActivityType activityType;
 
     private String description;
