@@ -13,10 +13,12 @@ import com.my.challenger.entity.User;
 import com.my.challenger.entity.challenge.Challenge;
 import com.my.challenger.entity.enums.*;
 import com.my.challenger.repository.*;
+import com.my.challenger.repository.specification.ChallengeSpecification;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,42 +40,61 @@ public class ChallengeServiceImpl implements ChallengeService {
 
     @Override
     public List<ChallengeDTO> getChallenges(Map<String, Object> filters) {
-        Integer page = (Integer) filters.getOrDefault("page", 0);
-        Integer limit = (Integer) filters.getOrDefault("limit", 20);
-        Pageable pageable = PageRequest.of(page, limit);
-
-        List<Challenge> challenges;
-
         try {
-            // Apply filters based on the provided parameters
+            Integer page = (Integer) filters.getOrDefault("page", 0);
+            Integer limit = (Integer) filters.getOrDefault("limit", 20);
+            Pageable pageable = PageRequest.of(page, limit);
+
+            List<Challenge> challenges;
+
+            // Handle participant_id filter
             if (filters.get("participant_id") != null) {
                 Long participantId = (Long) filters.get("participant_id");
                 challenges = getChallengesByParticipantId(participantId, pageable);
-            } else if (filters.get("creator_id") != null) {
+            }
+            // Handle creator_id filter
+            else if (filters.get("creator_id") != null) {
                 Long creatorId = (Long) filters.get("creator_id");
                 challenges = getChallengesByUserIdAsCreatorOrParticipant(creatorId, pageable);
-            } else {
-                // Apply other filters like type, visibility, status
-                ChallengeType type = filters.get("type") != null ?
-                        ChallengeType.valueOf((String) filters.get("type")) : null;
+            }
+            // Handle general filters using Specifications (FIXED)
+            else {
+                // Parse enum values safely
+                ChallengeType type = null;
+                if (filters.get("type") != null) {
+                    try {
+                        type = ChallengeType.valueOf((String) filters.get("type"));
+                    } catch (IllegalArgumentException e) {
+                        log.warn("Invalid challenge type: {}", filters.get("type"));
+                    }
+                }
 
-                Boolean visibility = filters.get("visibility") != null ?
-                        "PUBLIC".equals(filters.get("visibility")) : true;
+                Boolean visibility = null;
+                if (filters.get("visibility") != null) {
+                    String visibilityStr = (String) filters.get("visibility");
+                    visibility = "PUBLIC".equalsIgnoreCase(visibilityStr);
+                }
 
-                ChallengeStatus status = filters.get("status") != null ?
-                        ChallengeStatus.valueOf((String) filters.get("status")) : ChallengeStatus.ACTIVE;
+                ChallengeStatus status = null;
+                if (filters.get("status") != null) {
+                    try {
+                        status = ChallengeStatus.valueOf((String) filters.get("status"));
+                    } catch (IllegalArgumentException e) {
+                        log.warn("Invalid challenge status: {}", filters.get("status"));
+                    }
+                }
 
                 String targetGroup = (String) filters.get("targetGroup");
 
-                challenges = challengeRepository.findWithFilters(
-                        type,
-                        visibility,
-                        status,
-                        targetGroup,
-                        pageable
+                // Use Specification to build dynamic query (SOLVES POSTGRES ENUM ISSUE)
+                Specification<Challenge> spec = ChallengeSpecification.withFilters(
+                        type, visibility, status, targetGroup
                 );
+
+                challenges = challengeRepository.findAll(spec, pageable).getContent();
             }
 
+            // Convert to DTOs
             Long requestUserId = (Long) filters.get("requestUserId");
 
             return challenges.stream()
@@ -82,62 +103,98 @@ public class ChallengeServiceImpl implements ChallengeService {
 
         } catch (Exception e) {
             log.error("Error getting challenges with filters: {}", filters, e);
-            throw new RuntimeException("Failed to retrieve challenges", e);
+            throw new RuntimeException("Failed to get challenges: " + e.getMessage(), e);
         }
     }
 
-    /**
-     * FIXED METHOD: Get challenges by participant ID using new progress system
-     */
+//    // Helper method to convert Challenge to ChallengeDTO
+//    private ChallengeDTO convertToDTO(Challenge challenge) {
+//        // Your existing DTO conversion logic
+//        ChallengeDTO dto = new ChallengeDTO();
+//        dto.setId(challenge.getId());
+//        dto.setTitle(challenge.getTitle());
+//        dto.setDescription(challenge.getDescription());
+//        dto.setType(challenge.getType());
+//        dto.setStatus(challenge.getStatus());
+//        dto.setDifficulty(challenge.getDifficulty());
+//        dto.setIsPublic(challenge.isPublic());
+//        dto.setStartDate(challenge.getStartDate());
+//        dto.setEndDate(challenge.getEndDate());
+//        dto.setFrequency(challenge.getFrequency());
+//        dto.setVerificationMethod(challenge.getVerificationMethod());
+//        dto.setCreatedAt(challenge.getCreatedAt());
+//        dto.setUpdatedAt(challenge.getUpdatedAt());
+//
+//        if (challenge.getCreator() != null) {
+//            dto.setCreatorId(challenge.getCreator().getId());
+//        }
+//        if (challenge.getGroup() != null) {
+//            dto.setGroupId(challenge.getGroup().getId());
+//        }
+//
+//        return dto;
+//    }
+
+    // Keep your existing methods unchanged
     private List<Challenge> getChallengesByParticipantId(Long participantId, Pageable pageable) {
-        try {
-            // Use the new progress system instead of old participants relationship
-            List<ChallengeProgress> progressList = challengeProgressRepository.findByUserId(participantId);
-
-            return progressList.stream()
-                    .map(ChallengeProgress::getChallenge)
-                    .distinct() // Remove duplicates if any
-                    .skip(pageable.getOffset())
-                    .limit(pageable.getPageSize())
-                    .collect(Collectors.toList());
-
-        } catch (Exception e) {
-            log.error("Error finding challenges by participant ID: {}", participantId, e);
-            // Fallback to repository method if it exists
-            return challengeRepository.findChallengesByParticipantId(participantId, pageable);
-        }
+        return challengeRepository.findChallengesByParticipantId(participantId, pageable);
     }
 
-    /**
-     * FIXED METHOD: Get challenges by user ID as creator or participant
-     */
     private List<Challenge> getChallengesByUserIdAsCreatorOrParticipant(Long userId, Pageable pageable) {
-        try {
-            // Get challenges where user is creator
-            List<Challenge> createdChallenges = challengeRepository.findByCreatorId(userId, pageable);
-
-            // Get challenges where user is participant (using progress system)
-            List<Challenge> participatedChallenges = getChallengesByParticipantId(userId, pageable);
-
-            // Combine and remove duplicates
-            List<Challenge> allChallenges = createdChallenges.stream()
-                    .collect(Collectors.toList());
-
-            participatedChallenges.stream()
-                    .filter(challenge -> !allChallenges.contains(challenge))
-                    .forEach(allChallenges::add);
-
-            return allChallenges.stream()
-                    .skip(pageable.getOffset())
-                    .limit(pageable.getPageSize())
-                    .collect(Collectors.toList());
-
-        } catch (Exception e) {
-            log.error("Error finding challenges by user ID as creator or participant: {}", userId, e);
-            // Fallback to repository method if it exists
-            return challengeRepository.findChallengesByUserIdAsCreatorOrParticipant(userId, pageable);
-        }
+        return challengeRepository.findChallengesByUserIdAsCreatorOrParticipant(userId, pageable);
     }
+//    /**
+//     * FIXED METHOD: Get challenges by participant ID using new progress system
+//     */
+//    private List<Challenge> getChallengesByParticipantId(Long participantId, Pageable pageable) {
+//        try {
+//            // Use the new progress system instead of old participants relationship
+//            List<ChallengeProgress> progressList = challengeProgressRepository.findByUserId(participantId);
+//
+//            return progressList.stream()
+//                    .map(ChallengeProgress::getChallenge)
+//                    .distinct() // Remove duplicates if any
+//                    .skip(pageable.getOffset())
+//                    .limit(pageable.getPageSize())
+//                    .collect(Collectors.toList());
+//
+//        } catch (Exception e) {
+//            log.error("Error finding challenges by participant ID: {}", participantId, e);
+//            // Fallback to repository method if it exists
+//            return challengeRepository.findChallengesByParticipantId(participantId, pageable);
+//        }
+//    }
+
+//    /**
+//     * FIXED METHOD: Get challenges by user ID as creator or participant
+//     */
+//    private List<Challenge> getChallengesByUserIdAsCreatorOrParticipant(Long userId, Pageable pageable) {
+//        try {
+//            // Get challenges where user is creator
+//            List<Challenge> createdChallenges = challengeRepository.findByCreatorId(userId, pageable);
+//
+//            // Get challenges where user is participant (using progress system)
+//            List<Challenge> participatedChallenges = getChallengesByParticipantId(userId, pageable);
+//
+//            // Combine and remove duplicates
+//            List<Challenge> allChallenges = createdChallenges.stream()
+//                    .collect(Collectors.toList());
+//
+//            participatedChallenges.stream()
+//                    .filter(challenge -> !allChallenges.contains(challenge))
+//                    .forEach(allChallenges::add);
+//
+//            return allChallenges.stream()
+//                    .skip(pageable.getOffset())
+//                    .limit(pageable.getPageSize())
+//                    .collect(Collectors.toList());
+//
+//        } catch (Exception e) {
+//            log.error("Error finding challenges by user ID as creator or participant: {}", userId, e);
+//            // Fallback to repository method if it exists
+//            return challengeRepository.findChallengesByUserIdAsCreatorOrParticipant(userId, pageable);
+//        }
+//    }
 
     @Override
     public ChallengeDTO getChallengeById(Long id, Long requestUserId) {

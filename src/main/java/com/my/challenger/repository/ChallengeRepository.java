@@ -6,6 +6,7 @@ import com.my.challenger.entity.enums.ChallengeStatus;
 import com.my.challenger.entity.enums.ChallengeType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -18,41 +19,42 @@ import java.util.Optional;
  * Repository for Challenge entity with fixed recommendation system
  */
 @Repository
-public interface ChallengeRepository extends JpaRepository<Challenge, Long> {
+public interface ChallengeRepository extends JpaRepository<Challenge, Long>,
+        JpaSpecificationExecutor<Challenge> {
 
     /**
      * Find challenges by creator ID
      */
     List<Challenge> findByCreatorId(Long creatorId, Pageable pageable);
 
-    /**
-     * Get success rate with additional status breakdown
-     */
-    @Query("SELECT " +
-            "COUNT(c) as total, " +
-            "COUNT(CASE WHEN c.status = 'COMPLETED' THEN 1 END) as completed, " +
-            "COUNT(CASE WHEN c.status = 'ACTIVE' THEN 1 END) as active, " +
-            "COUNT(CASE WHEN c.status = 'FAILED' THEN 1 END) as failed, " +
-            "CASE " +
-            "WHEN COUNT(c) = 0 THEN 0.0 " +
-            "ELSE (CAST(COUNT(CASE WHEN c.status = 'COMPLETED' THEN 1 END) AS DOUBLE) / " +
-            "CAST(COUNT(c) AS DOUBLE) * 100) " +
-            "END as successRate " +
-            "FROM Challenge c WHERE c.creator.id = :userId")
-    Object[] getDetailedSuccessRateByCreatorId(@Param("userId") Long userId);
+//    /**
+//     * Get success rate with additional status breakdown
+//     */
+//    @Query("SELECT " +
+//            "COUNT(c) as total, " +
+//            "COUNT(CASE WHEN c.status = 'COMPLETED' THEN 1 END) as completed, " +
+//            "COUNT(CASE WHEN c.status = 'ACTIVE' THEN 1 END) as active, " +
+//            "COUNT(CASE WHEN c.status = 'FAILED' THEN 1 END) as failed, " +
+//            "CASE " +
+//            "WHEN COUNT(c) = 0 THEN 0.0 " +
+//            "ELSE (CAST(COUNT(CASE WHEN c.status = 'COMPLETED' THEN 1 END) AS DOUBLE) / " +
+//            "CAST(COUNT(c) AS DOUBLE) * 100) " +
+//            "END as successRate " +
+//            "FROM Challenge c WHERE c.creator.id = :userId")
+//    Object[] getDetailedSuccessRateByCreatorId(@Param("userId") Long userId);
 
 
-    /**
-     * Get user's challenge success rate - FIXED: Handles division by zero
-     */
-    @Query("SELECT " +
-            "CASE " +
-            "WHEN COUNT(c) = 0 THEN 0.0 " +
-            "ELSE (CAST(COUNT(CASE WHEN c.status = 'COMPLETED' THEN 1 END) AS DOUBLE) / " +
-            "CAST(COUNT(c) AS DOUBLE) * 100) " +
-            "END " +
-            "FROM Challenge c WHERE c.creator.id = :userId")
-    Double getSuccessRateByCreatorId(@Param("userId") Long userId);
+//    /**
+//     * Get user's challenge success rate - FIXED: Handles division by zero
+//     */
+//    @Query("SELECT " +
+//            "CASE " +
+//            "WHEN COUNT(c) = 0 THEN 0.0 " +
+//            "ELSE (CAST(COUNT(CASE WHEN c.status = 'COMPLETED' THEN 1 END) AS DOUBLE) / " +
+//            "CAST(COUNT(c) AS DOUBLE) * 100) " +
+//            "END " +
+//            "FROM Challenge c WHERE c.creator.id = :userId")
+//    Double getSuccessRateByCreatorId(@Param("userId") Long userId);
 
     /**
      * Find challenges with filters
@@ -323,4 +325,32 @@ public interface ChallengeRepository extends JpaRepository<Challenge, Long> {
             "WHERE c.status = com.my.challenger.entity.enums.ChallengeStatus.ACTIVE " +
             "GROUP BY c.type")
     List<Object[]> findEngagementByType();
+    /**
+     * Get success rate with additional status breakdown
+     */
+    @Query("SELECT " +
+            "COUNT(c) as total, " +
+            "COUNT(CASE WHEN c.status = 'COMPLETED' THEN 1 END) as completed, " +
+            "COUNT(CASE WHEN c.status = 'ACTIVE' THEN 1 END) as active, " +
+            "COUNT(CASE WHEN c.status = 'FAILED' THEN 1 END) as failed, " +
+            "CASE " +
+            "WHEN COUNT(c) = 0 THEN 0.0 " +
+            "ELSE (CAST(COUNT(CASE WHEN c.status = 'COMPLETED' THEN 1 END) AS DOUBLE) / " +
+            "CAST(COUNT(c) AS DOUBLE) * 100) " +
+            "END as successRate " +
+            "FROM Challenge c WHERE c.creator.id = :userId")
+    Object[] getDetailedSuccessRateByCreatorId(@Param("userId") Long userId);
+
+    /**
+     * Get user's challenge success rate
+     */
+    @Query("SELECT " +
+            "CASE " +
+            "WHEN COUNT(c) = 0 THEN 0.0 " +
+            "ELSE (CAST(COUNT(CASE WHEN c.status = 'COMPLETED' THEN 1 END) AS DOUBLE) / " +
+            "CAST(COUNT(c) AS DOUBLE) * 100) " +
+            "END " +
+            "FROM Challenge c WHERE c.creator.id = :userId")
+    Double getSuccessRateByCreatorId(@Param("userId") Long userId);
+
 }
