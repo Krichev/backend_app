@@ -1651,3 +1651,27 @@ CREATE TYPE activity_type AS ENUM (
 ALTER TABLE user_activity_logs
 ALTER COLUMN activity_type TYPE activity_type
     USING activity_type::activity_type;
+
+
+CREATE TABLE IF NOT EXISTS questions (
+                                         id SERIAL PRIMARY KEY,
+                                         tournament_id INTEGER NOT NULL,
+                                         tournament_title TEXT NOT NULL,
+                                         question_num INTEGER,
+                                         question TEXT NOT NULL,
+                                         answer TEXT NOT NULL,
+                                         authors TEXT,
+                                         sources TEXT,
+                                         comments TEXT,
+                                         pass_criteria TEXT,
+                                         notices TEXT,
+                                         images TEXT,
+                                         rating INTEGER,
+                                         tournament_type TEXT,
+                                         topic TEXT,
+                                         topic_num INTEGER,
+                                         entered_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Optional index for faster queries
+CREATE INDEX IF NOT EXISTS idx_tournament_id ON questions (tournament_id);
