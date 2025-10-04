@@ -28,6 +28,7 @@ DROP TABLE IF EXISTS quests CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS photos CASCADE;
 DROP TABLE IF EXISTS media_files CASCADE;
+DROP TABLE IF EXISTS tournament_questions CASCADE;
 
 -- Create extension for UUID generation if not exists
 CREATE
@@ -512,11 +513,11 @@ CREATE TABLE user_activity_logs
 CREATE TABLE quiz_questions
 (
     id              BIGSERIAL PRIMARY KEY,
-    question        VARCHAR(1000) NOT NULL,
-    answer          VARCHAR(500)  NOT NULL,
+    question        TEXT NOT NULL,
+    answer          TEXT  NOT NULL,
     difficulty      quiz_difficulty          DEFAULT 'EASY',
-    topic           VARCHAR(200),
-    source          VARCHAR(500),
+    topic           TEXT,
+    source          TEXT,
     additional_info TEXT,
     is_user_created BOOLEAN                  DEFAULT FALSE,
     creator_id      BIGINT,
@@ -1675,3 +1676,63 @@ CREATE TABLE IF NOT EXISTS questions (
 
 -- Optional index for faster queries
 CREATE INDEX IF NOT EXISTS idx_tournament_id ON questions (tournament_id);
+
+
+
+-- ============================================
+-- STEP 1: Backup existing data
+-- ============================================
+CREATE TABLE questions_backup AS SELECT * FROM questions;
+
+-- ============================================
+-- STEP 2: Rename old questions table
+-- ============================================
+ALTER TABLE questions RENAME TO questions_old;
+
+CREATE TABLE tournament_questions (
+                                      id SERIAL PRIMARY KEY,
+                                      quiz_question_id BIGINT NOT NULL,
+                                      tournament_id INTEGER NOT NULL,
+                                      tournament_title TEXT NOT NULL,
+
+    -- Auto-generated sequential order (replacing unreliable question_num)
+                                      display_order INTEGER NOT NULL,
+
+    -- Keep old question_num for reference only
+                                      legacy_question_num INTEGER,
+
+                                      tournament_type TEXT,
+                                      topic_num INTEGER,
+                                      notices TEXT,
+                                      images TEXT,
+                                      rating INTEGER,
+                                      custom_question TEXT,
+                                      custom_answer TEXT,
+                                      custom_sources TEXT,
+                                      points INTEGER DEFAULT 10,
+                                      time_limit_seconds INTEGER,
+                                      is_bonus_question BOOLEAN DEFAULT FALSE,
+                                      is_mandatory BOOLEAN DEFAULT TRUE,
+                                      is_active BOOLEAN DEFAULT TRUE,
+                                      entered_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                      added_by BIGINT,
+
+                                      CONSTRAINT fk_tournament_question_quiz_question
+                                          FOREIGN KEY (quiz_question_id)
+                                              REFERENCES quiz_questions(id)
+                                              ON DELETE RESTRICT,
+
+                                      CONSTRAINT uk_tournament_display_order
+                                          UNIQUE (tournament_id, display_order)
+);
+
+-- Create indexes
+CREATE INDEX idx_tournament_id ON tournament_questions(tournament_id);
+CREATE INDEX idx_quiz_question_id ON tournament_questions(quiz_question_id);
+CREATE INDEX idx_tournament_order ON tournament_questions(tournament_id, display_order);
+CREATE INDEX idx_is_active ON tournament_questions(is_active);
+
+-- ============================================
+-- STEP 4: Analysis queries (run before migration)
+-- ============================================

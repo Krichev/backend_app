@@ -1,4 +1,3 @@
-// src/main/java/com/my/challenger/entity/quiz/QuizQuestion.java
 package com.my.challenger.entity.quiz;
 
 import com.my.challenger.entity.User;
@@ -8,34 +7,46 @@ import com.my.challenger.entity.enums.MediaType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
-@Table(name = "quiz_questions")
+@Table(name = "quiz_questions", indexes = {
+        @Index(name = "idx_topic", columnList = "topic"),
+        @Index(name = "idx_difficulty", columnList = "difficulty"),
+        @Index(name = "idx_question_type", columnList = "question_type"),
+        @Index(name = "idx_external_id", columnList = "external_id"),
+        @Index(name = "idx_legacy_question_id", columnList = "legacy_question_id"),
+        @Index(name = "idx_is_active", columnList = "is_active")
+})
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(callSuper = false)
+@EqualsAndHashCode(exclude = {"tournamentQuestions"})
+@ToString(exclude = {"tournamentQuestions"})
 public class QuizQuestion {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, length = 1000)
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String question;
 
-    @Column(nullable = false, length = 500)
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String answer;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "difficulty", nullable = false, columnDefinition = "quiz_difficulty")
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    private QuizDifficulty difficulty;
+    @Builder.Default
+    private QuizDifficulty difficulty = QuizDifficulty.MEDIUM;
 
     @Column(length = 100)
     private String topic;
@@ -43,12 +54,16 @@ public class QuizQuestion {
     @Column(length = 100)
     private String source;
 
-    @Column(name = "additional_info", length = 500)
+    @Column(name = "additional_info", columnDefinition = "TEXT")
     private String additionalInfo;
 
     @Column(name = "is_user_created", nullable = false)
     @Builder.Default
     private Boolean isUserCreated = false;
+
+    @Column(name = "is_active", nullable = false)
+    @Builder.Default
+    private Boolean isActive = true;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "creator_id")
@@ -61,7 +76,10 @@ public class QuizQuestion {
     @Column(name = "external_id", length = 100)
     private String externalId;
 
-    // New multimedia fields with proper enum types
+    // Track original question ID from migration
+    @Column(name = "legacy_question_id")
+    private Integer legacyQuestionId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "question_type", nullable = false)
     @Builder.Default
@@ -74,12 +92,22 @@ public class QuizQuestion {
     private String questionMediaId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "question_media_type", nullable = false, columnDefinition = "media_type_enum")
+    @Column(name = "question_media_type", columnDefinition = "media_type_enum")
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private MediaType questionMediaType;
 
     @Column(name = "question_thumbnail_url", length = 500)
     private String questionThumbnailUrl;
+
+    // Enhanced metadata from tournament questions
+    @Column(name = "authors", columnDefinition = "TEXT")
+    private String authors;
+
+    @Column(name = "pass_criteria", columnDefinition = "TEXT")
+    private String passCriteria;
+
+    @Column(name = "comments", columnDefinition = "TEXT")
+    private String comments;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -89,7 +117,13 @@ public class QuizQuestion {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    // Helper methods for multimedia
+    // Bidirectional relationship
+    @OneToMany(mappedBy = "quizQuestion", fetch = FetchType.LAZY)
+    @Builder.Default
+    private List<Question> tournamentQuestions = new ArrayList<>();
+
+    // =============== HELPER METHODS ===============
+
     public boolean hasMedia() {
         return questionMediaUrl != null && !questionMediaUrl.trim().isEmpty();
     }
@@ -110,7 +144,6 @@ public class QuizQuestion {
         return questionType == QuestionType.TEXT;
     }
 
-    // New enhanced helper methods
     public boolean hasVideoMedia() {
         return questionMediaType == MediaType.VIDEO;
     }
@@ -127,74 +160,57 @@ public class QuizQuestion {
         return questionMediaType == MediaType.DOCUMENT;
     }
 
-    /**
-     * Check if question type and media type are consistent
-     */
     public boolean isMediaTypeConsistent() {
         if (questionType == QuestionType.TEXT) {
             return questionMediaType == null;
         }
-
         if (questionType == QuestionType.IMAGE) {
             return questionMediaType == MediaType.IMAGE || questionMediaType == MediaType.QUIZ_QUESTION;
         }
-
         if (questionType == QuestionType.AUDIO) {
             return questionMediaType == MediaType.AUDIO || questionMediaType == MediaType.QUIZ_QUESTION;
         }
-
         if (questionType == QuestionType.VIDEO) {
             return questionMediaType == MediaType.VIDEO || questionMediaType == MediaType.QUIZ_QUESTION;
         }
-
         if (questionType == QuestionType.MULTIMEDIA) {
             return questionMediaType != null;
         }
-
         return true;
     }
 
-    /**
-     * Get the expected media type based on question type
-     */
     public MediaType getExpectedMediaType() {
         switch (questionType) {
-            case IMAGE:
-                return MediaType.IMAGE;
-            case AUDIO:
-                return MediaType.AUDIO;
-            case VIDEO:
-                return MediaType.VIDEO;
-            case MULTIMEDIA:
-                return MediaType.QUIZ_QUESTION;
+            case IMAGE: return MediaType.IMAGE;
+            case AUDIO: return MediaType.AUDIO;
+            case VIDEO: return MediaType.VIDEO;
+            case MULTIMEDIA: return MediaType.QUIZ_QUESTION;
             case TEXT:
-            default:
-                return null;
+            default: return null;
         }
     }
 
-    /**
-     * Set media type automatically based on question type
-     */
     public void autoSetMediaType() {
         this.questionMediaType = getExpectedMediaType();
     }
 
-    /**
-     * Validate that the media fields are consistent
-     */
     public boolean isValid() {
-        // If it's a text-only question, it shouldn't have media
         if (questionType == QuestionType.TEXT) {
             return questionMediaUrl == null && questionMediaId == null && questionMediaType == null;
         }
-
-        // If it has media type but no URL/ID, it's inconsistent
         if (questionMediaType != null && (questionMediaUrl == null && questionMediaId == null)) {
             return false;
         }
-
-        // Check media type consistency
         return isMediaTypeConsistent();
+    }
+
+    public void incrementUsageCount() {
+        this.usageCount = (this.usageCount == null ? 0 : this.usageCount) + 1;
+    }
+
+    public void decrementUsageCount() {
+        if (this.usageCount != null && this.usageCount > 0) {
+            this.usageCount--;
+        }
     }
 }

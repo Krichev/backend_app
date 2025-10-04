@@ -1,10 +1,11 @@
 package com.my.challenger.repository;
 
-import com.my.challenger.entity.quiz.QuizQuestion;
-import com.my.challenger.entity.enums.QuestionType;
 import com.my.challenger.entity.enums.MediaType;
+import com.my.challenger.entity.quiz.QuizQuestion;
 import com.my.challenger.entity.enums.QuizDifficulty;
+import com.my.challenger.entity.enums.QuestionType;
 import jakarta.validation.constraints.NotNull;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -15,11 +16,46 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long> {
-
-    // ========== BASIC FINDER METHODS ==========
+    
+    Optional<QuizQuestion> findByLegacyQuestionId(Integer legacyQuestionId);
+    
+    Optional<QuizQuestion> findByExternalId(String externalId);
+    
+    List<QuizQuestion> findByTopicAndIsActiveTrue(String topic);
+    
+    List<QuizQuestion> findByDifficultyAndIsActiveTrue(QuizDifficulty difficulty);
+    
+    Page<QuizQuestion> findByIsActiveTrue(Pageable pageable);
+    
+    @Query("SELECT qq FROM QuizQuestion qq WHERE " +
+           "qq.isActive = true AND " +
+           "(:topic IS NULL OR qq.topic = :topic) AND " +
+           "(:difficulty IS NULL OR qq.difficulty = :difficulty) AND " +
+           "(:questionType IS NULL OR qq.questionType = :questionType)")
+    Page<QuizQuestion> searchQuestions(
+            @Param("topic") String topic,
+            @Param("difficulty") QuizDifficulty difficulty,
+            @Param("questionType") QuestionType questionType,
+            Pageable pageable);
+    
+    @Query("SELECT qq FROM QuizQuestion qq " +
+           "WHERE qq.id NOT IN " +
+           "(SELECT q.quizQuestion.id FROM Question q WHERE q.tournamentId = :tournamentId)")
+    List<QuizQuestion> findQuestionsNotInTournament(@Param("tournamentId") Integer tournamentId);
+    
+    @Query("SELECT qq FROM QuizQuestion qq " +
+           "WHERE qq.isActive = true " +
+           "ORDER BY qq.usageCount DESC")
+    Page<QuizQuestion> findMostUsedQuestions(Pageable pageable);
+    
+    @Query("SELECT qq FROM QuizQuestion qq " +
+           "LEFT JOIN FETCH qq.tournamentQuestions " +
+           "WHERE qq.id = :id")
+    Optional<QuizQuestion> findByIdWithUsages(@Param("id") Long id);
 
     /**
      * Find questions by creator ID ordered by creation time
@@ -195,11 +231,6 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
     @Query("UPDATE QuizQuestion q SET q.usageCount = q.usageCount + 1 WHERE q.id = :questionId")
     void incrementUsageCount(@Param("questionId") Long questionId);
 
-    /**
-     * Find questions by external ID
-     */
-    @Query("SELECT q FROM QuizQuestion q WHERE q.externalId = :externalId")
-    List<QuizQuestion> findByExternalId(@Param("externalId") String externalId);
 
     // ========== MULTIMEDIA SPECIFIC QUERIES ==========
 
