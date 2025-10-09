@@ -1,3 +1,4 @@
+// src/main/java/com/my/challenger/dto/quiz/AddQuestionToTournamentRequest.java
 package com.my.challenger.dto.quiz;
 
 import jakarta.validation.constraints.Min;
@@ -8,7 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Request to add existing quiz question to tournament
+ * Request DTO for adding a question to a tournament
  */
 @Data
 @Builder
@@ -25,21 +26,6 @@ public class AddQuestionToTournamentRequest {
     @NotNull(message = "Quiz question ID is required")
     private Long quizQuestionId;
     
-    @Min(value = 1, message = "Points must be at least 1")
-    private Integer points;
-    
-    private Integer timeLimitSeconds;
-    
-    private Boolean isBonusQuestion;
-    
-    private Boolean isMandatory;
-    
-    // Optional: specify position (null = append to end)
-    private Integer insertAtPosition;
-    
-    // Optional: tournament-specific customizations
-    private String customQuestion;
-    private String customAnswer;
-    private String customSources;
-    private String notices;
+    @Min(value = 0, message = "Points must be non-negative")
+    private Integer points; // Optional, defaults to 10 if null
 }

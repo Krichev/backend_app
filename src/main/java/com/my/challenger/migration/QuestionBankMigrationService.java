@@ -4,7 +4,9 @@ import com.my.challenger.entity.quiz.Question;
 import com.my.challenger.entity.quiz.QuizQuestion;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.enums.QuestionType;
+import com.my.challenger.entity.quiz.Topic;
 import com.my.challenger.repository.QuizQuestionRepository;
+import com.my.challenger.service.impl.TopicService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -22,6 +24,7 @@ public class QuestionBankMigrationService {
 
     private final JdbcTemplate jdbcTemplate;
     private final QuizQuestionRepository quizQuestionRepository;
+    private final TopicService topicService;
 
     /**
      * MAIN MIGRATION METHOD with smart ordering
@@ -177,12 +180,17 @@ public class QuestionBankMigrationService {
                 continue;
             }
 
+            Topic topic = null;
+            if (oldQ.topic != null && !oldQ.topic.isBlank()) {
+                topic = topicService.getOrCreateTopic(oldQ.topic);
+            }
+
             // Create new QuizQuestion
             QuizQuestion quizQuestion = QuizQuestion.builder()
                     .question(cleanText(oldQ.question))
                     .answer(cleanText(oldQ.answer))
                     .difficulty(inferDifficulty(oldQ))
-                    .topic(oldQ.topic)
+                    .topic(topic)
                     .source(oldQ.sources)
                     .authors(oldQ.authors)
                     .comments(oldQ.comments)

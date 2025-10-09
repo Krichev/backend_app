@@ -17,7 +17,7 @@ import java.util.List;
 
 @Entity
 @Table(name = "quiz_questions", indexes = {
-        @Index(name = "idx_topic", columnList = "topic"),
+        @Index(name = "idx_topic_id", columnList = "topic_id"),  // Changed from topic to topic_id
         @Index(name = "idx_difficulty", columnList = "difficulty"),
         @Index(name = "idx_question_type", columnList = "question_type"),
         @Index(name = "idx_external_id", columnList = "external_id"),
@@ -28,8 +28,8 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(exclude = {"tournamentQuestions"})
-@ToString(exclude = {"tournamentQuestions"})
+@EqualsAndHashCode(exclude = {"tournamentQuestions", "creator", "topic"})
+@ToString(exclude = {"tournamentQuestions", "creator", "topic"})
 public class QuizQuestion {
 
     @Id
@@ -48,8 +48,14 @@ public class QuizQuestion {
     @Builder.Default
     private QuizDifficulty difficulty = QuizDifficulty.MEDIUM;
 
-    @Column(length = 100)
-    private String topic;
+    // CHANGED: From String topic to ManyToOne relationship
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "topic_id", foreignKey = @ForeignKey(name = "fk_quiz_question_topic"))
+    private Topic topic;
+
+    // Keep legacy topic for migration purposes (optional)
+    @Column(name = "legacy_topic", length = 100)
+    private String legacyTopic;
 
     @Column(length = 100)
     private String source;
@@ -76,7 +82,6 @@ public class QuizQuestion {
     @Column(name = "external_id", length = 100)
     private String externalId;
 
-    // Track original question ID from migration
     @Column(name = "legacy_question_id")
     private Integer legacyQuestionId;
 
@@ -99,7 +104,6 @@ public class QuizQuestion {
     @Column(name = "question_thumbnail_url", length = 500)
     private String questionThumbnailUrl;
 
-    // Enhanced metadata from tournament questions
     @Column(name = "authors", columnDefinition = "TEXT")
     private String authors;
 
@@ -114,15 +118,20 @@ public class QuizQuestion {
     private LocalDateTime createdAt;
 
     @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    // Bidirectional relationship
-    @OneToMany(mappedBy = "quizQuestion", fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "quizQuestion", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<Question> tournamentQuestions = new ArrayList<>();
 
     // =============== HELPER METHODS ===============
+
+
+    // Helper method to get topic name safely
+    public String getTopicName() {
+        return topic != null ? topic.getName() : legacyTopic;
+    }
 
     public boolean hasMedia() {
         return questionMediaUrl != null && !questionMediaUrl.trim().isEmpty();

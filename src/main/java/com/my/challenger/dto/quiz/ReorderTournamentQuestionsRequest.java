@@ -1,3 +1,4 @@
+// src/main/java/com/my/challenger/dto/quiz/ReorderTournamentQuestionsRequest.java
 package com.my.challenger.dto.quiz;
 
 import jakarta.validation.constraints.NotEmpty;
@@ -10,7 +11,7 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 
 /**
- * Request to reorder questions in a tournament
+ * Request DTO for reordering tournament questions
  */
 @Data
 @Builder
@@ -20,7 +21,7 @@ public class ReorderTournamentQuestionsRequest {
     
     @NotNull(message = "Tournament ID is required")
     private Integer tournamentId;
-    
+
     @NotEmpty(message = "Question IDs list cannot be empty")
     private List<Integer> questionIds;
 }

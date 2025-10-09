@@ -6,6 +6,7 @@ import com.my.challenger.entity.enums.MediaType;
 import com.my.challenger.service.impl.QuizQuestionSearchService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -44,7 +45,7 @@ public class QuizQuestionSearchController {
      * Advanced search with multiple filters
      */
     @GetMapping("/search/advanced")
-    public ResponseEntity<List<QuizQuestion>> advancedSearch(
+    public ResponseEntity<Page<QuizQuestion>> advancedSearch(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) QuizDifficulty difficulty,
             @RequestParam(required = false) String topic,
@@ -54,8 +55,8 @@ public class QuizQuestionSearchController {
         
         log.info("Advanced search - keyword: '{}', difficulty: {}, topic: '{}', userCreated: {}", 
                 keyword, difficulty, topic, isUserCreated);
-        
-        List<QuizQuestion> results = searchService.advancedSearch(keyword, difficulty, topic, isUserCreated, page, size);
+
+        Page<QuizQuestion> results = searchService.advancedSearch(keyword, difficulty, topic, isUserCreated, page, size);
         
         return ResponseEntity.ok(results);
     }
@@ -70,7 +71,7 @@ public class QuizQuestionSearchController {
             @RequestParam(defaultValue = "10") int count) {
         
         log.info("Searching questions for quiz - topic: '{}', difficulty: {}, count: {}", topic, difficulty, count);
-        
+
         List<QuizQuestion> results = searchService.searchForQuiz(topic, difficulty, count);
         
         return ResponseEntity.ok(results);
@@ -112,15 +113,15 @@ public class QuizQuestionSearchController {
      * Search user's questions
      */
     @GetMapping("/search/my-questions")
-    public ResponseEntity<List<QuizQuestion>> searchMyQuestions(
+    public ResponseEntity<Page<QuizQuestion>> searchMyQuestions(
             @RequestParam Long userId,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         
         log.info("Searching user {} questions with keyword: '{}'", userId, keyword);
-        
-        List<QuizQuestion> results = searchService.searchUserQuestions(userId, keyword, page, size);
+
+        Page<QuizQuestion> results = searchService.searchUserQuestions(userId, keyword, page, size);
         
         return ResponseEntity.ok(results);
     }

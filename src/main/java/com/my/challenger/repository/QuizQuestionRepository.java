@@ -25,7 +25,7 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
     
     Optional<QuizQuestion> findByExternalId(String externalId);
     
-    List<QuizQuestion> findByTopicAndIsActiveTrue(String topic);
+    List<QuizQuestion> findByTopic_NameAndIsActiveTrue(String topic);
     
     List<QuizQuestion> findByDifficultyAndIsActiveTrue(QuizDifficulty difficulty);
     
@@ -33,7 +33,7 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
     
     @Query("SELECT qq FROM QuizQuestion qq WHERE " +
            "qq.isActive = true AND " +
-           "(:topic IS NULL OR qq.topic = :topic) AND " +
+           "(:topic IS NULL OR qq.topic.name = :topic) AND " +
            "(:difficulty IS NULL OR qq.difficulty = :difficulty) AND " +
            "(:questionType IS NULL OR qq.questionType = :questionType)")
     Page<QuizQuestion> searchQuestions(
@@ -66,7 +66,7 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
     /**
      * Find questions by topic
      */
-    @Query("SELECT q FROM QuizQuestion q WHERE q.topic = :topic ORDER BY q.createdAt DESC")
+    @Query("SELECT q FROM QuizQuestion q WHERE q.topic.name = :topic ORDER BY q.createdAt DESC")
     List<QuizQuestion> findByTopicOrderByCreatedAtDesc(@Param("topic") String topic);
 
     /**
@@ -116,29 +116,29 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
      * This is the FIXED method that replaces the problematic searchByKeyword
      */
     @Query("SELECT q FROM QuizQuestion q WHERE " +
-            "LOWER(q.question) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-            "LOWER(q.answer) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-            "LOWER(q.topic) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-            "LOWER(q.source) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-            "LOWER(q.additionalInfo) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+            "LOWER(q.question) LIKE %:keyword% OR " +
+            "LOWER(q.answer) LIKE %:keyword% OR " +
+            "LOWER(q.topic) LIKE %:keyword% OR " +
+            "LOWER(q.source) LIKE %:keyword% OR " +
+            "LOWER(q.additionalInfo) LIKE %:keyword% " +
             "ORDER BY q.createdAt DESC")
     List<QuizQuestion> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
 
     /**
-     * Advanced search with multiple criteria
+     * BEST SOLUTION #2: Advanced search with clean syntax
      */
     @Query("SELECT q FROM QuizQuestion q WHERE " +
-            "(:keyword IS NULL OR " +
-            "   LOWER(q.question) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-            "   LOWER(q.answer) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-            "   LOWER(q.topic) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-            "   LOWER(q.source) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND " +
-            "(:difficulty IS NULL OR q.difficulty = :difficulty) AND " +
-            "(:topic IS NULL OR LOWER(q.topic) = LOWER(:topic)) AND " +
+            "(:keyword IS NULL OR (" +
+            "   LOWER(q.question) LIKE %:keyword% OR " +
+            "   LOWER(q.answer) LIKE %:keyword% OR " +
+            "   LOWER(q.topic.name) LIKE %:keyword% OR " +
+            "   LOWER(q.source) LIKE %:keyword%)) AND " +
+            "(:difficultyStr IS NULL OR CAST(q.difficulty AS string) = :difficultyStr) AND " +
+            "(:topic IS NULL OR LOWER(q.topic.name) = :topic) AND " +
             "(:isUserCreated IS NULL OR q.isUserCreated = :isUserCreated) " +
             "ORDER BY q.createdAt DESC")
-    List<QuizQuestion> searchWithFilters(@Param("keyword") String keyword,
-                                         @Param("difficulty") QuizDifficulty difficulty,
+    Page<QuizQuestion> searchWithFilters(@Param("keyword") String keyword,
+                                         @Param("difficultyStr") String difficultyStr,
                                          @Param("topic") String topic,
                                          @Param("isUserCreated") Boolean isUserCreated,
                                          Pageable pageable);
@@ -146,13 +146,13 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
     /**
      * Search questions by keyword in specific field
      */
-    @Query("SELECT q FROM QuizQuestion q WHERE LOWER(q.question) LIKE LOWER(CONCAT('%', :keyword, '%')) ORDER BY q.createdAt DESC")
+    @Query("SELECT q FROM QuizQuestion q WHERE LOWER(q.question) LIKE (CONCAT('%', :keyword, '%')) ORDER BY q.createdAt DESC")
     List<QuizQuestion> searchByQuestionText(@Param("keyword") String keyword, Pageable pageable);
 
     /**
      * Search questions by topic pattern
      */
-    @Query("SELECT q FROM QuizQuestion q WHERE LOWER(q.topic) LIKE LOWER(CONCAT('%', :topicPattern, '%')) ORDER BY q.createdAt DESC")
+    @Query("SELECT q FROM QuizQuestion q WHERE LOWER(q.topic.name) LIKE (CONCAT('%', :topicPattern, '%')) ORDER BY q.createdAt DESC")
     List<QuizQuestion> searchByTopicPattern(@Param("topicPattern") String topicPattern, Pageable pageable);
 
     // ========== STATISTICS AND ANALYTICS ==========
@@ -179,7 +179,7 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
      * Get questions by creator with pagination
      */
     @Query("SELECT q FROM QuizQuestion q WHERE q.creator.id = :creatorId ORDER BY q.createdAt DESC")
-    List<QuizQuestion> findByCreatorId(@Param("creatorId") Long creatorId, Pageable pageable);
+    Page<QuizQuestion> findByCreatorId(@Param("creatorId") Long creatorId, Pageable pageable);
 
     // ========== RANDOM SELECTION METHODS ==========
 
@@ -200,7 +200,7 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
     /**
      * Get random questions by topic
      */
-    @Query(value = "SELECT * FROM quiz_questions q WHERE q.topic = :topic ORDER BY RANDOM() LIMIT :limit",
+    @Query(value = "SELECT * FROM quiz_questions q WHERE q.topic.name = :topic ORDER BY RANDOM() LIMIT :limit",
             nativeQuery = true)
     List<QuizQuestion> findRandomByTopic(@Param("topic") String topic, @Param("limit") int limit);
 
@@ -259,7 +259,7 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
     /**
      * Find duplicate questions by text similarity
      */
-    @Query("SELECT q FROM QuizQuestion q WHERE LOWER(q.question) = LOWER(:questionText)")
+    @Query("SELECT q FROM QuizQuestion q WHERE LOWER(q.question) = (:questionText)")
     List<QuizQuestion> findDuplicateQuestions(@Param("questionText") String questionText);
 
     /**
@@ -282,4 +282,5 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
 
     List<QuizQuestion> findByCreatorIdAndIsUserCreatedTrueOrderByCreatedAtDesc(Long userId);
 
+    long countByDifficulty(QuizDifficulty difficulty);
 }

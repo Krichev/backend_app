@@ -1,3 +1,4 @@
+// src/main/java/com/my/challenger/dto/quiz/UpdateTournamentQuestionRequest.java
 package com.my.challenger.dto.quiz;
 
 import jakarta.validation.constraints.Min;
@@ -7,7 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Request to update tournament-specific question settings
+ * Request DTO for updating a tournament question
  */
 @Data
 @Builder
@@ -15,26 +16,22 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class UpdateTournamentQuestionRequest {
     
-    // Tournament-specific overrides
     private String customQuestion;
     private String customAnswer;
     private String customSources;
     
-    // Tournament settings
-    @Min(value = 0, message = "Points cannot be negative")
+    @Min(value = 0, message = "Points must be non-negative")
     private Integer points;
     
-    @Min(value = 0, message = "Time limit cannot be negative")
+    @Min(value = 0, message = "Time limit must be non-negative")
     private Integer timeLimitSeconds;
     
     private Boolean isBonusQuestion;
     private Boolean isMandatory;
-    
-    // Metadata
     private String notices;
     private Integer rating;
     
-    // Clear overrides flags (if true, clears the corresponding field)
+    // Flags to clear custom fields
     private Boolean clearCustomQuestion;
     private Boolean clearCustomAnswer;
     private Boolean clearCustomSources;

@@ -9,7 +9,9 @@ import com.my.challenger.entity.enums.QuizSessionStatus;
 import com.my.challenger.entity.quiz.QuizQuestion;
 import com.my.challenger.entity.quiz.QuizRound;
 import com.my.challenger.entity.quiz.QuizSession;
+import com.my.challenger.entity.quiz.Topic;
 import com.my.challenger.exception.ResourceNotFoundException;
+import com.my.challenger.mapper.QuizQuestionMapper;
 import com.my.challenger.repository.*;
 import com.my.challenger.service.WWWGameService;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +41,7 @@ public class QuizService {
     protected final MediaFileRepository mediaFileRepository;
     protected final WWWGameService gameService;
     protected final MediaStorageService mediaStorageService;
+    private final TopicService topicService;
 
     // =============================================================================
     // QUESTION MANAGEMENT METHODS
@@ -51,11 +54,15 @@ public class QuizService {
         User creator = userRepository.findById(creatorId)
                 .orElseThrow(() -> new IllegalArgumentException("Creator not found"));
 
+        Topic topic = null;
+        if (request.getTopic() != null && !request.getTopic().isBlank()) {
+            topic = topicService.getOrCreateTopic(request.getTopic());
+        }
         QuizQuestion question = QuizQuestion.builder()
                 .question(request.getQuestion())
                 .answer(request.getAnswer())
                 .difficulty(request.getDifficulty())
-                .topic(request.getTopic())
+                .topic(topic)
                 .source(request.getSource())
                 .additionalInfo(request.getAdditionalInfo())
                 .isUserCreated(true)
@@ -65,14 +72,14 @@ public class QuizService {
 
         QuizQuestion saved = quizQuestionRepository.save(question);
         log.info("Created question with ID: {}", saved.getId());
-        return convertQuestionToDTO(saved);
+        return QuizQuestionMapper.INSTANCE.toDTO(saved);
     }
 
     public List<QuizQuestionDTO> getUserQuestions(Long userId) {
         log.info("Getting questions for user: {}", userId);
         List<QuizQuestion> questions = quizQuestionRepository.findByCreatorIdAndIsUserCreated(userId, true);
         return questions.stream()
-                .map(this::convertQuestionToDTO)
+                .map(QuizQuestionMapper.INSTANCE::toDTO)
                 .collect(Collectors.toList());
     }
 
@@ -99,7 +106,7 @@ public class QuizService {
         log.info("Getting questions by difficulty: {}", difficulty);
         List<QuizQuestion> questions = quizQuestionRepository.findByDifficulty(difficulty);
         return questions.stream()
-                .map(this::convertQuestionToDTO)
+                .map(QuizQuestionMapper.INSTANCE::toDTO)
                 .collect(Collectors.toList());
     }
 
@@ -448,42 +455,6 @@ public class QuizService {
         return session;
     }
 
-    protected QuizQuestionDTO convertQuestionToDTO(QuizQuestion question) {
-        QuizQuestionDTO dto = QuizQuestionDTO.builder()
-                .id(question.getId())
-                .question(question.getQuestion())
-                .answer(question.getAnswer())
-                .difficulty(question.getDifficulty())
-                .topic(question.getTopic())
-                .source(question.getSource())
-                .additionalInfo(question.getAdditionalInfo())
-                .isUserCreated(question.getIsUserCreated())
-                .usageCount(question.getUsageCount())
-                .createdAt(question.getCreatedAt())
-                .build();
-
-        if (question.getCreator() != null) {
-            dto.setCreatorId(question.getCreator().getId());
-            dto.setCreatorUsername(question.getCreator().getUsername());
-        }
-
-        if (question.getExternalId() != null) {
-            dto.setExternalId(question.getExternalId());
-        }
-
-//        if (question.getLastUsed() != null) {
-//            dto.setLastUsed(question.getLastUsed());
-//        }
-
-        // Handle media files if present
-        if (question.getQuestionMediaId() != null) {
-            dto.setMediaUrl(mediaStorageService.getMediaUrl(question.getQuestionMediaId()));
-            dto.setMediaType(question.getQuestionMediaType());
-        }
-
-        return dto;
-    }
-
     protected QuizSessionDTO convertSessionToDTO(QuizSession session) {
         List<String> teamMembers = session.getTeamMembers() != null ?
                 List.of(session.getTeamMembers().split(",")) : List.of();
@@ -521,7 +492,7 @@ public class QuizService {
         QuizRoundDTO dto = QuizRoundDTO.builder()
                 .id(round.getId())
                 .quizSessionId(round.getQuizSession().getId())
-                .question(convertQuestionToDTO(round.getQuestion()))
+                .question(QuizQuestionMapper.INSTANCE.toDTO(round.getQuestion()))
                 .roundNumber(round.getRoundNumber())
                 .teamAnswer(round.getTeamAnswer())
                 .isCorrect(round.getIsCorrect())

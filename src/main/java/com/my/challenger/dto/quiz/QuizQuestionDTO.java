@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
 import java.time.LocalDateTime;
 
 @Data
@@ -14,24 +15,44 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class QuizQuestionDTO {
+
+    // Basic identifiers
     private Long id;
+    private String externalId;
+    private Integer legacyQuestionId;
+
+    // Core question content
     private String question;
     private String answer;
+
+    // Classification
     private QuizDifficulty difficulty;
+    private QuestionType questionType;
     private String topic;
     private String source;
+
+    // Enhanced metadata
+    private String authors;
+    private String comments;
+    private String passCriteria;
     private String additionalInfo;
+
+    // Media properties
+    private String questionMediaUrl;
+    private String questionMediaId;
+    private MediaType questionMediaType;
+    private String questionThumbnailUrl;
+
+    // User creation tracking
     private Boolean isUserCreated;
     private Long creatorId;
     private String creatorUsername;
-    private String externalId;
+
+    // Status and usage
+    private Boolean isActive;
     private Integer usageCount;
-    private QuestionType questionType;
-    private String questionMediaUrl;
+
+    // Timestamps
     private LocalDateTime createdAt;
-    private LocalDateTime lastUsed;
-    
-    // Media properties
-    private String mediaUrl;
-    private MediaType mediaType;
+    private LocalDateTime updatedAt;
 }

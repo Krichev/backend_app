@@ -2,33 +2,34 @@
 -- ==============================================
 
 -- Drop tables if they exist (for development/testing)
-DROP TABLE IF EXISTS challenge_progress_completed_days CASCADE;
-DROP TABLE IF EXISTS quiz_rounds CASCADE;
-DROP TABLE IF EXISTS quiz_sessions CASCADE;
-DROP TABLE IF EXISTS quiz_questions CASCADE;
-DROP TABLE IF EXISTS user_activity_logs CASCADE;
-DROP TABLE IF EXISTS user_connections CASCADE;
-DROP TABLE IF EXISTS reward_users CASCADE;
-DROP TABLE IF EXISTS task_completions CASCADE;
-DROP TABLE IF EXISTS quest_groups CASCADE;
-DROP TABLE IF EXISTS group_users CASCADE;
-DROP TABLE IF EXISTS user_quests CASCADE;
-DROP TABLE IF EXISTS rewards CASCADE;
-DROP TABLE IF EXISTS tasks CASCADE;
-DROP TABLE IF EXISTS photo_verification_details CASCADE;
-DROP TABLE IF EXISTS location_coordinates CASCADE;
-DROP TABLE IF EXISTS verification_details CASCADE;
-DROP TABLE IF EXISTS challenge_progress CASCADE;
-DROP TABLE IF EXISTS challenge_participants CASCADE;
-DROP TABLE IF EXISTS challenge_quests CASCADE;
-DROP TABLE IF EXISTS challenges CASCADE;
-DROP TABLE IF EXISTS stakes CASCADE;
-DROP TABLE IF EXISTS groups CASCADE;
-DROP TABLE IF EXISTS quests CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
-DROP TABLE IF EXISTS photos CASCADE;
-DROP TABLE IF EXISTS media_files CASCADE;
-DROP TABLE IF EXISTS tournament_questions CASCADE;
+-- DROP TABLE IF EXISTS challenge_progress_completed_days CASCADE;
+-- DROP TABLE IF EXISTS quiz_rounds CASCADE;
+-- DROP TABLE IF EXISTS quiz_sessions CASCADE;
+-- DROP TABLE IF EXISTS quiz_questions CASCADE;
+-- DROP TABLE IF EXISTS user_activity_logs CASCADE;
+-- DROP TABLE IF EXISTS user_connections CASCADE;
+-- DROP TABLE IF EXISTS reward_users CASCADE;
+-- DROP TABLE IF EXISTS task_completions CASCADE;
+-- DROP TABLE IF EXISTS quest_groups CASCADE;
+-- DROP TABLE IF EXISTS group_users CASCADE;
+-- DROP TABLE IF EXISTS user_quests CASCADE;
+-- DROP TABLE IF EXISTS rewards CASCADE;
+-- DROP TABLE IF EXISTS tasks CASCADE;
+-- DROP TABLE IF EXISTS photo_verification_details CASCADE;
+-- DROP TABLE IF EXISTS location_coordinates CASCADE;
+-- DROP TABLE IF EXISTS verification_details CASCADE;
+-- DROP TABLE IF EXISTS challenge_progress CASCADE;
+-- DROP TABLE IF EXISTS challenge_participants CASCADE;
+-- DROP TABLE IF EXISTS challenge_quests CASCADE;
+-- DROP TABLE IF EXISTS challenges CASCADE;
+-- DROP TABLE IF EXISTS stakes CASCADE;
+-- DROP TABLE IF EXISTS groups CASCADE;
+-- DROP TABLE IF EXISTS quests CASCADE;
+-- DROP TABLE IF EXISTS users CASCADE;
+-- DROP TABLE IF EXISTS photos CASCADE;
+-- DROP TABLE IF EXISTS media_files CASCADE;
+-- DROP TABLE IF EXISTS tournament_questions CASCADE;
+-- DROP TABLE IF EXISTS refresh_tokens CASCADE;
 
 -- Create extension for UUID generation if not exists
 CREATE
@@ -362,7 +363,7 @@ CREATE TABLE user_quests
     user_id   BIGINT,
     quest_id  BIGINT,
     joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    status quiz_session_status default 'CREATED',
+    status    quiz_session_status      default 'CREATED',
     PRIMARY KEY (user_id, quest_id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     FOREIGN KEY (quest_id) REFERENCES quests (id) ON DELETE CASCADE
@@ -514,7 +515,7 @@ CREATE TABLE quiz_questions
 (
     id              BIGSERIAL PRIMARY KEY,
     question        TEXT NOT NULL,
-    answer          TEXT  NOT NULL,
+    answer          TEXT NOT NULL,
     difficulty      quiz_difficulty          DEFAULT 'EASY',
     topic           TEXT,
     source          TEXT,
@@ -1179,42 +1180,43 @@ ALTER TABLE challenges
     ADD COLUMN difficulty challenge_difficulty_type NOT NULL DEFAULT 'MEDIUM';
 
 -- Create index on difficulty for better query performance
-CREATE INDEX idx_challenges_difficulty ON challenges(difficulty);
+CREATE INDEX idx_challenges_difficulty ON challenges (difficulty);
 
 -- Optional: Update existing records with default difficulty based on type or other criteria
 -- Example: Set QUIZ challenges to EASY by default
 UPDATE challenges
 SET difficulty = 'EASY'
-WHERE type = 'QUIZ' AND difficulty = 'MEDIUM';
+WHERE type = 'QUIZ'
+  AND difficulty = 'MEDIUM';
 
 -- Example: Set EVENT challenges to HARD by default
 UPDATE challenges
 SET difficulty = 'HARD'
-WHERE type = 'EVENT' AND difficulty = 'MEDIUM';
+WHERE type = 'EVENT'
+  AND difficulty = 'MEDIUM';
 
 -- Add comment to the column for documentation
-COMMENT ON COLUMN challenges.difficulty IS 'Challenge difficulty level: BEGINNER, EASY, MEDIUM, HARD, EXPERT, EXTREME';
+COMMENT
+ON COLUMN challenges.difficulty IS 'Challenge difficulty level: BEGINNER, EASY, MEDIUM, HARD, EXPERT, EXTREME';
 
 -- Optional: Create view for difficulty statistics
-CREATE OR REPLACE VIEW challenge_difficulty_stats AS
-SELECT
-    difficulty,
-    COUNT(*) as total_challenges,
-    COUNT(CASE WHEN status = 'ACTIVE' THEN 1 END) as active_challenges,
-    COUNT(CASE WHEN status = 'COMPLETED' THEN 1 END) as completed_challenges,
-    AVG(CASE WHEN status = 'COMPLETED' THEN 100.0 ELSE 0.0 END) as completion_rate
+CREATE
+OR REPLACE VIEW challenge_difficulty_stats AS
+SELECT difficulty,
+       COUNT(*)                                                    as total_challenges,
+       COUNT(CASE WHEN status = 'ACTIVE' THEN 1 END)               as active_challenges,
+       COUNT(CASE WHEN status = 'COMPLETED' THEN 1 END)            as completed_challenges,
+       AVG(CASE WHEN status = 'COMPLETED' THEN 100.0 ELSE 0.0 END) as completion_rate
 FROM challenges
 GROUP BY difficulty
-ORDER BY
-    CASE difficulty
-        WHEN 'BEGINNER' THEN 1
-        WHEN 'EASY' THEN 2
-        WHEN 'MEDIUM' THEN 3
-        WHEN 'HARD' THEN 4
-        WHEN 'EXPERT' THEN 5
-        WHEN 'EXTREME' THEN 6
-        END;
-
+ORDER BY CASE difficulty
+             WHEN 'BEGINNER' THEN 1
+             WHEN 'EASY' THEN 2
+             WHEN 'MEDIUM' THEN 3
+             WHEN 'HARD' THEN 4
+             WHEN 'EXPERT' THEN 5
+             WHEN 'EXTREME' THEN 6
+             END;
 
 
 
@@ -1222,37 +1224,74 @@ ORDER BY
 -- Migration to add multimedia support to quiz questions
 
 -- Add new columns to quiz_questions table for multimedia support
-ALTER TABLE quiz_questions ADD COLUMN IF NOT EXISTS question_type VARCHAR(20) DEFAULT 'TEXT';
-ALTER TABLE quiz_questions ADD COLUMN IF NOT EXISTS question_media_url VARCHAR(500);
-ALTER TABLE quiz_questions ADD COLUMN IF NOT EXISTS question_media_id VARCHAR(100);
-ALTER TABLE quiz_questions ADD COLUMN IF NOT EXISTS question_media_type VARCHAR(50);
-ALTER TABLE quiz_questions ADD COLUMN IF NOT EXISTS question_thumbnail_url VARCHAR(500);
+ALTER TABLE quiz_questions
+    ADD COLUMN IF NOT EXISTS question_type VARCHAR (20) DEFAULT 'TEXT';
+ALTER TABLE quiz_questions
+    ADD COLUMN IF NOT EXISTS question_media_url VARCHAR (500);
+ALTER TABLE quiz_questions
+    ADD COLUMN IF NOT EXISTS question_media_id VARCHAR (100);
+ALTER TABLE quiz_questions
+    ADD COLUMN IF NOT EXISTS question_media_type VARCHAR (50);
+ALTER TABLE quiz_questions
+    ADD COLUMN IF NOT EXISTS question_thumbnail_url VARCHAR (500);
 
 -- Create index for question_type for faster queries
 CREATE INDEX IF NOT EXISTS idx_quiz_questions_question_type ON quiz_questions(question_type);
 CREATE INDEX IF NOT EXISTS idx_quiz_questions_media_id ON quiz_questions(question_media_id);
 
 -- Enhanced media_files table with better support for quiz media
-CREATE TABLE IF NOT EXISTS media_files (
-                                           id BIGSERIAL PRIMARY KEY,
-                                           original_file_name VARCHAR(255) NOT NULL,
-    stored_file_name VARCHAR(255) NOT NULL,
-    s3_key VARCHAR(500) NOT NULL UNIQUE,
-    file_type VARCHAR(100) NOT NULL,
+CREATE TABLE IF NOT EXISTS media_files
+(
+    id
+    BIGSERIAL
+    PRIMARY
+    KEY,
+    original_file_name
+    VARCHAR
+(
+    255
+) NOT NULL,
+    stored_file_name VARCHAR
+(
+    255
+) NOT NULL,
+    s3_key VARCHAR
+(
+    500
+) NOT NULL UNIQUE,
+    file_type VARCHAR
+(
+    100
+) NOT NULL,
     file_size BIGINT NOT NULL,
-    media_category VARCHAR(50) NOT NULL DEFAULT 'QUIZ_QUESTION',
-    media_type VARCHAR(20) NOT NULL DEFAULT 'IMAGE',
-    processing_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    media_category VARCHAR
+(
+    50
+) NOT NULL DEFAULT 'QUIZ_QUESTION',
+    media_type VARCHAR
+(
+    20
+) NOT NULL DEFAULT 'IMAGE',
+    processing_status VARCHAR
+(
+    20
+) NOT NULL DEFAULT 'PENDING',
 
     -- Entity association
     entity_id BIGINT,
-    entity_type VARCHAR(50),
+    entity_type VARCHAR
+(
+    50
+),
 
     -- Media metadata
     width INTEGER,
     height INTEGER,
     duration_seconds INTEGER,
-    thumbnail_url VARCHAR(500),
+    thumbnail_url VARCHAR
+(
+    500
+),
     metadata JSONB,
 
     -- User tracking
@@ -1263,8 +1302,13 @@ CREATE TABLE IF NOT EXISTS media_files (
     processed_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT fk_media_files_uploaded_by FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE CASCADE
+    CONSTRAINT fk_media_files_uploaded_by FOREIGN KEY
+(
+    uploaded_by
+) REFERENCES users
+(
+    id
+) ON DELETE CASCADE
     );
 
 -- Create indexes for media_files
@@ -1276,61 +1320,69 @@ CREATE INDEX IF NOT EXISTS idx_media_files_media_category ON media_files(media_c
 CREATE INDEX IF NOT EXISTS idx_media_files_created_at ON media_files(created_at);
 
 -- Add foreign key constraint between quiz_questions and media_files
-ALTER TABLE quiz_questions ADD CONSTRAINT fk_quiz_questions_media_id
-    FOREIGN KEY (question_media_id) REFERENCES media_files(id) ON DELETE SET NULL;
+ALTER TABLE quiz_questions
+    ADD CONSTRAINT fk_quiz_questions_media_id
+        FOREIGN KEY (question_media_id) REFERENCES media_files (id) ON DELETE SET NULL;
 
 -- Update existing records to have default question_type
-UPDATE quiz_questions SET question_type = 'TEXT' WHERE question_type IS NULL;
+UPDATE quiz_questions
+SET question_type = 'TEXT'
+WHERE question_type IS NULL;
 
 -- Make question_type NOT NULL after setting defaults
-ALTER TABLE quiz_questions ALTER COLUMN question_type SET NOT NULL;
+ALTER TABLE quiz_questions
+    ALTER COLUMN question_type SET NOT NULL;
 
 -- Enhanced quiz_rounds table to support multimedia
-ALTER TABLE quiz_rounds ADD COLUMN IF NOT EXISTS media_interaction_count INTEGER DEFAULT 0;
-ALTER TABLE quiz_rounds ADD COLUMN IF NOT EXISTS media_play_duration INTEGER; -- in seconds
-ALTER TABLE quiz_rounds ADD COLUMN IF NOT EXISTS response_metadata JSONB;
+ALTER TABLE quiz_rounds
+    ADD COLUMN IF NOT EXISTS media_interaction_count INTEGER DEFAULT 0;
+ALTER TABLE quiz_rounds
+    ADD COLUMN IF NOT EXISTS media_play_duration INTEGER; -- in seconds
+ALTER TABLE quiz_rounds
+    ADD COLUMN IF NOT EXISTS response_metadata JSONB;
 
 -- Create a view for easy multimedia question queries
-CREATE OR REPLACE VIEW multimedia_quiz_questions AS
-SELECT
-    qq.id,
-    qq.question,
-    qq.answer,
-    qq.difficulty,
-    qq.topic,
-    qq.question_type,
-    qq.question_media_url,
-    qq.question_thumbnail_url,
-    qq.is_user_created,
-    qq.creator_id,
-    u.username as creator_name,
-    qq.usage_count,
-    qq.created_at,
-    qq.updated_at,
-    mf.id as media_id,
-    mf.original_file_name as media_filename,
-    mf.file_type as media_mime_type,
-    mf.file_size as media_size,
-    mf.duration_seconds as media_duration,
-    mf.width as media_width,
-    mf.height as media_height,
-    mf.processing_status as media_processing_status,
-    mf.thumbnail_url as media_thumbnail_url
+CREATE
+OR REPLACE VIEW multimedia_quiz_questions AS
+SELECT qq.id,
+       qq.question,
+       qq.answer,
+       qq.difficulty,
+       qq.topic,
+       qq.question_type,
+       qq.question_media_url,
+       qq.question_thumbnail_url,
+       qq.is_user_created,
+       qq.creator_id,
+       u.username            as creator_name,
+       qq.usage_count,
+       qq.created_at,
+       qq.updated_at,
+       mf.id                 as media_id,
+       mf.original_file_name as media_filename,
+       mf.file_type          as media_mime_type,
+       mf.file_size          as media_size,
+       mf.duration_seconds   as media_duration,
+       mf.width              as media_width,
+       mf.height             as media_height,
+       mf.processing_status  as media_processing_status,
+       mf.thumbnail_url      as media_thumbnail_url
 FROM quiz_questions qq
          LEFT JOIN users u ON qq.creator_id = u.id
          LEFT JOIN media_files mf ON qq.question_media_id = mf.id::varchar;
 
 -- Function to clean up orphaned media files
-CREATE OR REPLACE FUNCTION cleanup_orphaned_media_files()
+CREATE
+OR REPLACE FUNCTION cleanup_orphaned_media_files()
 RETURNS INTEGER AS $$
 DECLARE
 deleted_count INTEGER;
 BEGIN
     -- Delete media files that are not referenced by any quiz question
     -- and are older than 24 hours (in case of temporary uploads)
-DELETE FROM media_files
-WHERE
-    entity_type = 'quiz_question'
+DELETE
+FROM media_files
+WHERE entity_type = 'quiz_question'
   AND id::varchar NOT IN (
             SELECT question_media_id
             FROM quiz_questions
@@ -1342,47 +1394,58 @@ GET DIAGNOSTICS deleted_count = ROW_COUNT;
 
 RETURN deleted_count;
 END;
-$$ LANGUAGE plpgsql;
+$$
+LANGUAGE plpgsql;
 
 -- Function to update media usage statistics
-CREATE OR REPLACE FUNCTION update_media_usage_stats()
+CREATE
+OR REPLACE FUNCTION update_media_usage_stats()
 RETURNS TRIGGER AS $$
 BEGIN
     -- Update usage count when a question with media is used in a quiz round
-    IF NEW.question_id IS NOT NULL THEN
+    IF
+NEW.question_id IS NOT NULL THEN
 UPDATE quiz_questions
 SET usage_count = usage_count + 1
-WHERE id = NEW.question_id AND question_media_id IS NOT NULL;
+WHERE id = NEW.question_id
+  AND question_media_id IS NOT NULL;
 END IF;
 
 RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$
+LANGUAGE plpgsql;
 
 -- Create trigger for media usage tracking
 DROP TRIGGER IF EXISTS trigger_update_media_usage ON quiz_rounds;
 CREATE TRIGGER trigger_update_media_usage
-    AFTER INSERT ON quiz_rounds
+    AFTER INSERT
+    ON quiz_rounds
     FOR EACH ROW
     EXECUTE FUNCTION update_media_usage_stats();
 
 -- Insert default media categories if not exists
-INSERT INTO media_files (id, original_file_name, stored_file_name, s3_key, file_type, file_size, media_category, uploaded_by)
-VALUES (0, 'default', 'default', 'system/default', 'application/octet-stream', 0, 'SYSTEM', 1)
-    ON CONFLICT (s3_key) DO NOTHING;
+INSERT INTO media_files (id, original_file_name, stored_file_name, s3_key, file_type, file_size, media_category,
+                         uploaded_by)
+VALUES (0, 'default', 'default', 'system/default', 'application/octet-stream', 0, 'SYSTEM',
+        1) ON CONFLICT (s3_key) DO NOTHING;
 
 -- Create enum types for better type safety (PostgreSQL)
-DO $$
+DO
+$$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'question_type_enum') THEN
+    IF
+NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'question_type_enum') THEN
 CREATE TYPE question_type_enum AS ENUM ('TEXT', 'IMAGE', 'VIDEO', 'AUDIO');
 END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'media_category_enum') THEN
+    IF
+NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'media_category_enum') THEN
 CREATE TYPE media_category_enum AS ENUM ('QUIZ_QUESTION', 'AVATAR', 'CHALLENGE_PROOF', 'SYSTEM');
 END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'processing_status_enum') THEN
+    IF
+NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'processing_status_enum') THEN
 CREATE TYPE processing_status_enum AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED');
 END IF;
 END
@@ -1396,7 +1459,8 @@ $$;
 -- Add useful stored procedures for media management
 
 -- Procedure to get media statistics
-CREATE OR REPLACE FUNCTION get_media_statistics()
+CREATE
+OR REPLACE FUNCTION get_media_statistics()
 RETURNS TABLE (
     total_media_files BIGINT,
     total_size_mb NUMERIC,
@@ -1408,21 +1472,21 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
 RETURN QUERY
-SELECT
-    COUNT(*) as total_media_files,
-    ROUND(SUM(file_size)::NUMERIC / 1024 / 1024, 2) as total_size_mb,
-    COUNT(*) FILTER (WHERE file_type LIKE 'video/%') as video_files,
-        COUNT(*) FILTER (WHERE file_type LIKE 'audio/%') as audio_files,
-        COUNT(*) FILTER (WHERE file_type LIKE 'image/%') as image_files,
-        (SELECT COUNT(*) FROM quiz_questions WHERE question_media_id IS NOT NULL) as questions_with_media,
-    ROUND(AVG(file_size)::NUMERIC / 1024 / 1024, 2) as avg_media_file_size_mb
+SELECT COUNT(*)                                        as total_media_files,
+       ROUND(SUM(file_size)::NUMERIC / 1024 / 1024, 2) as total_size_mb,
+       COUNT(*)                                           FILTER (WHERE file_type LIKE 'video/%') as video_files, COUNT(*) FILTER (WHERE file_type LIKE 'audio/%') as audio_files, COUNT(*) FILTER (WHERE file_type LIKE 'image/%') as image_files, (SELECT COUNT(*)
+                                                                                                                                                                                                                                                     FROM quiz_questions
+                                                                                                                                                                                                                                                     WHERE question_media_id IS NOT NULL) as questions_with_media,
+       ROUND(AVG(file_size)::NUMERIC / 1024 / 1024, 2) as avg_media_file_size_mb
 FROM media_files
 WHERE media_category = 'QUIZ_QUESTION';
 END;
-$$ LANGUAGE plpgsql;
+$$
+LANGUAGE plpgsql;
 
 -- Procedure to get user media quota usage
-CREATE OR REPLACE FUNCTION get_user_media_quota(user_id BIGINT)
+CREATE
+OR REPLACE FUNCTION get_user_media_quota(user_id BIGINT)
 RETURNS TABLE (
     total_files BIGINT,
     total_size_mb NUMERIC,
@@ -1435,32 +1499,40 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
 RETURN QUERY
-SELECT
-    COUNT(*) as total_files,
-    ROUND(SUM(file_size)::NUMERIC / 1024 / 1024, 2) as total_size_mb,
-    COUNT(*) FILTER (WHERE file_type LIKE 'video/%') as video_files,
-        ROUND(SUM(file_size) FILTER (WHERE file_type LIKE 'video/%')::NUMERIC / 1024 / 1024, 2) as video_size_mb,
-    COUNT(*) FILTER (WHERE file_type LIKE 'audio/%') as audio_files,
-        ROUND(SUM(file_size) FILTER (WHERE file_type LIKE 'audio/%')::NUMERIC / 1024 / 1024, 2) as audio_size_mb,
-    COUNT(*) FILTER (WHERE file_type LIKE 'image/%') as image_files,
-        ROUND(SUM(file_size) FILTER (WHERE file_type LIKE 'image/%')::NUMERIC / 1024 / 1024, 2) as image_size_mb
+SELECT COUNT(*)                                        as total_files,
+       ROUND(SUM(file_size)::NUMERIC / 1024 / 1024, 2) as total_size_mb,
+       COUNT(*)                                           FILTER (WHERE file_type LIKE 'video/%') as video_files, ROUND(SUM(file_size) FILTER (WHERE file_type LIKE 'video/%')::NUMERIC / 1024 / 1024, 2) as video_size_mb,
+       COUNT(*)                                           FILTER (WHERE file_type LIKE 'audio/%') as audio_files, ROUND(SUM(file_size) FILTER (WHERE file_type LIKE 'audio/%')::NUMERIC / 1024 / 1024, 2) as audio_size_mb,
+       COUNT(*)                                           FILTER (WHERE file_type LIKE 'image/%') as image_files, ROUND(SUM(file_size) FILTER (WHERE file_type LIKE 'image/%')::NUMERIC / 1024 / 1024, 2) as image_size_mb
 FROM media_files
-WHERE uploaded_by = user_id AND media_category = 'QUIZ_QUESTION';
+WHERE uploaded_by = user_id
+  AND media_category = 'QUIZ_QUESTION';
 END;
-$$ LANGUAGE plpgsql;
+$$
+LANGUAGE plpgsql;
 
 -- Add comments for documentation
-COMMENT ON TABLE media_files IS 'Stores metadata for all uploaded media files including quiz question media';
-COMMENT ON COLUMN media_files.s3_key IS 'Unique S3 object key for the stored file';
-COMMENT ON COLUMN media_files.entity_id IS 'ID of the related entity (e.g., quiz_question.id)';
-COMMENT ON COLUMN media_files.entity_type IS 'Type of the related entity (e.g., quiz_question)';
-COMMENT ON COLUMN media_files.duration_seconds IS 'Duration for video/audio files in seconds';
-COMMENT ON COLUMN media_files.metadata IS 'Additional metadata stored as JSON';
+COMMENT
+ON TABLE media_files IS 'Stores metadata for all uploaded media files including quiz question media';
+COMMENT
+ON COLUMN media_files.s3_key IS 'Unique S3 object key for the stored file';
+COMMENT
+ON COLUMN media_files.entity_id IS 'ID of the related entity (e.g., quiz_question.id)';
+COMMENT
+ON COLUMN media_files.entity_type IS 'Type of the related entity (e.g., quiz_question)';
+COMMENT
+ON COLUMN media_files.duration_seconds IS 'Duration for video/audio files in seconds';
+COMMENT
+ON COLUMN media_files.metadata IS 'Additional metadata stored as JSON';
 
-COMMENT ON COLUMN quiz_questions.question_type IS 'Type of question: TEXT, IMAGE, VIDEO, or AUDIO';
-COMMENT ON COLUMN quiz_questions.question_media_url IS 'URL to access the question media file';
-COMMENT ON COLUMN quiz_questions.question_media_id IS 'Foreign key to media_files.id';
-COMMENT ON COLUMN quiz_questions.question_thumbnail_url IS 'URL to thumbnail for video/image questions';
+COMMENT
+ON COLUMN quiz_questions.question_type IS 'Type of question: TEXT, IMAGE, VIDEO, or AUDIO';
+COMMENT
+ON COLUMN quiz_questions.question_media_url IS 'URL to access the question media file';
+COMMENT
+ON COLUMN quiz_questions.question_media_id IS 'Foreign key to media_files.id';
+COMMENT
+ON COLUMN quiz_questions.question_thumbnail_url IS 'URL to thumbnail for video/image questions';
 
 -- Grant permissions (adjust as needed for your setup)
 -- GRANT SELECT, INSERT, UPDATE, DELETE ON media_files TO quiz_app_user;
@@ -1469,9 +1541,11 @@ COMMENT ON COLUMN quiz_questions.question_thumbnail_url IS 'URL to thumbnail for
 
 
         -- Create question_type enum (if not exists)
-DO $$
+DO
+$$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'question_type_enum') THEN
+    IF
+NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'question_type_enum') THEN
 CREATE TYPE question_type_enum AS ENUM (
             'TEXT',
             'IMAGE',
@@ -1483,9 +1557,11 @@ END IF;
 END$$;
 
 -- Create media_type enum (if not exists)
-DO $$
+DO
+$$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'media_type_enum') THEN
+    IF
+NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'media_type_enum') THEN
 CREATE TYPE media_type_enum AS ENUM (
             'IMAGE',
             'VIDEO',
@@ -1532,17 +1608,20 @@ ALTER TABLE quiz_questions RENAME COLUMN question_media_type_enum TO question_me
 
 -- Step 4: Ensure question_type is also using enum (if not already)
 -- Check if question_type column exists and is not already an enum
-DO $$
+DO
+$$
 BEGIN
     -- Add enum column if question_type is still text
-    IF EXISTS (
+    IF
+EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_name = 'quiz_questions'
         AND column_name = 'question_type'
         AND data_type = 'character varying'
     ) THEN
         -- Add new enum column
-ALTER TABLE quiz_questions ADD COLUMN question_type_enum question_type_enum;
+ALTER TABLE quiz_questions
+    ADD COLUMN question_type_enum question_type_enum;
 
 -- Update existing data
 UPDATE quiz_questions
@@ -1562,8 +1641,10 @@ ALTER TABLE quiz_questions DROP COLUMN question_type;
 ALTER TABLE quiz_questions RENAME COLUMN question_type_enum TO question_type;
 
 -- Make question_type NOT NULL with default
-ALTER TABLE quiz_questions ALTER COLUMN question_type SET NOT NULL;
-ALTER TABLE quiz_questions ALTER COLUMN question_type SET DEFAULT 'TEXT'::question_type_enum;
+ALTER TABLE quiz_questions
+    ALTER COLUMN question_type SET NOT NULL;
+ALTER TABLE quiz_questions
+    ALTER COLUMN question_type SET DEFAULT 'TEXT'::question_type_enum;
 END IF;
 END$$;
 
@@ -1577,14 +1658,15 @@ CREATE INDEX IF NOT EXISTS idx_quiz_questions_type_media_composite ON quiz_quest
 -- =====================================================
 -- Add check constraint to ensure media type aligns with question type
 ALTER TABLE quiz_questions DROP CONSTRAINT IF EXISTS chk_question_media_consistency;
-ALTER TABLE quiz_questions ADD CONSTRAINT chk_question_media_consistency
-    CHECK (
-        (question_type = 'TEXT' AND question_media_type IS NULL) OR
-        (question_type = 'IMAGE' AND question_media_type IN ('IMAGE', 'QUIZ_QUESTION')) OR
-        (question_type = 'AUDIO' AND question_media_type IN ('AUDIO', 'QUIZ_QUESTION')) OR
-        (question_type = 'VIDEO' AND question_media_type IN ('VIDEO', 'QUIZ_QUESTION')) OR
-        (question_type = 'MULTIMEDIA' AND question_media_type IS NOT NULL)
-        );
+ALTER TABLE quiz_questions
+    ADD CONSTRAINT chk_question_media_consistency
+        CHECK (
+            (question_type = 'TEXT' AND question_media_type IS NULL) OR
+            (question_type = 'IMAGE' AND question_media_type IN ('IMAGE', 'QUIZ_QUESTION')) OR
+            (question_type = 'AUDIO' AND question_media_type IN ('AUDIO', 'QUIZ_QUESTION')) OR
+            (question_type = 'VIDEO' AND question_media_type IN ('VIDEO', 'QUIZ_QUESTION')) OR
+            (question_type = 'MULTIMEDIA' AND question_media_type IS NOT NULL)
+            );
 
 -- 5. Verify the migration
 -- =====================================================
@@ -1601,10 +1683,9 @@ WHERE table_name = 'quiz_questions'
 ORDER BY ordinal_position;
 
 -- Check data distribution
-SELECT
-    question_type,
-    question_media_type,
-    COUNT(*) as count
+SELECT question_type,
+       question_media_type,
+       COUNT(*) as count
 FROM quiz_questions
 GROUP BY question_type, question_media_type
 ORDER BY question_type, question_media_type;
@@ -1619,22 +1700,23 @@ ORDER BY question_type, question_media_type;
 CREATE TYPE frequency_type AS ENUM ('DAILY', 'WEEKLY', 'MONTHLY', 'ONE_TIME', 'CUSTOM');
 
 -- Add created_by column
-ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_by BIGINT;
+ALTER TABLE tasks
+    ADD COLUMN IF NOT EXISTS created_by BIGINT;
 
 -- Add frequency column
-ALTER TABLE tasks ADD COLUMN IF NOT EXISTS frequency frequency_type;
+ALTER TABLE tasks
+    ADD COLUMN IF NOT EXISTS frequency frequency_type;
 
 -- Add foreign key constraint for created_by
 ALTER TABLE tasks
     ADD CONSTRAINT fk_tasks_created_by
         FOREIGN KEY (created_by)
-            REFERENCES users(id)
+            REFERENCES users (id)
             ON DELETE SET NULL;
 
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_tasks_created_by ON tasks(created_by);
 CREATE INDEX IF NOT EXISTS idx_tasks_frequency ON tasks(frequency);
-
 
 
 -- Step 1: Create the custom ENUM type (if not already exists)
@@ -1650,28 +1732,59 @@ CREATE TYPE activity_type AS ENUM (
 
 -- Step 2: Alter the column to use the new ENUM type
 ALTER TABLE user_activity_logs
-ALTER COLUMN activity_type TYPE activity_type
+ALTER
+COLUMN activity_type TYPE activity_type
     USING activity_type::activity_type;
 
 
-CREATE TABLE IF NOT EXISTS questions (
-                                         id SERIAL PRIMARY KEY,
-                                         tournament_id INTEGER NOT NULL,
-                                         tournament_title TEXT NOT NULL,
-                                         question_num INTEGER,
-                                         question TEXT NOT NULL,
-                                         answer TEXT NOT NULL,
-                                         authors TEXT,
-                                         sources TEXT,
-                                         comments TEXT,
-                                         pass_criteria TEXT,
-                                         notices TEXT,
-                                         images TEXT,
-                                         rating INTEGER,
-                                         tournament_type TEXT,
-                                         topic TEXT,
-                                         topic_num INTEGER,
-                                         entered_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE IF NOT EXISTS questions
+(
+    id
+    SERIAL
+    PRIMARY
+    KEY,
+    tournament_id
+    INTEGER
+    NOT
+    NULL,
+    tournament_title
+    TEXT
+    NOT
+    NULL,
+    question_num
+    INTEGER,
+    question
+    TEXT
+    NOT
+    NULL,
+    answer
+    TEXT
+    NOT
+    NULL,
+    authors
+    TEXT,
+    sources
+    TEXT,
+    comments
+    TEXT,
+    pass_criteria
+    TEXT,
+    notices
+    TEXT,
+    images
+    TEXT,
+    rating
+    INTEGER,
+    tournament_type
+    TEXT,
+    topic
+    TEXT,
+    topic_num
+    INTEGER,
+    entered_date
+    TIMESTAMP
+    DEFAULT
+    CURRENT_TIMESTAMP
 );
 
 -- Optional index for faster queries
@@ -1682,57 +1795,136 @@ CREATE INDEX IF NOT EXISTS idx_tournament_id ON questions (tournament_id);
 -- ============================================
 -- STEP 1: Backup existing data
 -- ============================================
-CREATE TABLE questions_backup AS SELECT * FROM questions;
+CREATE TABLE questions_backup AS
+SELECT *
+FROM questions;
 
 -- ============================================
 -- STEP 2: Rename old questions table
 -- ============================================
 ALTER TABLE questions RENAME TO questions_old;
 
-CREATE TABLE tournament_questions (
-                                      id SERIAL PRIMARY KEY,
-                                      quiz_question_id BIGINT NOT NULL,
-                                      tournament_id INTEGER NOT NULL,
-                                      tournament_title TEXT NOT NULL,
+CREATE TABLE tournament_questions
+(
+    id                  SERIAL PRIMARY KEY,
+    quiz_question_id    BIGINT    NOT NULL,
+    tournament_id       INTEGER   NOT NULL,
+    tournament_title    TEXT      NOT NULL,
 
     -- Auto-generated sequential order (replacing unreliable question_num)
-                                      display_order INTEGER NOT NULL,
+    display_order       INTEGER   NOT NULL,
 
     -- Keep old question_num for reference only
-                                      legacy_question_num INTEGER,
+    legacy_question_num INTEGER,
 
-                                      tournament_type TEXT,
-                                      topic_num INTEGER,
-                                      notices TEXT,
-                                      images TEXT,
-                                      rating INTEGER,
-                                      custom_question TEXT,
-                                      custom_answer TEXT,
-                                      custom_sources TEXT,
-                                      points INTEGER DEFAULT 10,
-                                      time_limit_seconds INTEGER,
-                                      is_bonus_question BOOLEAN DEFAULT FALSE,
-                                      is_mandatory BOOLEAN DEFAULT TRUE,
-                                      is_active BOOLEAN DEFAULT TRUE,
-                                      entered_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                                      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                      added_by BIGINT,
+    tournament_type     TEXT,
+    topic_num           INTEGER,
+    notices             TEXT,
+    images              TEXT,
+    rating              INTEGER,
+    custom_question     TEXT,
+    custom_answer       TEXT,
+    custom_sources      TEXT,
+    points              INTEGER            DEFAULT 10,
+    time_limit_seconds  INTEGER,
+    is_bonus_question   BOOLEAN            DEFAULT FALSE,
+    is_mandatory        BOOLEAN            DEFAULT TRUE,
+    is_active           BOOLEAN            DEFAULT TRUE,
+    entered_date        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          TIMESTAMP          DEFAULT CURRENT_TIMESTAMP,
+    added_by            BIGINT,
 
-                                      CONSTRAINT fk_tournament_question_quiz_question
-                                          FOREIGN KEY (quiz_question_id)
-                                              REFERENCES quiz_questions(id)
-                                              ON DELETE RESTRICT,
+    CONSTRAINT fk_tournament_question_quiz_question
+        FOREIGN KEY (quiz_question_id)
+            REFERENCES quiz_questions (id)
+            ON DELETE RESTRICT,
 
-                                      CONSTRAINT uk_tournament_display_order
-                                          UNIQUE (tournament_id, display_order)
+    CONSTRAINT uk_tournament_display_order
+        UNIQUE (tournament_id, display_order)
 );
 
 -- Create indexes
-CREATE INDEX idx_tournament_id ON tournament_questions(tournament_id);
-CREATE INDEX idx_quiz_question_id ON tournament_questions(quiz_question_id);
-CREATE INDEX idx_tournament_order ON tournament_questions(tournament_id, display_order);
-CREATE INDEX idx_is_active ON tournament_questions(is_active);
+CREATE INDEX idx_tournament_id ON tournament_questions (tournament_id);
+CREATE INDEX idx_quiz_question_id ON tournament_questions (quiz_question_id);
+CREATE INDEX idx_tournament_order ON tournament_questions (tournament_id, display_order);
+CREATE INDEX idx_is_active ON tournament_questions (is_active);
 
--- ============================================
--- STEP 4: Analysis queries (run before migration)
--- ============================================
+
+-- src/main/resources/db/migration/V3__Create_Refresh_Token_Table.sql
+
+CREATE TABLE refresh_tokens
+(
+    id          BIGSERIAL PRIMARY KEY,
+    user_id     BIGINT       NOT NULL,
+    token       VARCHAR(255) NOT NULL UNIQUE,
+    expiry_date TIMESTAMP    NOT NULL,
+    created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_refresh_token_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_refresh_token_token ON refresh_tokens (token);
+CREATE INDEX idx_refresh_token_user_id ON refresh_tokens (user_id);
+
+ALTER TABLE quiz_questions
+    ADD COLUMN legacy_question_id integer;
+
+ALTER TABLE quiz_questions
+    ADD CONSTRAINT fk_quiz_questions_legacy_question_id
+        FOREIGN KEY (legacy_question_id) REFERENCES questions_old (id);
+
+ALTER TABLE quiz_questions
+    ADD COLUMN comments text;
+ALTER TABLE quiz_questions
+    ADD COLUMN authors text;
+ALTER TABLE quiz_questions
+    ADD COLUMN pass_criteria text;
+
+-- Create topics table
+CREATE TABLE topics (
+                        id BIGSERIAL PRIMARY KEY,
+                        name VARCHAR(100) NOT NULL UNIQUE,
+                        category VARCHAR(50),
+                        description TEXT,
+                        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                        question_count INTEGER DEFAULT 0,
+                        creator_id BIGINT REFERENCES users(id),
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create indexes
+CREATE INDEX idx_topic_name ON topics(name);
+CREATE INDEX idx_topic_category ON topics(category);
+CREATE INDEX idx_is_active ON topics(is_active);
+
+-- Migrate existing topics from quiz_questions table
+INSERT INTO topics (name, is_active, question_count)
+SELECT DISTINCT
+    topic as name,
+    TRUE as is_active,
+    COUNT(*) as question_count
+FROM quiz_questions
+WHERE topic IS NOT NULL AND topic != ''
+GROUP BY topic;
+
+-- Add topic_id column to quiz_questions
+ALTER TABLE quiz_questions ADD COLUMN topic_id BIGINT;
+ALTER TABLE quiz_questions ADD COLUMN legacy_topic VARCHAR(100);
+
+-- Update quiz_questions with topic_id
+UPDATE quiz_questions q
+SET topic_id = t.id,
+    legacy_topic = q.topic
+    FROM topics t
+WHERE LOWER(q.topic) = LOWER(t.name);
+
+-- Create foreign key
+ALTER TABLE quiz_questions
+    ADD CONSTRAINT fk_quiz_question_topic
+        FOREIGN KEY (topic_id) REFERENCES topics(id);
+
+-- Create index on topic_id
+CREATE INDEX idx_topic_id ON quiz_questions(topic_id);
+
+-- Optional: Drop old topic column after verification
+-- ALTER TABLE quiz_questions DROP COLUMN topic;

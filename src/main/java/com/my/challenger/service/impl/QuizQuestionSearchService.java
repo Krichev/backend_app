@@ -4,17 +4,18 @@ import com.my.challenger.entity.quiz.QuizQuestion;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.enums.QuestionType;
 import com.my.challenger.entity.enums.MediaType;
+import com.my.challenger.entity.quiz.Topic;
 import com.my.challenger.repository.QuizQuestionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -28,6 +29,84 @@ public class QuizQuestionSearchService {
 
     private final QuizQuestionRepository quizQuestionRepository;
 
+
+
+    /**
+     * Get all unique topics
+     */
+    public List<String> getAllTopics() {
+        List<String> allTopics = quizQuestionRepository.findAll().stream()
+                .map(QuizQuestion::getTopic)
+                .filter(Objects::nonNull)
+                .filter(topic -> !topic.getName().trim().isEmpty())
+                .distinct()
+                .map(Topic::getName)
+                .sorted()
+                .collect(Collectors.toList());
+
+        log.debug("Found {} unique topics", allTopics.size());
+        return allTopics;
+    }
+
+    /**
+     * Get total question count
+     */
+    public long getTotalQuestionCount() {
+        return quizQuestionRepository.count();
+    }
+
+    /**
+     * Get count by difficulty
+     */
+    public long getCountByDifficulty(QuizDifficulty difficulty) {
+        return quizQuestionRepository.countByDifficulty(difficulty);
+    }
+
+    /**
+     * Get count by topic
+     */
+    public Map<String, Long> getCountByTopic() {
+        List<QuizQuestion> allQuestions = quizQuestionRepository.findAll();
+
+        return allQuestions.stream()
+                .filter(q -> q.getTopic() != null && !q.getTopic().getName().trim().isEmpty())
+                .collect(Collectors.groupingBy(
+                        quizQuestion -> quizQuestion.getTopic().getName(),
+                        Collectors.counting()
+                ));
+    }
+
+    /**
+     * Get random questions by difficulty
+     */
+    public List<QuizQuestion> getRandomQuestionsByDifficulty(QuizDifficulty difficulty, int count) {
+        return quizQuestionRepository.findRandomByDifficulty(difficulty.name(), count);
+    }
+
+    /**
+     * Get question by ID
+     */
+    public Optional<QuizQuestion> getQuestionById(Long id) {
+        return quizQuestionRepository.findById(id);
+    }
+
+    /**
+     * Search with filters (existing method - already in your code)
+     */
+    public Page<QuizQuestion> searchWithFilters(
+            String keyword,
+            QuizDifficulty difficulty,
+            String topic,
+            Boolean isUserCreated,
+            Pageable pageable) {
+
+        // Clean inputs
+        String cleanKeyword = StringUtils.hasText(keyword) ? keyword.trim().toLowerCase() : null;
+        String cleanTopic = StringUtils.hasText(topic) ? topic.trim().toLowerCase() : null;
+        String difficultyStr = difficulty != null ? difficulty.name() : null;
+        return quizQuestionRepository.searchWithFilters(cleanKeyword, difficultyStr, cleanTopic, isUserCreated, pageable);
+    }
+
     /**
      * Search questions by keyword with pagination
      * This uses the FIXED searchByKeyword method
@@ -39,7 +118,10 @@ public class QuizQuestionSearchService {
             log.warn("Empty keyword provided, returning empty list");
             return List.of();
         }
-        
+        String normalizedKeyword = keyword != null && !keyword.trim().isEmpty()
+                ? keyword.toLowerCase().trim()
+                : null;
+
         Pageable pageable = PageRequest.of(page, size);
         List<QuizQuestion> results = quizQuestionRepository.searchByKeyword(keyword.trim(), pageable);
         
@@ -50,7 +132,7 @@ public class QuizQuestionSearchService {
     /**
      * Advanced search with multiple filters
      */
-    public List<QuizQuestion> advancedSearch(String keyword, 
+    public Page<QuizQuestion> advancedSearch(String keyword,
                                            QuizDifficulty difficulty, 
                                            String topic, 
                                            Boolean isUserCreated,
@@ -62,10 +144,10 @@ public class QuizQuestionSearchService {
         Pageable pageable = PageRequest.of(page, size);
         
         // Clean up parameters
-        String cleanKeyword = StringUtils.hasText(keyword) ? keyword.trim() : null;
-        String cleanTopic = StringUtils.hasText(topic) ? topic.trim() : null;
-        
-        return quizQuestionRepository.searchWithFilters(cleanKeyword, difficulty, cleanTopic, isUserCreated, pageable);
+        String cleanKeyword = StringUtils.hasText(keyword) ? keyword.trim().toLowerCase() : null;
+        String cleanTopic = StringUtils.hasText(topic) ? topic.trim().toLowerCase() : null;
+        String difficultyStr = difficulty != null ? difficulty.name() : null;
+        return quizQuestionRepository.searchWithFilters(cleanKeyword, difficultyStr, cleanTopic, isUserCreated, pageable);
     }
 
     /**
@@ -73,16 +155,21 @@ public class QuizQuestionSearchService {
      */
     public List<QuizQuestion> searchForQuiz(String topic, QuizDifficulty difficulty, int count) {
         log.debug("Searching questions for quiz - topic: '{}', difficulty: {}, count: {}", topic, difficulty, count);
-        
+
+        String normalizedTopic = topic != null && !topic.trim().isEmpty()
+                ? topic.toLowerCase().trim()
+                : null;
+        String difficultyStr = difficulty != null ? difficulty.name() : null;
         if (StringUtils.hasText(topic) && difficulty != null) {
             // Search by both topic and difficulty
-            return quizQuestionRepository.searchWithFilters(topic, difficulty, topic, null, PageRequest.of(0, count));
+            Page<QuizQuestion> quizQuestions = quizQuestionRepository.searchWithFilters(normalizedTopic, difficultyStr, topic, null, PageRequest.of(0, count));
+            return quizQuestions.toList();
         } else if (difficulty != null) {
             // Search by difficulty only
             return quizQuestionRepository.findRandomByDifficulty(difficulty.name(), count);
         } else if (StringUtils.hasText(topic)) {
             // Search by topic only  
-            return quizQuestionRepository.findRandomByTopic(topic, count);
+            return quizQuestionRepository.findRandomByTopic(normalizedTopic, count);
         } else {
             // Random questions
             return quizQuestionRepository.findRandomByDifficulties(
@@ -115,31 +202,36 @@ public class QuizQuestionSearchService {
         }
         
         Pageable pageable = PageRequest.of(page, size);
-        
+        String keyword = value.trim();
+
+        String normalizedKeyword = keyword != null && !keyword.trim().isEmpty()
+                ? keyword.toLowerCase().trim()
+                : null;
+
         switch (searchType.toLowerCase()) {
             case "question":
-                return quizQuestionRepository.searchByQuestionText(value.trim(), pageable);
+                return quizQuestionRepository.searchByQuestionText(keyword, pageable);
             case "topic":
-                return quizQuestionRepository.searchByTopicPattern(value.trim(), pageable);
+                return quizQuestionRepository.searchByTopicPattern(keyword, pageable);
             case "source":
-                return quizQuestionRepository.findBySourceOrderByCreatedAtDesc(value.trim());
+                return quizQuestionRepository.findBySourceOrderByCreatedAtDesc(keyword);
             default:
                 log.warn("Unknown search type: {}, falling back to general search", searchType);
-                return quizQuestionRepository.searchByKeyword(value.trim(), pageable);
+                return quizQuestionRepository.searchByKeyword(keyword, pageable);
         }
     }
 
     /**
      * Get user's questions with search
      */
-    public List<QuizQuestion> searchUserQuestions(Long userId, String keyword, int page, int size) {
+    public Page<QuizQuestion> searchUserQuestions(Long userId, String keyword, int page, int size) {
         log.debug("Searching user {} questions with keyword: '{}'", userId, keyword);
         
         Pageable pageable = PageRequest.of(page, size);
         
         if (StringUtils.hasText(keyword)) {
             // First get all user questions, then filter by keyword
-            return quizQuestionRepository.searchWithFilters(keyword.trim(), null, null, true, pageable);
+            return quizQuestionRepository.searchWithFilters(keyword.trim().toLowerCase(), null, null, true, pageable);
         } else {
             // Just get user's questions
             return quizQuestionRepository.findByCreatorId(userId, pageable);

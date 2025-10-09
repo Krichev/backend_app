@@ -5,6 +5,8 @@ import com.my.challenger.entity.quiz.Question;
 import com.my.challenger.entity.quiz.QuizQuestion;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.enums.QuestionType;
+import com.my.challenger.entity.quiz.Topic;
+import com.my.challenger.mapper.TournamentQuestionMapper;
 import com.my.challenger.repository.QuestionRepository;
 import com.my.challenger.repository.QuizQuestionRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,26 +25,180 @@ import java.util.stream.Collectors;
 public class TournamentQuestionService {
 
     private final QuestionRepository questionRepository;
+    private final TournamentQuestionMapper questionMapper;
     private final QuizQuestionRepository quizQuestionRepository;
 
     /**
-     * Get all questions for a tournament in proper order
+     * Get questions filtered by difficulty with optional shuffle
+     * NEW METHOD specifically for WWW Game frontend integration
+     *
+     * @param tournamentId The tournament ID
+     * @param difficulty The difficulty level (EASY, MEDIUM, HARD)
+     * @param limit Maximum number of questions to return
+     * @param shuffle Whether to shuffle the results randomly
+     * @return List of filtered questions
      */
     @Transactional(readOnly = true)
-    public List<Question> getTournamentQuestions(Integer tournamentId) {
-        log.debug("Getting questions for tournament: {}", tournamentId);
-        return questionRepository.findByTournamentIdWithQuizQuestion(tournamentId);
+    public List<TournamentQuestionSummaryDTO> getQuestionsByDifficulty(
+            Integer tournamentId,
+            String difficulty,
+            Integer limit,
+            Boolean shuffle) {
+
+        log.debug("Getting questions for tournament {} with difficulty {} (limit: {}, shuffle: {})",
+                tournamentId, difficulty, limit, shuffle);
+
+        // Parse difficulty enum
+        QuizDifficulty quizDifficulty;
+        try {
+            quizDifficulty = QuizDifficulty.valueOf(difficulty.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid difficulty level: {}", difficulty);
+            throw new IllegalArgumentException("Invalid difficulty level. Must be EASY, MEDIUM, or HARD");
+        }
+
+        // Fetch all questions for the tournament with quiz question data
+        List<Question> allQuestions = questionRepository.findByTournamentIdWithQuizQuestion(tournamentId);
+
+        // Filter by:
+        // 1. Active status
+        // 2. Difficulty level from the associated QuizQuestion
+        List<Question> filteredQuestions = allQuestions.stream()
+                .filter(Question::getIsActive)
+                .filter(q -> q.getQuizQuestion() != null)
+                .filter(q -> q.getQuizQuestion().getDifficulty() == quizDifficulty)
+                .collect(Collectors.toList());
+
+        log.debug("Found {} active questions with {} difficulty",
+                filteredQuestions.size(), difficulty);
+
+        // Shuffle if requested
+        if (shuffle != null && shuffle) {
+            Collections.shuffle(filteredQuestions);
+            log.debug("Questions shuffled randomly");
+        }
+
+        // Apply limit
+        if (limit != null && limit > 0 && limit < filteredQuestions.size()) {
+            filteredQuestions = filteredQuestions.subList(0, limit);
+            log.debug("Limited to {} questions", limit);
+        }
+
+        // Convert to DTOs
+        List<TournamentQuestionSummaryDTO> dtos = questionMapper.toSummaryDTOList(filteredQuestions);
+
+        log.info("Returning {} {} difficulty questions for tournament {}",
+                dtos.size(), difficulty, tournamentId);
+
+        return dtos;
     }
 
     /**
-     * Get single question by ID
+     * Get questions by difficulty (overloaded method with default shuffle=true)
+     */
+    @Transactional(readOnly = true)
+    public List<TournamentQuestionSummaryDTO> getQuestionsByDifficulty(
+            Integer tournamentId,
+            String difficulty,
+            Integer limit) {
+        return getQuestionsByDifficulty(tournamentId, difficulty, limit, true);
+    }
+
+    /**
+     * Get all active questions for a tournament (for backward compatibility)
+     *
+     * @param tournamentId The tournament ID
+     * @return List of all active questions
+     */
+    @Transactional(readOnly = true)
+    public List<Question> getTournamentQuestions(Integer tournamentId) {
+        log.debug("Getting all questions for tournament {}", tournamentId);
+
+        List<Question> questions = questionRepository.findByTournamentIdWithQuizQuestion(tournamentId);
+
+        log.info("Found {} questions for tournament {}", questions.size(), tournamentId);
+        return questions;
+    }
+
+    /**
+     * Get a single question by ID
+     *
+     * @param questionId The question ID
+     * @return The question entity
+     * @throws RuntimeException if question not found
      */
     @Transactional(readOnly = true)
     public Question getQuestionById(Integer questionId) {
         log.debug("Getting question by ID: {}", questionId);
-        return questionRepository.findById(questionId)
-                .orElseThrow(() -> new RuntimeException("Tournament question not found with ID: " + questionId));
+
+        return questionRepository.findByIdWithQuizQuestion(questionId)
+                .orElseThrow(() -> {
+                    log.error("Question not found: {}", questionId);
+                    return new RuntimeException("Question not found with id: " + questionId);
+                });
     }
+
+    /**
+     * Get question count by difficulty for a tournament
+     * Utility method for checking question availability
+     *
+     * @param tournamentId The tournament ID
+     * @param difficulty The difficulty level
+     * @return Count of available questions
+     */
+    @Transactional(readOnly = true)
+    public long getQuestionCountByDifficulty(Integer tournamentId, String difficulty) {
+        QuizDifficulty quizDifficulty;
+        try {
+            quizDifficulty = QuizDifficulty.valueOf(difficulty.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return 0;
+        }
+
+        return questionRepository.findByTournamentIdWithQuizQuestion(tournamentId).stream()
+                .filter(Question::getIsActive)
+                .filter(q -> q.getQuizQuestion() != null)
+                .filter(q -> q.getQuizQuestion().getDifficulty() == quizDifficulty)
+                .count();
+    }
+
+    /**
+     * Validate that a tournament has enough questions for a game
+     *
+     * @param tournamentId The tournament ID
+     * @param difficulty The difficulty level
+     * @param requiredCount Minimum number of questions needed
+     * @return true if enough questions available, false otherwise
+     */
+    @Transactional(readOnly = true)
+    public boolean hasEnoughQuestions(Integer tournamentId, String difficulty, Integer requiredCount) {
+        long availableCount = getQuestionCountByDifficulty(tournamentId, difficulty);
+        boolean hasEnough = availableCount >= requiredCount;
+
+        log.debug("Tournament {} has {} {} difficulty questions (required: {})",
+                tournamentId, availableCount, difficulty, requiredCount);
+
+        return hasEnough;
+    }
+
+//    /**
+//     * Get all questions for a tournament in proper order
+//     */
+//    @Transactional(readOnly = true)
+//    public List<Question> getTournamentQuestions(Integer tournamentId) {
+//        log.debug("Getting questions for tournament: {}", tournamentId);
+//        return questionRepository.findByTournamentIdWithQuizQuestion(tournamentId);
+//    }
+
+    /**
+     * Get single question by ID
+     */
+//    @Transactional(readOnly = true)
+//    public Question getQuestionById(Integer questionId) {
+//        log.debug("Getting question by ID: {}", questionId);
+//        return questionRepository.findById(questionId)
+//                .orElseThrow(() -> new RuntimeException("Tournament question not found with ID: " + questionId));
+//    }
 
     /**
      * Get question with quiz question eagerly loaded
@@ -404,12 +560,12 @@ public class TournamentQuestionService {
     @Transactional
     public List<Question> bulkAddQuestions(BulkAddQuestionsRequest request) {
         log.info("Bulk adding {} questions to tournament {}",
-                request.getQuestions().size(), request.getTournamentId());
+                request.getQuestionsToAdd().size(), request.getTournamentId());
 
         List<Question> addedQuestions = new ArrayList<>();
         Integer currentDisplayOrder = questionRepository.getNextDisplayOrder(request.getTournamentId());
 
-        for (BulkAddQuestionsRequest.QuestionToAdd questionToAdd : request.getQuestions()) {
+        for (BulkAddQuestionsRequest.QuestionToAdd questionToAdd : request.getQuestionsToAdd()) {
             QuizQuestion quizQuestion = quizQuestionRepository.findById(questionToAdd.getQuizQuestionId())
                     .orElseThrow(() -> new RuntimeException(
                             "Question not found: " + questionToAdd.getQuizQuestionId()));
@@ -534,7 +690,8 @@ public class TournamentQuestionService {
                 .filter(Question::getIsActive)
                 .map(q -> q.getQuizQuestion().getTopic())
                 .filter(Objects::nonNull)
-                .filter(t -> !t.trim().isEmpty())
+                .map(Topic::getName)
+                .filter(name -> !name.trim().isEmpty())
                 .collect(Collectors.groupingBy(
                         t -> t,
                         Collectors.collectingAndThen(Collectors.counting(), Long::intValue)

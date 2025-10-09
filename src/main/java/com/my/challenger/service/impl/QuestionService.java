@@ -9,6 +9,7 @@ import com.my.challenger.entity.enums.QuizSessionStatus;
 import com.my.challenger.entity.quiz.QuizQuestion;
 import com.my.challenger.entity.quiz.QuizRound;
 import com.my.challenger.entity.quiz.QuizSession;
+import com.my.challenger.entity.quiz.Topic;
 import com.my.challenger.repository.*;
 import com.my.challenger.service.WWWGameService;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,7 @@ public class QuestionService {
     protected final ChallengeRepository challengeRepository;
     protected final UserRepository userRepository;
     protected final WWWGameService gameService;
+    protected final TopicService topicService;
 
 
     // =============================================================================
@@ -45,12 +47,16 @@ public class QuestionService {
 
         User creator = userRepository.findById(creatorId)
                 .orElseThrow(() -> new IllegalArgumentException("Creator not found"));
+        Topic topic = null;
+        if (request.getTopic() != null && !request.getTopic().isBlank()) {
+            topic = topicService.getOrCreateTopic(request.getTopic());
+        }
 
         QuizQuestion question = QuizQuestion.builder()
                 .question(request.getQuestion())
                 .answer(request.getAnswer())
                 .difficulty(request.getDifficulty())
-                .topic(request.getTopic())
+                .topic(topic)
                 .source(request.getSource())
                 .additionalInfo(request.getAdditionalInfo())
                 .isUserCreated(true)
@@ -106,8 +112,12 @@ public class QuestionService {
     public List<QuizQuestionDTO> searchQuestions(String keyword, int limit) {
         log.info("Searching questions with keyword: {} (limit: {})", keyword, limit);
 
+        String normalizedKeyword = keyword != null && !keyword.trim().isEmpty()
+                ? keyword.toLowerCase().trim()
+                : null;
+
         List<QuizQuestion> questions = quizQuestionRepository
-                .searchByKeyword(keyword, PageRequest.of(0, limit));
+                .searchByKeyword(normalizedKeyword, PageRequest.of(0, limit));
 
         return questions.stream()
                 .map(this::convertQuestionToDTO)
@@ -486,7 +496,7 @@ public class QuestionService {
                 .question(question.getQuestion())
                 .answer(question.getAnswer())
                 .difficulty(question.getDifficulty())
-                .topic(question.getTopic())
+                .topic(question.getTopic()!=null ? question.getTopic().getName(): "")
                 .source(question.getSource())
                 .additionalInfo(question.getAdditionalInfo())
                 .isUserCreated(question.getIsUserCreated())

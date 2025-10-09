@@ -1,3 +1,5 @@
+
+// src/main/java/com/my/challenger/dto/quiz/BulkAddQuestionsRequest.java
 package com.my.challenger.dto.quiz;
 
 import jakarta.validation.Valid;
@@ -11,7 +13,7 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 
 /**
- * Request to add multiple questions to tournament at once
+ * Request DTO for bulk adding questions to a tournament
  */
 @Data
 @Builder
@@ -25,15 +27,19 @@ public class BulkAddQuestionsRequest {
     @NotNull(message = "Tournament title is required")
     private String tournamentTitle;
     
-    @NotEmpty(message = "At least one question is required")
+    @NotEmpty(message = "Questions to add list cannot be empty")
     @Valid
-    private List<QuestionToAdd> questions;
+    private List<QuestionToAdd> questionsToAdd;
     
+    /**
+     * Individual question to add
+     */
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
     public static class QuestionToAdd {
+        
         @NotNull(message = "Quiz question ID is required")
         private Long quizQuestionId;
         

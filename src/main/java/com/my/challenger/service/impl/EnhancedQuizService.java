@@ -11,6 +11,8 @@ import com.my.challenger.entity.enums.*;
 import com.my.challenger.entity.quiz.QuizQuestion;
 import com.my.challenger.entity.quiz.QuizRound;
 import com.my.challenger.entity.quiz.QuizSession;
+import com.my.challenger.entity.quiz.Topic;
+import com.my.challenger.mapper.QuizQuestionMapper;
 import com.my.challenger.repository.*;
 import com.my.challenger.service.WWWGameService;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +32,7 @@ public class EnhancedQuizService extends QuizService {
     private final ObjectMapper objectMapper;
     private final QuizRoundRepository quizRoundRepository;
     private final TaskRepository taskRepository;
+    private final TopicService topicService;
 
     public EnhancedQuizService(
             QuizQuestionRepository quizQuestionRepository,
@@ -41,14 +44,16 @@ public class EnhancedQuizService extends QuizService {
             MediaStorageService mediaStorageService,
             MediaFileRepository mediaFileRepository,
             ObjectMapper objectMapper,
-            TaskRepository taskRepository) {
+            TaskRepository taskRepository, TopicService topicService) {
 
         super(quizQuestionRepository, quizSessionRepository, quizRoundRepository,
-                challengeRepository, userRepository, mediaFileRepository, gameService, mediaStorageService);
+                challengeRepository, userRepository, mediaFileRepository, gameService,
+                mediaStorageService, topicService);
 
         this.objectMapper = objectMapper;
         this.quizRoundRepository = quizRoundRepository;
         this.taskRepository = taskRepository;
+        this.topicService = topicService;
     }
 
 
@@ -253,17 +258,23 @@ public class EnhancedQuizService extends QuizService {
             User creator,
             Long challengeId) {
 
+
+
         log.info("Saving custom questions for challenge ID: {}", challengeId);
         List<QuizQuestionDTO> questions = new ArrayList<>();
         for (CreateQuizQuestionRequest questionRequest : questionRequests) {
             try {
+
+                Topic topic = null;
+                if (questionRequest.getTopic() != null && !questionRequest.getTopic().isBlank()) {
+                    topic = topicService.getOrCreateTopic(questionRequest.getTopic());
+                }
                 QuizQuestion question = QuizQuestion.builder()
                         .question(questionRequest.getQuestion())
                         .answer(questionRequest.getAnswer())
                         .difficulty(questionRequest.getDifficulty() != null ?
                                 questionRequest.getDifficulty() : QuizDifficulty.MEDIUM)
-                        .topic(questionRequest.getTopic() != null ?
-                                questionRequest.getTopic() : "General")
+                        .topic(topic)
                         .additionalInfo(questionRequest.getAdditionalInfo())
                         .isUserCreated(true)
                         .creator(creator)
@@ -276,7 +287,7 @@ public class EnhancedQuizService extends QuizService {
                 log.debug("Saved question ID: {} - {}", savedQuestion.getId(),
                         savedQuestion.getQuestion().substring(0, Math.min(50, savedQuestion.getQuestion().length())));
 
-                questions.add(convertQuestionToDTO(savedQuestion));
+                questions.add(QuizQuestionMapper.INSTANCE.toDTO(savedQuestion));
             } catch (Exception e) {
                 log.error("Error saving question: {}", questionRequest.getQuestion(), e);
                 // Continue with other questions even if one fails
@@ -302,7 +313,7 @@ public class EnhancedQuizService extends QuizService {
                         "USER_CREATED_FOR_CHALLENGE_" + challengeId);
 
         List<QuizQuestionDTO> questions = userQuestions.stream()
-                .map(this::convertQuestionToDTO)
+                .map(QuizQuestionMapper.INSTANCE::toDTO)
                 .collect(Collectors.toList());
 
         // If we don't have enough user questions, supplement with app questions
@@ -312,7 +323,7 @@ public class EnhancedQuizService extends QuizService {
                     .findByDifficulty(difficulty, PageRequest.of(0, remainingCount));
 
             List<QuizQuestionDTO> appQuestionDTOs = appQuestions.stream()
-                    .map(this::convertQuestionToDTO)
+                    .map(QuizQuestionMapper.INSTANCE::toDTO)
                     .collect(Collectors.toList());
 
             questions.addAll(appQuestionDTOs);
@@ -612,7 +623,7 @@ public class EnhancedQuizService extends QuizService {
         return QuizRoundDTO.builder()
                 .id(round.getId())
                 .quizSessionId(round.getQuizSession().getId())  // FIXED: was .sessionId()
-                .question(convertQuestionToDTO(round.getQuestion()))  // FIXED: was .questionId() and .question()
+                .question(QuizQuestionMapper.INSTANCE.toDTO(round.getQuestion()))  // FIXED: was .questionId() and .question()
                 .roundNumber(round.getRoundNumber())
                 .teamAnswer(round.getTeamAnswer())
                 .isCorrect(round.getIsCorrect())

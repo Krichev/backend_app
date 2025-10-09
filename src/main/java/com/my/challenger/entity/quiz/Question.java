@@ -185,6 +185,6 @@ public class Question {
      * Get topic from question bank
      */
     public String getTopic() {
-        return quizQuestion != null ? quizQuestion.getTopic() : null;
+        return quizQuestion != null ? quizQuestion.getTopic().getName() : null;
     }
 }
