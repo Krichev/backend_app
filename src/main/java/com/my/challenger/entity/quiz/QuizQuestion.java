@@ -1,5 +1,6 @@
 package com.my.challenger.entity.quiz;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.enums.QuestionType;
@@ -121,6 +122,7 @@ public class QuizQuestion {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @JsonBackReference
     @OneToMany(mappedBy = "quizQuestion", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<Question> tournamentQuestions = new ArrayList<>();

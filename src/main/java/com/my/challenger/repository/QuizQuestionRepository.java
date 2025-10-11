@@ -20,41 +20,41 @@ import java.util.Optional;
 
 @Repository
 public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long> {
-    
+
     Optional<QuizQuestion> findByLegacyQuestionId(Integer legacyQuestionId);
-    
+
     Optional<QuizQuestion> findByExternalId(String externalId);
-    
+
     List<QuizQuestion> findByTopic_NameAndIsActiveTrue(String topic);
-    
+
     List<QuizQuestion> findByDifficultyAndIsActiveTrue(QuizDifficulty difficulty);
-    
+
     Page<QuizQuestion> findByIsActiveTrue(Pageable pageable);
-    
+
     @Query("SELECT qq FROM QuizQuestion qq WHERE " +
-           "qq.isActive = true AND " +
-           "(:topic IS NULL OR qq.topic.name = :topic) AND " +
-           "(:difficulty IS NULL OR qq.difficulty = :difficulty) AND " +
-           "(:questionType IS NULL OR qq.questionType = :questionType)")
+            "qq.isActive = true AND " +
+            "(:topic IS NULL OR qq.topic.name = :topic) AND " +
+            "(:difficulty IS NULL OR qq.difficulty = :difficulty) AND " +
+            "(:questionType IS NULL OR qq.questionType = :questionType)")
     Page<QuizQuestion> searchQuestions(
             @Param("topic") String topic,
             @Param("difficulty") QuizDifficulty difficulty,
             @Param("questionType") QuestionType questionType,
             Pageable pageable);
-    
+
     @Query("SELECT qq FROM QuizQuestion qq " +
-           "WHERE qq.id NOT IN " +
-           "(SELECT q.quizQuestion.id FROM Question q WHERE q.tournamentId = :tournamentId)")
+            "WHERE qq.id NOT IN " +
+            "(SELECT q.quizQuestion.id FROM Question q WHERE q.tournamentId = :tournamentId)")
     List<QuizQuestion> findQuestionsNotInTournament(@Param("tournamentId") Integer tournamentId);
-    
+
     @Query("SELECT qq FROM QuizQuestion qq " +
-           "WHERE qq.isActive = true " +
-           "ORDER BY qq.usageCount DESC")
+            "WHERE qq.isActive = true " +
+            "ORDER BY qq.usageCount DESC")
     Page<QuizQuestion> findMostUsedQuestions(Pageable pageable);
-    
+
     @Query("SELECT qq FROM QuizQuestion qq " +
-           "LEFT JOIN FETCH qq.tournamentQuestions " +
-           "WHERE qq.id = :id")
+            "LEFT JOIN FETCH qq.tournamentQuestions " +
+            "WHERE qq.id = :id")
     Optional<QuizQuestion> findByIdWithUsages(@Param("id") Long id);
 
     /**
@@ -127,22 +127,23 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
     /**
      * BEST SOLUTION #2: Advanced search with clean syntax
      */
-    @Query("SELECT q FROM QuizQuestion q WHERE " +
-            "(:keyword IS NULL OR (" +
-            "   LOWER(q.question) LIKE %:keyword% OR " +
-            "   LOWER(q.answer) LIKE %:keyword% OR " +
-            "   LOWER(q.topic.name) LIKE %:keyword% OR " +
-            "   LOWER(q.source) LIKE %:keyword%)) AND " +
-            "(:difficultyStr IS NULL OR CAST(q.difficulty AS string) = :difficultyStr) AND " +
-            "(:topic IS NULL OR LOWER(q.topic.name) = :topic) AND " +
+    @Query("SELECT q FROM QuizQuestion q " +
+            "LEFT JOIN q.topic t " +
+            "WHERE " +
+            "(:keyword IS NULL OR :keyword = '' OR " +
+            "   LOWER(q.question) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "   LOWER(q.answer) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "   LOWER(t.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "   LOWER(q.source) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND " +
+            "(CAST(:difficulty AS string) IS NULL OR q.difficulty = :difficulty) AND " +
+            "(:topic IS NULL OR :topic = '' OR LOWER(t.name) = LOWER(:topic)) AND " +
             "(:isUserCreated IS NULL OR q.isUserCreated = :isUserCreated) " +
             "ORDER BY q.createdAt DESC")
     Page<QuizQuestion> searchWithFilters(@Param("keyword") String keyword,
-                                         @Param("difficultyStr") String difficultyStr,
+                                         @Param("difficulty") QuizDifficulty difficulty,
                                          @Param("topic") String topic,
                                          @Param("isUserCreated") Boolean isUserCreated,
                                          Pageable pageable);
-
     /**
      * Search questions by keyword in specific field
      */
@@ -274,7 +275,7 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
 
     List<QuizQuestion> findByCreatorIdAndSourceContaining(Long id, String s);
 
-    List<QuizQuestion> findByDifficulty(QuizDifficulty difficulty,  Pageable pageable);
+    List<QuizQuestion> findByDifficulty(QuizDifficulty difficulty, Pageable pageable);
 
     Long countByCreatorIdAndSourceContaining(Long id, String s);
 

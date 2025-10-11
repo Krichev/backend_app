@@ -25,8 +25,8 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(exclude = {"quizQuestions", "creator"})
-@ToString(exclude = {"quizQuestions", "creator"})
+@EqualsAndHashCode(exclude = {"creator"})
+@ToString(exclude = {"creator"})
 public class Topic {
 
     @Id
@@ -63,9 +63,9 @@ public class Topic {
     private LocalDateTime updatedAt;
 
     // Bidirectional relationship with QuizQuestion
-    @OneToMany(mappedBy = "topic", cascade = CascadeType.ALL, orphanRemoval = false)
-    @Builder.Default
-    private List<QuizQuestion> quizQuestions = new ArrayList<>();
+//    @OneToMany(mappedBy = "topic", cascade = CascadeType.ALL, orphanRemoval = false)
+//    @Builder.Default
+//    private List<QuizQuestion> quizQuestions = new ArrayList<>();
 
     // Helper method to increment question count
     public void incrementQuestionCount() {
