@@ -1,6 +1,7 @@
 package com.my.challenger.dto.quiz;
 
 import com.my.challenger.entity.enums.MediaType;
+import com.my.challenger.entity.enums.QuestionVisibility;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.enums.QuestionType;
 import lombok.AllArgsConstructor;
@@ -47,6 +48,16 @@ public class QuizQuestionDTO {
     private Boolean isUserCreated;
     private Long creatorId;
     private String creatorUsername;
+
+    // NEW: Access control
+    private QuestionVisibility visibility;
+    private Long originalQuizId;
+    private String originalQuizTitle;
+
+    // NEW: Access information for current user
+    private Boolean canEdit;
+    private Boolean canDelete;
+    private Boolean canUseInQuiz;
 
     // Status and usage
     private Boolean isActive;

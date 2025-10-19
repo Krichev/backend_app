@@ -1,6 +1,7 @@
 package com.my.challenger.repository;
 
 import com.my.challenger.entity.enums.MediaType;
+import com.my.challenger.entity.enums.QuestionVisibility;
 import com.my.challenger.entity.quiz.QuizQuestion;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.enums.QuestionType;
@@ -20,6 +21,59 @@ import java.util.Optional;
 
 @Repository
 public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long> {
+
+    /**
+     * Find questions by creator with pagination
+     */
+    Page<QuizQuestion> findByCreatorIdAndIsUserCreatedTrue(Long creatorId, Pageable pageable);
+
+    /**
+     * Find questions accessible by a user based on visibility
+     */
+    @Query("SELECT q FROM QuizQuestion q WHERE " +
+            "q.isUserCreated = true AND q.isActive = true AND " +
+            "(q.visibility = 'PUBLIC' OR " +
+            " q.creator.id = :userId OR " +
+            " (q.visibility = 'FRIENDS_FAMILY' AND q.creator.id IN :friendIds) OR " +
+            " (q.visibility = 'QUIZ_ONLY' AND q.originalQuiz.id = :quizId))")
+    Page<QuizQuestion> findAccessibleQuestions(@Param("userId") Long userId,
+                                               @Param("friendIds") List<Long> friendIds,
+                                               @Param("quizId") Long quizId,
+                                               Pageable pageable);
+
+    /**
+     * Search user questions with filters
+     */
+    @Query("SELECT q FROM QuizQuestion q WHERE " +
+            "q.isUserCreated = true AND q.isActive = true AND " +
+            "q.creator.id = :userId AND " +
+            "(:keyword IS NULL OR LOWER(q.question) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND " +
+            "(:difficulty IS NULL OR q.difficulty = :difficulty) AND " +
+            "(:topic IS NULL OR LOWER(q.topic.name) LIKE LOWER(CONCAT('%', :topic, '%')))")
+    Page<QuizQuestion> searchUserQuestions(@Param("userId") Long userId,
+                                           @Param("keyword") String keyword,
+                                           @Param("difficulty") QuizDifficulty difficulty,
+                                           @Param("topic") String topic,
+                                           Pageable pageable);
+
+    /**
+     * Find questions by visibility
+     */
+    List<QuizQuestion> findByVisibilityAndIsActiveTrue(QuestionVisibility visibility);
+
+    /**
+     * Find questions for a specific quiz (QUIZ_ONLY)
+     */
+    List<QuizQuestion> findByOriginalQuizIdAndIsActiveTrue(Long quizId);
+
+    /**
+     * Count user's questions by visibility
+     */
+    @Query("SELECT q.visibility, COUNT(q) FROM QuizQuestion q WHERE " +
+            "q.creator.id = :userId AND q.isUserCreated = true " +
+            "GROUP BY q.visibility")
+    List<Object[]> countQuestionsByVisibility(@Param("userId") Long userId);
+
 
     Optional<QuizQuestion> findByLegacyQuestionId(Integer legacyQuestionId);
 

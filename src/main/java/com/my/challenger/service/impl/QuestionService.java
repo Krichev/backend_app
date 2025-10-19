@@ -4,17 +4,23 @@ import com.my.challenger.dto.quiz.*;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.challenge.Challenge;
 import com.my.challenger.entity.enums.QuestionSource;
+import com.my.challenger.entity.enums.QuestionVisibility;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.enums.QuizSessionStatus;
 import com.my.challenger.entity.quiz.QuizQuestion;
 import com.my.challenger.entity.quiz.QuizRound;
 import com.my.challenger.entity.quiz.QuizSession;
 import com.my.challenger.entity.quiz.Topic;
+import com.my.challenger.exception.BadRequestException;
+import com.my.challenger.exception.ResourceNotFoundException;
 import com.my.challenger.repository.*;
 import com.my.challenger.service.WWWGameService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,39 +41,149 @@ public class QuestionService {
     protected final UserRepository userRepository;
     protected final WWWGameService gameService;
     protected final TopicService topicService;
+    private final QuestionAccessService accessService;
+    private final UserRelationshipService relationshipService;
 
-
-    // =============================================================================
-    // QUESTION MANAGEMENT METHODS
-    // =============================================================================
-
+    /**
+     * Create a user question with visibility policy
+     */
     @Transactional
     public QuizQuestionDTO createUserQuestion(CreateQuizQuestionRequest request, Long creatorId) {
-        log.info("Creating user question for creator: {}", creatorId);
+        log.info("Creating user question for creator: {} with visibility: {}",
+                creatorId, request.getVisibility());
 
         User creator = userRepository.findById(creatorId)
-                .orElseThrow(() -> new IllegalArgumentException("Creator not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + creatorId));
+
+        // Validate QUIZ_ONLY visibility
+        if (request.getVisibility() == QuestionVisibility.QUIZ_ONLY && request.getOriginalQuizId() == null) {
+            throw new BadRequestException("Original quiz ID is required for QUIZ_ONLY visibility");
+        }
+
         Topic topic = null;
-        if (request.getTopic() != null && !request.getTopic().isBlank()) {
-            topic = topicService.getOrCreateTopic(request.getTopic());
+        if (request.getTopic() != null && !request.getTopic().isEmpty()) {
+            topic = topicService.findOrCreateTopic(request.getTopic(), creator);
         }
 
         QuizQuestion question = QuizQuestion.builder()
                 .question(request.getQuestion())
                 .answer(request.getAnswer())
-                .difficulty(request.getDifficulty())
+                .difficulty(request.getDifficulty() != null ? request.getDifficulty() : QuizDifficulty.MEDIUM)
                 .topic(topic)
                 .source(request.getSource())
                 .additionalInfo(request.getAdditionalInfo())
                 .isUserCreated(true)
                 .creator(creator)
-                .usageCount(0)
+                .visibility(request.getVisibility())
+                .isActive(true)
                 .build();
 
-        QuizQuestion saved = quizQuestionRepository.save(question);
-        log.info("Created question with ID: {}", saved.getId());
-        return convertQuestionToDTO(saved);
+        // Set original quiz if QUIZ_ONLY
+        if (request.getVisibility() == QuestionVisibility.QUIZ_ONLY) {
+            Challenge originalQuiz = challengeRepository.findById(request.getOriginalQuizId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Quiz not found: " + request.getOriginalQuizId()));
+            question.setOriginalQuiz(originalQuiz);
+        }
+
+        question = quizQuestionRepository.save(question);
+        log.info("Created user question with ID: {}", question.getId());
+
+        return toDTO(question, creatorId);
     }
+
+    /**
+     * Get user's own questions with pagination
+     */
+    @Transactional(readOnly = true)
+    public Page<QuizQuestionDTO> getUserQuestions(Long userId, Pageable pageable) {
+        Page<QuizQuestion> questions = quizQuestionRepository.findByCreatorIdAndIsUserCreatedTrue(userId, pageable);
+        return questions.map(q -> toDTO(q, userId));
+    }
+
+    /**
+     * Search accessible questions for a user
+     */
+    @Transactional(readOnly = true)
+    public Page<QuizQuestionDTO> searchAccessibleQuestions(Long userId, QuestionSearchRequest request) {
+        List<Long> friendIds = relationshipService.getConnectedUserIds(userId);
+
+        Page<QuizQuestion> questions = quizQuestionRepository.findAccessibleQuestions(
+                userId,
+                friendIds,
+                request.getQuizId(),
+                request.getPageable()
+        );
+
+        return questions.map(q -> toDTO(q, userId));
+    }
+
+    /**
+     * Update question visibility
+     */
+    @Transactional
+    public QuizQuestionDTO updateQuestionVisibility(Long questionId, Long userId, QuestionVisibility newVisibility, Long originalQuizId) {
+        QuizQuestion question = quizQuestionRepository.findById(questionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Question not found: " + questionId));
+
+        // Only creator can change visibility
+        if (!question.getCreator().getId().equals(userId)) {
+            throw new AccessDeniedException("Only the creator can change question visibility");
+        }
+
+        // Validate QUIZ_ONLY visibility
+        if (newVisibility == QuestionVisibility.QUIZ_ONLY && originalQuizId == null) {
+            throw new BadRequestException("Original quiz ID is required for QUIZ_ONLY visibility");
+        }
+
+        question.setVisibility(newVisibility);
+
+        if (newVisibility == QuestionVisibility.QUIZ_ONLY) {
+            Challenge quiz = challengeRepository.findById(originalQuizId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Quiz not found: " + originalQuizId));
+            question.setOriginalQuiz(quiz);
+        } else {
+            question.setOriginalQuiz(null);
+        }
+
+        question = quizQuestionRepository.save(question);
+        return toDTO(question, userId);
+    }
+
+    /**
+     * Convert QuizQuestion to DTO with access information
+     */
+    private QuizQuestionDTO toDTO(QuizQuestion question, Long currentUserId) {
+        boolean isCreator = question.getCreator() != null &&
+                question.getCreator().getId().equals(currentUserId);
+
+        return QuizQuestionDTO.builder()
+                .id(question.getId())
+                .question(question.getQuestion())
+                .answer(question.getAnswer())
+                .difficulty(question.getDifficulty())
+                .topic(question.getTopic() != null ? question.getTopic().getName() : null)
+                .source(question.getSource())
+                .additionalInfo(question.getAdditionalInfo())
+                .isUserCreated(question.getIsUserCreated())
+                .creatorId(question.getCreator() != null ? question.getCreator().getId() : null)
+                .creatorUsername(question.getCreator() != null ? question.getCreator().getUsername() : null)
+                .visibility(question.getVisibility())
+                .originalQuizId(question.getOriginalQuiz() != null ? question.getOriginalQuiz().getId() : null)
+                .originalQuizTitle(question.getOriginalQuiz() != null ? question.getOriginalQuiz().getTitle() : null)
+                .canEdit(isCreator)
+                .canDelete(isCreator)
+                .canUseInQuiz(accessService.canAccessQuestion(question, currentUserId))
+                .isActive(question.getIsActive())
+                .usageCount(question.getUsageCount())
+                .createdAt(question.getCreatedAt())
+                .updatedAt(question.getUpdatedAt())
+                .build();
+    }
+
+    // =============================================================================
+    // QUESTION MANAGEMENT METHODS
+    // =============================================================================
+
 
     public List<QuizQuestionDTO> getUserQuestions(Long userId) {
         log.info("Getting user questions for user: {}", userId);

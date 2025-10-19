@@ -11,6 +11,7 @@ import com.my.challenger.entity.Task;
 import com.my.challenger.entity.TaskCompletion;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.challenge.Challenge;
+import com.my.challenger.entity.challenge.ChallengeAccess;
 import com.my.challenger.entity.enums.*;
 import com.my.challenger.repository.*;
 import com.my.challenger.repository.specification.ChallengeSpecification;
@@ -22,6 +23,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -37,6 +39,286 @@ public class ChallengeServiceImpl implements ChallengeService {
     private final TaskCompletionRepository taskCompletionRepository;
     private final ChallengeProgressRepository challengeProgressRepository;
     private final ObjectMapper objectMapper;
+    private final ChallengeAccessRepository accessRepository;
+    private final PaymentService paymentService; // Inject your payment service
+
+    @Override
+    public List<Map<String, Object>> getAccessList(Long challengeId) {
+        log.info("Getting access list for challenge ID: {}", challengeId);
+
+        Challenge challenge = challengeRepository.findById(challengeId)
+                .orElseThrow(() -> new IllegalArgumentException("Challenge not found with ID: " + challengeId));
+
+        List<Map<String, Object>> accessList = new ArrayList<>();
+
+        // Add creator with full access
+        Map<String, Object> creatorAccess = new HashMap<>();
+        creatorAccess.put("userId", challenge.getCreator().getId());
+        creatorAccess.put("username", challenge.getCreator().getUsername());
+        creatorAccess.put("accessLevel", "OWNER");
+        creatorAccess.put("permissions", Arrays.asList("READ", "WRITE", "DELETE", "MANAGE"));
+        accessList.add(creatorAccess);
+
+//        // Add participants with read access
+//        if (challenge.getParticipants() != null) {
+//            for (User participant : challenge.getParticipants()) {
+//                Map<String, Object> participantAccess = new HashMap<>();
+//                participantAccess.put("userId", participant.getId());
+//                participantAccess.put("username", participant.getUsername());
+//                participantAccess.put("accessLevel", "PARTICIPANT");
+//                participantAccess.put("permissions", Arrays.asList("READ", "SUBMIT"));
+//                accessList.add(participantAccess);
+//            }
+//        }
+
+        return accessList;
+    }
+
+
+    /**
+     * Create challenge with payment and access control
+     */
+    @Transactional
+    public ChallengeDTO createChallenge(CreateChallengeRequest request, Long creatorId) {
+        User creator = userRepository.findById(creatorId)
+                .orElseThrow(() -> new IllegalArgumentException("Creator not found"));
+
+        Challenge challenge = new Challenge();
+        challenge.setTitle(request.getTitle());
+        challenge.setDescription(request.getDescription());
+        challenge.setType(request.getType());
+        challenge.setCreator(creator);
+        challenge.setFrequency(request.getFrequency());
+        challenge.setStartDate(request.getStartDate() != null ? request.getStartDate() : LocalDateTime.now());
+        challenge.setEndDate(request.getEndDate());
+        challenge.setStatus(request.getStatus() != null ? request.getStatus() : ChallengeStatus.ACTIVE);
+        challenge.setVerificationMethod(request.getVerificationMethod());
+
+        // Set visibility
+        boolean isPublic = request.getVisibility() == VisibilityType.PUBLIC;
+        challenge.setPublic(isPublic);
+        challenge.setRequiresApproval(Boolean.TRUE.equals(request.getRequiresApproval()));
+
+        // Set payment information
+        setupPayment(challenge, request);
+
+        // Save challenge first
+        Challenge savedChallenge = challengeRepository.save(challenge);
+
+        // Setup access control for private challenges
+        if (!isPublic && request.getInvitedUserIds() != null && !request.getInvitedUserIds().isEmpty()) {
+            grantAccessToUsers(savedChallenge, request.getInvitedUserIds(), creator);
+        }
+
+        log.info("Created challenge ID: {} by user: {} with payment type: {}",
+                savedChallenge.getId(), creatorId, challenge.getPaymentType());
+
+        return convertToDTO(savedChallenge, creatorId);
+    }
+
+    /**
+     * Search challenges with access control
+     */
+    @Transactional(readOnly = true)
+    public List<ChallengeDTO> searchChallenges(String keyword, Long userId, Pageable pageable) {
+        List<Challenge> challenges = challengeRepository.searchByKeyword(keyword);
+
+        // Filter challenges based on access
+        return challenges.stream()
+                .filter(challenge -> canUserAccessChallenge(challenge, userId))
+                .map(challenge -> convertToDTO(challenge, userId))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get public and accessible challenges for a user
+     */
+    @Transactional(readOnly = true)
+    public List<ChallengeDTO> getAccessibleChallenges(Long userId, Pageable pageable) {
+        List<Challenge> publicChallenges = challengeRepository.findAll(pageable).getContent();
+
+        List<ChallengeAccess> privateAccess = accessRepository.findActiveByUserId(userId);
+        List<Challenge> privateChallenges = privateAccess.stream()
+                .map(ChallengeAccess::getChallenge)
+                .collect(Collectors.toList());
+
+        // Combine and filter
+        return publicChallenges.stream()
+                .filter(Challenge::isPublic)
+                .map(challenge -> convertToDTO(challenge, userId))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Join a challenge with payment processing
+     */
+    @Transactional
+    public void joinChallenge(Long challengeId, Long userId) {
+        Challenge challenge = challengeRepository.findById(challengeId)
+                .orElseThrow(() -> new IllegalArgumentException("Challenge not found"));
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        // Check access
+        if (!canUserAccessChallenge(challenge, userId)) {
+            throw new IllegalStateException("You don't have access to this challenge");
+        }
+
+        // Check if requires approval
+        if (challenge.isRequiresApproval()) {
+            throw new IllegalStateException("This challenge requires approval from the creator");
+        }
+
+        // Process payment if required
+        if (challenge.isHasEntryFee() && challenge.getEntryFeeAmount() != null) {
+            processEntryFeePayment(challenge, user);
+        }
+
+        // Create progress record
+        // ... your existing join logic
+
+        log.info("User {} joined challenge {} with payment type {}",
+                userId, challengeId, challenge.getPaymentType());
+    }
+
+    /**
+     * Grant access to specific users for private challenges
+     */
+    @Transactional
+    public void grantAccessToUsers(Challenge challenge, List<Long> userIds, User grantedBy) {
+        for (Long userId : userIds) {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+
+            // Check if access already exists
+            if (!accessRepository.hasAccess(challenge.getId(), userId)) {
+                ChallengeAccess access = new ChallengeAccess();
+                access.setChallenge(challenge);
+                access.setUser(user);
+                access.setGrantedBy(grantedBy);
+                access.setGrantedAt(LocalDateTime.now());
+                access.setStatus("ACTIVE");
+                accessRepository.save(access);
+                log.info("Granted access to user {} for challenge {}", userId, challenge.getId());
+            }
+        }
+    }
+
+    /**
+     * Revoke access from a user
+     */
+    @Transactional
+    public void revokeAccess(Long challengeId, Long userId, Long revokedBy) {
+        Challenge challenge = challengeRepository.findById(challengeId)
+                .orElseThrow(() -> new IllegalArgumentException("Challenge not found"));
+
+        if (!challenge.getCreator().getId().equals(revokedBy)) {
+            throw new IllegalStateException("Only the creator can revoke access");
+        }
+
+        ChallengeAccess access = accessRepository.findByChallengeIdAndUserId(challengeId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("Access record not found"));
+
+        access.setStatus("REVOKED");
+        accessRepository.save(access);
+        log.info("Revoked access for user {} from challenge {}", userId, challengeId);
+    }
+
+    // ========== PRIVATE HELPER METHODS ==========
+
+    private void setupPayment(Challenge challenge, CreateChallengeRequest request) {
+        challenge.setPaymentType(request.getPaymentType() != null ?
+                request.getPaymentType() : PaymentType.FREE);
+
+        if (Boolean.TRUE.equals(request.getHasEntryFee())) {
+            challenge.setHasEntryFee(true);
+            challenge.setEntryFeeAmount(request.getEntryFeeAmount());
+            challenge.setEntryFeeCurrency(request.getEntryFeeCurrency() != null ?
+                    request.getEntryFeeCurrency() : CurrencyType.USD);
+        }
+
+        if (Boolean.TRUE.equals(request.getHasPrize())) {
+            challenge.setHasPrize(true);
+            challenge.setPrizeAmount(request.getPrizeAmount());
+            challenge.setPrizeCurrency(request.getPrizeCurrency() != null ?
+                    request.getPrizeCurrency() : CurrencyType.USD);
+        }
+    }
+
+    private void processEntryFeePayment(Challenge challenge, User user) {
+        BigDecimal amount = challenge.getEntryFeeAmount();
+        CurrencyType currency = challenge.getEntryFeeCurrency();
+
+        if (currency == CurrencyType.POINTS) {
+            // Deduct points from user
+            paymentService.deductPoints(user, amount.longValue());
+        } else {
+            // Process cash payment
+            paymentService.processCashPayment(user, amount, currency);
+        }
+
+        // Add to prize pool
+        challenge.addEntryFee(amount);
+        challengeRepository.save(challenge);
+    }
+
+    private boolean canUserAccessChallenge(Challenge challenge, Long userId) {
+        // Public challenges are accessible to all
+        if (challenge.isPublic()) {
+            return true;
+        }
+
+        // Creator always has access
+        if (challenge.getCreator().getId().equals(userId)) {
+            return true;
+        }
+
+        // Check access list for private challenges
+        return accessRepository.hasAccess(challenge.getId(), userId);
+    }
+
+    private ChallengeDTO convertToDTO(Challenge challenge, Long userId) {
+        ChallengeDTO dto = new ChallengeDTO();
+        dto.setId(challenge.getId());
+        dto.setTitle(challenge.getTitle());
+        dto.setDescription(challenge.getDescription());
+        dto.setType(challenge.getType());
+        dto.setVisibility(challenge.isPublic() ? VisibilityType.PUBLIC : VisibilityType.PRIVATE);
+        dto.setStatus(challenge.getStatus());
+        dto.setCreated_at(challenge.getCreatedAt());
+        dto.setUpdated_at(challenge.getUpdatedAt());
+        dto.setCreator_id(challenge.getCreator().getId());
+        dto.setCreatorUsername(challenge.getCreator().getUsername());
+        dto.setIsPublic(challenge.isPublic());
+        dto.setRequiresApproval(challenge.isRequiresApproval());
+
+        // Payment info
+        dto.setPaymentType(challenge.getPaymentType());
+        dto.setHasEntryFee(challenge.isHasEntryFee());
+        dto.setEntryFeeAmount(challenge.getEntryFeeAmount());
+        dto.setEntryFeeCurrency(challenge.getEntryFeeCurrency());
+        dto.setHasPrize(challenge.isHasPrize());
+        dto.setPrizeAmount(challenge.getPrizeAmount());
+        dto.setPrizeCurrency(challenge.getPrizeCurrency());
+        dto.setPrizePool(challenge.getPrizePool());
+
+        // User-specific info
+        if (userId != null) {
+            boolean isCreator = challenge.getCreator().getId().equals(userId);
+            dto.setUserIsCreator(isCreator);
+            dto.setUserHasAccess(canUserAccessChallenge(challenge, userId));
+        }
+
+        // Access count for private challenges
+        if (!challenge.isPublic()) {
+            long invitedCount = accessRepository.countByChallengeIdAndStatus(
+                    challenge.getId(), "ACTIVE");
+            dto.setInvitedUsersCount((int) invitedCount);
+        }
+
+        return dto;
+    }
 
     @Override
     public List<ChallengeDTO> getChallenges(Map<String, Object> filters) {
@@ -107,33 +389,6 @@ public class ChallengeServiceImpl implements ChallengeService {
         }
     }
 
-//    // Helper method to convert Challenge to ChallengeDTO
-//    private ChallengeDTO convertToDTO(Challenge challenge) {
-//        // Your existing DTO conversion logic
-//        ChallengeDTO dto = new ChallengeDTO();
-//        dto.setId(challenge.getId());
-//        dto.setTitle(challenge.getTitle());
-//        dto.setDescription(challenge.getDescription());
-//        dto.setType(challenge.getType());
-//        dto.setStatus(challenge.getStatus());
-//        dto.setDifficulty(challenge.getDifficulty());
-//        dto.setIsPublic(challenge.isPublic());
-//        dto.setStartDate(challenge.getStartDate());
-//        dto.setEndDate(challenge.getEndDate());
-//        dto.setFrequency(challenge.getFrequency());
-//        dto.setVerificationMethod(challenge.getVerificationMethod());
-//        dto.setCreatedAt(challenge.getCreatedAt());
-//        dto.setUpdatedAt(challenge.getUpdatedAt());
-//
-//        if (challenge.getCreator() != null) {
-//            dto.setCreatorId(challenge.getCreator().getId());
-//        }
-//        if (challenge.getGroup() != null) {
-//            dto.setGroupId(challenge.getGroup().getId());
-//        }
-//
-//        return dto;
-//    }
 
     // Keep your existing methods unchanged
     private List<Challenge> getChallengesByParticipantId(Long participantId, Pageable pageable) {
@@ -143,58 +398,6 @@ public class ChallengeServiceImpl implements ChallengeService {
     private List<Challenge> getChallengesByUserIdAsCreatorOrParticipant(Long userId, Pageable pageable) {
         return challengeRepository.findChallengesByUserIdAsCreatorOrParticipant(userId, pageable);
     }
-//    /**
-//     * FIXED METHOD: Get challenges by participant ID using new progress system
-//     */
-//    private List<Challenge> getChallengesByParticipantId(Long participantId, Pageable pageable) {
-//        try {
-//            // Use the new progress system instead of old participants relationship
-//            List<ChallengeProgress> progressList = challengeProgressRepository.findByUserId(participantId);
-//
-//            return progressList.stream()
-//                    .map(ChallengeProgress::getChallenge)
-//                    .distinct() // Remove duplicates if any
-//                    .skip(pageable.getOffset())
-//                    .limit(pageable.getPageSize())
-//                    .collect(Collectors.toList());
-//
-//        } catch (Exception e) {
-//            log.error("Error finding challenges by participant ID: {}", participantId, e);
-//            // Fallback to repository method if it exists
-//            return challengeRepository.findChallengesByParticipantId(participantId, pageable);
-//        }
-//    }
-
-//    /**
-//     * FIXED METHOD: Get challenges by user ID as creator or participant
-//     */
-//    private List<Challenge> getChallengesByUserIdAsCreatorOrParticipant(Long userId, Pageable pageable) {
-//        try {
-//            // Get challenges where user is creator
-//            List<Challenge> createdChallenges = challengeRepository.findByCreatorId(userId, pageable);
-//
-//            // Get challenges where user is participant (using progress system)
-//            List<Challenge> participatedChallenges = getChallengesByParticipantId(userId, pageable);
-//
-//            // Combine and remove duplicates
-//            List<Challenge> allChallenges = createdChallenges.stream()
-//                    .collect(Collectors.toList());
-//
-//            participatedChallenges.stream()
-//                    .filter(challenge -> !allChallenges.contains(challenge))
-//                    .forEach(allChallenges::add);
-//
-//            return allChallenges.stream()
-//                    .skip(pageable.getOffset())
-//                    .limit(pageable.getPageSize())
-//                    .collect(Collectors.toList());
-//
-//        } catch (Exception e) {
-//            log.error("Error finding challenges by user ID as creator or participant: {}", userId, e);
-//            // Fallback to repository method if it exists
-//            return challengeRepository.findChallengesByUserIdAsCreatorOrParticipant(userId, pageable);
-//        }
-//    }
 
     @Override
     public ChallengeDTO getChallengeById(Long id, Long requestUserId) {
@@ -211,48 +414,6 @@ public class ChallengeServiceImpl implements ChallengeService {
         return Optional.of(challenge);
     }
 
-    @Override
-    @Transactional
-    public ChallengeDTO createChallenge(CreateChallengeRequest request, Long creatorId) {
-        User creator = findUserById(creatorId);
-
-        Challenge challenge = new Challenge();
-        challenge.setType(request.getType());
-        challenge.setTitle(request.getTitle());
-        challenge.setDescription(request.getDescription());
-        challenge.setCreator(creator);
-        challenge.setPublic(request.getVisibility().equals("PUBLIC"));
-        challenge.setStartDate(request.getStartDate() != null ?
-                request.getStartDate() : LocalDateTime.now());
-        challenge.setEndDate(request.getEndDate() != null ?
-                request.getEndDate() : null);
-        challenge.setFrequency(request.getFrequency());
-        challenge.setStatus(request.getStatus() != null ?
-                request.getStatus() : ChallengeStatus.ACTIVE);
-
-        // Set verification method
-        if (request.getVerificationMethod() != null) {
-            try {
-                VerificationMethod verificationMethod = request.getVerificationMethod();
-                challenge.setVerificationMethod(verificationMethod);
-            } catch (IllegalArgumentException e) {
-                log.warn("Invalid verification method: {}", request.getVerificationMethod());
-                challenge.setVerificationMethod(VerificationMethod.MANUAL);
-            }
-        }
-
-        // Save challenge first
-        Challenge savedChallenge = challengeRepository.save(challenge);
-
-        // Create initial task for the creator
-        createInitialTask(savedChallenge, creator);
-
-        // Create progress record for the creator
-        createCreatorProgress(savedChallenge, creator);
-
-        log.info("Created challenge with ID: {} by user: {}", savedChallenge.getId(), creatorId);
-        return convertToDTO(savedChallenge, creatorId);
-    }
 
     @Override
     @Transactional
@@ -313,39 +474,6 @@ public class ChallengeServiceImpl implements ChallengeService {
         log.info("Challenge with ID {} has been marked as cancelled", id);
     }
 
-    @Override
-    @Transactional
-    public void joinChallenge(Long challengeId, Long userId) {
-        Challenge challenge = findChallengeById(challengeId);
-        User user = findUserById(userId);
-
-        // Check if user already joined
-        boolean alreadyJoined = challengeProgressRepository.existsByChallengeIdAndUserId(challengeId, userId);
-        if (alreadyJoined) {
-            throw new IllegalStateException("User has already joined this challenge");
-        }
-
-        // Check if challenge is still active and joinable
-        if (challenge.getStatus() != ChallengeStatus.ACTIVE) {
-            throw new IllegalStateException("Cannot join inactive challenge");
-        }
-
-        // Create challenge progress entry
-        ChallengeProgress progress = new ChallengeProgress();
-        progress.setChallenge(challenge);
-        progress.setUser(user);
-        progress.setStatus(ProgressStatus.IN_PROGRESS);
-        progress.setCompletionPercentage(0.0);
-        progress.setCreatedAt(LocalDateTime.now());
-        progress.setUpdatedAt(LocalDateTime.now());
-
-        challengeProgressRepository.save(progress);
-
-        // Create task for the user
-        createUserTask(challenge, user);
-
-        log.info("User {} joined challenge {}", userId, challengeId);
-    }
 
     @Override
     @Transactional
@@ -639,45 +767,4 @@ public class ChallengeServiceImpl implements ChallengeService {
                 user.getId(), challenge.getId(), completionPercentage);
     }
 
-    /**
-     * Helper method to convert Challenge entity to DTO
-     */
-    private ChallengeDTO convertToDTO(Challenge challenge, Long requestUserId) {
-        ChallengeDTO dto = new ChallengeDTO();
-        dto.setId(challenge.getId());
-        dto.setTitle(challenge.getTitle());
-        dto.setDescription(challenge.getDescription());
-        dto.setType(challenge.getType());
-        dto.setVisibility(challenge.isPublic() ?
-                VisibilityType.PUBLIC : VisibilityType.PRIVATE);
-        dto.setStatus(challenge.getStatus());
-        dto.setCreated_at(challenge.getStartDate()); // Using startDate as created_at
-        dto.setCreator_id(challenge.getCreator().getId());
-        dto.setCreatorUsername(challenge.getCreator().getUsername());
-        dto.setFrequency(challenge.getFrequency());
-        dto.setStartDate(challenge.getStartDate());
-        dto.setEndDate(challenge.getEndDate());
-
-        // Set user-specific flags
-        if (requestUserId != null) {
-            boolean isCreator = challenge.getCreator().getId().equals(requestUserId);
-            dto.setUserIsCreator(isCreator);
-            dto.setUserRole(isCreator ? "CREATOR" : "PARTICIPANT");
-
-            // Check if user has joined this challenge
-            boolean hasJoined = challengeProgressRepository.existsByChallengeIdAndUserId(challenge.getId(), requestUserId);
-            dto.setUserHasJoined(hasJoined || isCreator);
-        }
-
-        // Get participant count using new progress system
-        Long participantCount = challengeProgressRepository.countByChallengeId(challenge.getId());
-        dto.setParticipantCount(participantCount.intValue());
-
-        // Set verification method as string (enum name)
-        if (challenge.getVerificationMethod() != null) {
-            dto.setVerificationMethod(challenge.getVerificationMethod().toString());
-        }
-
-        return dto;
-    }
 }

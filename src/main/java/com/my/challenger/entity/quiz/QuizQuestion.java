@@ -2,9 +2,8 @@ package com.my.challenger.entity.quiz;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.my.challenger.entity.User;
-import com.my.challenger.entity.enums.QuizDifficulty;
-import com.my.challenger.entity.enums.QuestionType;
-import com.my.challenger.entity.enums.MediaType;
+import com.my.challenger.entity.challenge.Challenge;
+import com.my.challenger.entity.enums.*;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -127,6 +126,20 @@ public class QuizQuestion {
     @Builder.Default
     private List<Question> tournamentQuestions = new ArrayList<>();
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "visibility", nullable = false, columnDefinition = "question_visibility")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Builder.Default
+    private QuestionVisibility visibility = QuestionVisibility.PRIVATE;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "original_quiz_id", foreignKey = @ForeignKey(name = "fk_question_original_quiz"))
+    private Challenge originalQuiz;
+
+    @OneToMany(mappedBy = "question", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<QuestionAccessLog> accessLogs = new ArrayList<>();
+
     // =============== HELPER METHODS ===============
 
 
@@ -223,5 +236,42 @@ public class QuizQuestion {
         if (this.usageCount != null && this.usageCount > 0) {
             this.usageCount--;
         }
+    }
+
+    /**
+     * Check if this question is accessible to a specific user
+     */
+    public boolean isAccessibleBy(User user) {
+        if (user == null) return false;
+
+        // Creator always has access
+        if (this.creator != null && this.creator.getId().equals(user.getId())) {
+            return true;
+        }
+
+        switch (this.visibility) {
+            case PUBLIC:
+                return true;
+            case PRIVATE:
+                return false;
+            case FRIENDS_FAMILY:
+            case QUIZ_ONLY:
+                // These would be checked at service level
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Log access to this question
+     */
+    public void logAccess(User user, QuestionAccessType accessType) {
+        QuestionAccessLog log = QuestionAccessLog.builder()
+                .question(this)
+                .accessedByUser(user)
+                .accessType(accessType)
+                .build();
+        this.accessLogs.add(log);
     }
 }

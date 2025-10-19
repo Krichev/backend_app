@@ -2,11 +2,14 @@ package com.my.challenger.web.controllers;
 
 import com.my.challenger.dto.*;
 import com.my.challenger.entity.User;
+import com.my.challenger.entity.challenge.Challenge;
 import com.my.challenger.repository.UserRepository;
 import com.my.challenger.service.impl.ChallengeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -15,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Controller for handling challenge-related endpoints
@@ -27,6 +31,78 @@ public class ChallengeController {
 
     private final ChallengeService challengeService;
     private final UserRepository userRepository;
+
+    /**
+     * Get accessible challenges for current user
+     */
+    @GetMapping("/accessible")
+    public ResponseEntity<List<ChallengeDTO>> getAccessibleChallenges(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        User user = getUserFromUserDetails(userDetails);
+        Pageable pageable = PageRequest.of(page, size);
+
+        List<ChallengeDTO> challenges = challengeService.getAccessibleChallenges(user.getId(), pageable);
+        return ResponseEntity.ok(challenges);
+    }
+
+
+    /**
+     * Grant access to users for a private challenge
+     */
+    @PostMapping("/{id}/access/grant")
+    public ResponseEntity<MessageResponse> grantAccess(
+            @PathVariable Long id,
+            @RequestBody Map<String, List<Long>> request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        log.info("Granting access to challenge ID: {}", id);
+        User user = getUserFromUserDetails(userDetails);
+        List<Long> userIds = request.get("userIds");
+
+        if (userIds == null || userIds.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(new MessageResponse("User IDs are required"));
+        }
+
+        try {
+            var challenge = challengeService.getChallengeById(id, user.getId());
+            Optional<Challenge> challengeById = challengeService.getChallengeById(id);
+            challengeById.ifPresent(challenge1 -> {
+                challengeService.grantAccessToUsers(
+                        challenge1,
+                        userIds,
+                        user
+                );
+            });
+            return ResponseEntity.ok(new MessageResponse(
+                    "Access granted to " + userIds.size() + " user(s)"));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(new MessageResponse(e.getMessage()));
+        }
+    }
+
+    /**
+     * Revoke access from a user
+     */
+    @DeleteMapping("/{id}/access/{userId}")
+    public ResponseEntity<MessageResponse> revokeAccess(
+            @PathVariable Long id,
+            @PathVariable Long userId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        log.info("Revoking access for user {} from challenge ID: {}", userId, id);
+        User user = getUserFromUserDetails(userDetails);
+
+        try {
+            challengeService.revokeAccess(id, userId, user.getId());
+            return ResponseEntity.ok(new MessageResponse("Access revoked successfully"));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(new MessageResponse(e.getMessage()));
+        }
+    }
 
     /**
      * Get all challenges with optional filtering

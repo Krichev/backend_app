@@ -238,4 +238,8 @@ public class TopicService {
                 .updatedAt(topic.getUpdatedAt())
                 .build();
     }
+
+    public Topic findOrCreateTopic(String topic, User creator) {
+        return null;
+    }
 }

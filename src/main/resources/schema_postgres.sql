@@ -1928,3 +1928,327 @@ CREATE INDEX idx_topic_id ON quiz_questions(topic_id);
 
 -- Optional: Drop old topic column after verification
 -- ALTER TABLE quiz_questions DROP COLUMN topic;
+
+
+-- Migration: Add Payment and Access Control Features
+-- Author: Challenge System
+-- Date: 2025-01-10
+
+-- Step 1: Create PaymentType ENUM
+CREATE TYPE payment_type AS ENUM ('FREE', 'ENTRY_FEE', 'PRIZE_POOL', 'SUBSCRIPTION');
+
+-- Step 2: Add payment fields to challenges table
+ALTER TABLE challenges
+    ADD COLUMN IF NOT EXISTS payment_type payment_type DEFAULT 'FREE',
+    ADD COLUMN IF NOT EXISTS has_entry_fee BOOLEAN DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS entry_fee_amount DECIMAL(10, 2),
+    ADD COLUMN IF NOT EXISTS entry_fee_currency currency_type,
+    ADD COLUMN IF NOT EXISTS has_prize BOOLEAN DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS prize_amount DECIMAL(10, 2),
+    ADD COLUMN IF NOT EXISTS prize_currency currency_type,
+    ADD COLUMN IF NOT EXISTS prize_pool DECIMAL(10, 2) DEFAULT 0.00,
+    ADD COLUMN IF NOT EXISTS requires_approval BOOLEAN DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+-- Step 3: Create challenge_access table for private challenge permissions
+CREATE TABLE IF NOT EXISTS challenge_access (
+                                                id BIGSERIAL PRIMARY KEY,
+                                                challenge_id BIGINT NOT NULL,
+                                                user_id BIGINT NOT NULL,
+                                                granted_by_user_id BIGINT,
+                                                granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                                status VARCHAR(20) DEFAULT 'ACTIVE',
+    notes TEXT,
+    CONSTRAINT fk_challenge_access_challenge FOREIGN KEY (challenge_id)
+    REFERENCES challenges(id) ON DELETE CASCADE,
+    CONSTRAINT fk_challenge_access_user FOREIGN KEY (user_id)
+    REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_challenge_access_granted_by FOREIGN KEY (granted_by_user_id)
+    REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT uq_challenge_user UNIQUE (challenge_id, user_id)
+    );
+
+-- Step 4: Add indexes for performance
+CREATE INDEX IF NOT EXISTS idx_challenge_access_challenge_id
+    ON challenge_access(challenge_id);
+
+CREATE INDEX IF NOT EXISTS idx_challenge_access_user_id
+    ON challenge_access(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_challenge_access_status
+    ON challenge_access(status);
+
+CREATE INDEX IF NOT EXISTS idx_challenges_payment_type
+    ON challenges(payment_type);
+
+CREATE INDEX IF NOT EXISTS idx_challenges_is_public
+    ON challenges(is_public);
+
+CREATE INDEX IF NOT EXISTS idx_challenges_created_at
+    ON challenges(created_at);
+
+-- Step 5: Add points field to users table if not exists
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS points BIGINT DEFAULT 0;
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS total_points_spent BIGINT DEFAULT 0;
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS total_points_earned BIGINT DEFAULT 0;
+
+
+-- Step 6: Create payment_transactions table for audit trail
+CREATE TABLE IF NOT EXISTS payment_transactions (
+                                                    id BIGSERIAL PRIMARY KEY,
+                                                    user_id BIGINT NOT NULL,
+                                                    challenge_id BIGINT,
+                                                    transaction_type VARCHAR(50) NOT NULL, -- ENTRY_FEE, PRIZE, REFUND
+    amount DECIMAL(10, 2) NOT NULL,
+    currency currency_type NOT NULL,
+    status VARCHAR(20) DEFAULT 'PENDING', -- PENDING, COMPLETED, FAILED, REFUNDED
+    payment_method VARCHAR(50), -- POINTS, CREDIT_CARD, PAYPAL, etc.
+    transaction_reference VARCHAR(255),
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP ,
+    CONSTRAINT fk_payment_user FOREIGN KEY (user_id)
+    REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_payment_challenge FOREIGN KEY (challenge_id)
+    REFERENCES challenges(id) ON DELETE SET NULL
+    );
+
+-- Step 7: Create indexes for payment_transactions
+CREATE INDEX IF NOT EXISTS idx_payment_transactions_user_id
+    ON payment_transactions(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_payment_transactions_challenge_id
+    ON payment_transactions(challenge_id);
+
+CREATE INDEX IF NOT EXISTS idx_payment_transactions_status
+    ON payment_transactions(status);
+
+CREATE INDEX IF NOT EXISTS idx_payment_transactions_created_at
+    ON payment_transactions(created_at);
+
+-- Step 8: Add constraints for payment validation
+ALTER TABLE challenges
+    ADD CONSTRAINT chk_entry_fee_positive
+        CHECK (entry_fee_amount IS NULL OR entry_fee_amount >= 0),
+    ADD CONSTRAINT chk_prize_positive
+        CHECK (prize_amount IS NULL OR prize_amount >= 0),
+    ADD CONSTRAINT chk_prize_pool_positive
+        CHECK (prize_pool >= 0);
+
+-- Step 9: Create function to update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Step 10: Create trigger for challenges table
+DROP TRIGGER IF EXISTS update_challenges_updated_at ON challenges;
+CREATE TRIGGER update_challenges_updated_at
+    BEFORE UPDATE ON challenges
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Step 11: Create trigger for payment_transactions table
+DROP TRIGGER IF EXISTS update_payment_transactions_updated_at ON payment_transactions;
+CREATE TRIGGER update_payment_transactions_updated_at
+    BEFORE UPDATE ON payment_transactions
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Step 12: Insert sample data (optional)
+-- Example: Update existing challenges to have payment_type
+UPDATE challenges
+SET payment_type = 'FREE'
+WHERE payment_type IS NULL;
+
+-- Step 13: Create view for challenge statistics with payment info
+CREATE OR REPLACE VIEW challenge_payment_stats AS
+SELECT
+    c.id,
+    c.title,
+    c.payment_type,
+    c.entry_fee_amount,
+    c.entry_fee_currency,
+    c.prize_pool,
+    COUNT(DISTINCT cp.user_id) as participant_count,
+    SUM(CASE WHEN pt.status = 'COMPLETED' THEN pt.amount ELSE 0 END) as total_collected
+FROM challenges c
+         LEFT JOIN challenge_progress cp ON c.id = cp.challenge_id
+         LEFT JOIN payment_transactions pt ON c.id = pt.challenge_id
+    AND pt.transaction_type = 'ENTRY_FEE'
+GROUP BY c.id, c.title, c.payment_type, c.entry_fee_amount,
+         c.entry_fee_currency, c.prize_pool;
+
+-- Step 14: Grant permissions (adjust as needed for your roles)
+-- GRANT SELECT, INSERT, UPDATE, DELETE ON challenge_access TO your_app_user;
+-- GRANT SELECT, INSERT, UPDATE, DELETE ON payment_transactions TO your_app_user;
+
+-- Rollback script (save separately as rollback.sql)
+-- DROP VIEW IF EXISTS challenge_payment_stats;
+-- DROP TRIGGER IF EXISTS update_payment_transactions_updated_at ON payment_transactions;
+-- DROP TRIGGER IF EXISTS update_challenges_updated_at ON challenges;
+-- DROP FUNCTION IF EXISTS update_updated_at_column();
+-- DROP TABLE IF EXISTS payment_transactions;
+-- DROP TABLE IF EXISTS challenge_access;
+-- ALTER TABLE challenges DROP COLUMN IF EXISTS payment_type, DROP COLUMN IF EXISTS has_entry_fee, ...
+-- ALTER TABLE users DROP COLUMN IF EXISTS points;
+-- DROP TYPE IF EXISTS payment_type;
+
+
+-- ============================================================================
+-- Migration: Add Question Access Policy and Friend/Family Relationships
+-- ============================================================================
+
+-- Step 1: Create ENUM type for question visibility
+CREATE TYPE question_visibility AS ENUM (
+    'PRIVATE',           -- Only visible to creator
+    'FRIENDS_FAMILY',    -- Visible to creator and their friends/family
+    'QUIZ_ONLY',         -- Only in the specific quiz/challenge where it was added
+    'PUBLIC'             -- Available to everyone in question search
+);
+
+-- Step 2: Add visibility column to quiz_questions table
+ALTER TABLE quiz_questions
+    ADD COLUMN visibility question_visibility DEFAULT 'PRIVATE' NOT NULL,
+ADD COLUMN original_quiz_id BIGINT,  -- Track which quiz this question was created in (if QUIZ_ONLY)
+ADD CONSTRAINT fk_question_original_quiz
+    FOREIGN KEY (original_quiz_id)
+    REFERENCES challenges(id)
+    ON DELETE SET NULL;
+
+-- Step 3: Create user_relationships table for friends/family connections
+CREATE TABLE user_relationships (
+                                    id BIGSERIAL PRIMARY KEY,
+                                    user_id BIGINT NOT NULL,
+                                    related_user_id BIGINT NOT NULL,
+                                    relationship_type VARCHAR(50) NOT NULL, -- 'FRIEND', 'FAMILY', 'BLOCKED'
+                                    status VARCHAR(50) DEFAULT 'PENDING' NOT NULL, -- 'PENDING', 'ACCEPTED', 'REJECTED'
+                                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+
+                                    CONSTRAINT fk_user_relationships_user
+                                        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                                    CONSTRAINT fk_user_relationships_related_user
+                                        FOREIGN KEY (related_user_id) REFERENCES users(id) ON DELETE CASCADE,
+                                    CONSTRAINT uk_user_relationship UNIQUE (user_id, related_user_id),
+                                    CONSTRAINT chk_different_users CHECK (user_id != related_user_id)
+    );
+
+-- Step 4: Create indexes for performance
+CREATE INDEX idx_quiz_questions_visibility ON quiz_questions(visibility);
+CREATE INDEX idx_quiz_questions_creator_visibility ON quiz_questions(creator_id, visibility);
+CREATE INDEX idx_quiz_questions_original_quiz ON quiz_questions(original_quiz_id);
+CREATE INDEX idx_user_relationships_user ON user_relationships(user_id, status);
+CREATE INDEX idx_user_relationships_related_user ON user_relationships(related_user_id, status);
+
+-- Step 5: Create question_access_log table for audit trail
+CREATE TABLE question_access_log (
+                                     id BIGSERIAL PRIMARY KEY,
+                                     question_id BIGINT NOT NULL,
+                                     accessed_by_user_id BIGINT NOT NULL,
+                                     access_type VARCHAR(50) NOT NULL, -- 'VIEW', 'USE_IN_QUIZ', 'EDIT', 'DELETE'
+                                     accessed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+
+                                     CONSTRAINT fk_question_access_log_question
+                                         FOREIGN KEY (question_id) REFERENCES quiz_questions(id) ON DELETE CASCADE,
+                                     CONSTRAINT fk_question_access_log_user
+                                         FOREIGN KEY (accessed_by_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_question_access_log_question ON question_access_log(question_id);
+CREATE INDEX idx_question_access_log_user ON question_access_log(accessed_by_user_id);
+
+-- Step 6: Update existing user-created questions to PRIVATE by default
+UPDATE quiz_questions
+SET visibility = 'PRIVATE'
+WHERE is_user_created = true;
+
+-- Step 7: Add comment documentation
+COMMENT ON TYPE question_visibility IS 'Controls who can view and use a user-created question';
+COMMENT ON COLUMN quiz_questions.visibility IS 'Access policy for user-created questions';
+COMMENT ON COLUMN quiz_questions.original_quiz_id IS 'Original quiz/challenge ID if visibility is QUIZ_ONLY';
+COMMENT ON TABLE user_relationships IS 'Manages friend and family relationships between users';
+COMMENT ON TABLE question_access_log IS 'Audit log for question access and usage';
+
+-- Step 8: Create function to check question access
+CREATE OR REPLACE FUNCTION can_user_access_question(
+    p_question_id BIGINT,
+    p_user_id BIGINT
+) RETURNS BOOLEAN AS $$
+DECLARE
+v_visibility question_visibility;
+    v_creator_id BIGINT;
+    v_original_quiz_id BIGINT;
+    v_has_relationship BOOLEAN;
+BEGIN
+    -- Get question details
+SELECT visibility, creator_id, original_quiz_id
+INTO v_visibility, v_creator_id, v_original_quiz_id
+FROM quiz_questions
+WHERE id = p_question_id;
+
+-- If question doesn't exist, return false
+IF NOT FOUND THEN
+        RETURN FALSE;
+END IF;
+
+    -- Creator always has access
+    IF v_creator_id = p_user_id THEN
+        RETURN TRUE;
+END IF;
+
+    -- Check based on visibility
+CASE v_visibility
+        WHEN 'PUBLIC' THEN
+            RETURN TRUE;
+
+WHEN 'PRIVATE' THEN
+            RETURN FALSE;
+
+WHEN 'FRIENDS_FAMILY' THEN
+            -- Check if users are friends/family
+SELECT EXISTS (
+    SELECT 1 FROM user_relationships
+    WHERE ((user_id = v_creator_id AND related_user_id = p_user_id)
+        OR (user_id = p_user_id AND related_user_id = v_creator_id))
+      AND status = 'ACCEPTED'
+      AND relationship_type IN ('FRIEND', 'FAMILY')
+) INTO v_has_relationship;
+RETURN v_has_relationship;
+
+WHEN 'QUIZ_ONLY' THEN
+            -- Check if user has access to the original quiz
+            -- This would need to check challenge_access or user_quests tables
+            RETURN EXISTS (
+                SELECT 1 FROM challenges c
+                WHERE c.id = v_original_quiz_id
+                  AND (c.creator_id = p_user_id
+                       OR c.visibility = 'PUBLIC'
+                       OR EXISTS (
+                           SELECT 1 FROM user_quests uq
+                           WHERE uq.quest_id = v_original_quiz_id
+                             AND uq.user_id = p_user_id
+                       ))
+            );
+
+ELSE
+            RETURN FALSE;
+END CASE;
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+-- Step 9: Grant permissions
+GRANT EXECUTE ON FUNCTION can_user_access_question(BIGINT, BIGINT) TO challenger_app;
+
+COMMENT ON FUNCTION can_user_access_question IS 'Determines if a user can access a specific question based on visibility and relationships';
+
+

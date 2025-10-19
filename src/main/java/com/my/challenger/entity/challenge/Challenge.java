@@ -4,17 +4,14 @@ import com.my.challenger.entity.ChallengeProgress;
 import com.my.challenger.entity.Group;
 import com.my.challenger.entity.Task;
 import com.my.challenger.entity.User;
-import com.my.challenger.entity.enums.ChallengeDifficulty;
-import com.my.challenger.entity.enums.ChallengeStatus;
-import com.my.challenger.entity.enums.ChallengeType;
-import com.my.challenger.entity.enums.FrequencyType;
-import com.my.challenger.entity.enums.VerificationMethod;
+import com.my.challenger.entity.enums.*;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -38,7 +35,7 @@ public class Challenge {
     @Column(name = "title")
     private String title;
 
-    @Column(name = "description", updatable = false, insertable = false)
+    @Column(name = "description")
     private String description;
 
     @ManyToOne
@@ -70,6 +67,16 @@ public class Challenge {
     private FrequencyType frequency;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "status", columnDefinition = "challenge_status")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private ChallengeStatus status = ChallengeStatus.ACTIVE;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "difficulty")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private ChallengeDifficulty difficulty;
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "verification_method", columnDefinition = "verification_method_type")
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private VerificationMethod verificationMethod;
@@ -77,24 +84,47 @@ public class Challenge {
     @OneToMany(mappedBy = "challenge", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<VerificationDetails> verificationDetails = new ArrayList<>();
 
-    @OneToMany(mappedBy = "challenge", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<Stake> stake = new ArrayList<>();
+    // ========== PAYMENT FIELDS ==========
+
+    @Column(name = "has_entry_fee")
+    private boolean hasEntryFee = false;
+
+    @Column(name = "entry_fee_amount", precision = 10, scale = 2)
+    private BigDecimal entryFeeAmount;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", columnDefinition = "challenge_status_type")
+    @Column(name = "entry_fee_currency")
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    private ChallengeStatus status = ChallengeStatus.PENDING;
+    private CurrencyType entryFeeCurrency;
 
-    @Column(name = "quiz_config", columnDefinition = "TEXT")
-    private String quizConfig;
+    @Column(name = "has_prize")
+    private boolean hasPrize = false;
 
-    // FIXED: Proper PostgreSQL ENUM handling for difficulty
+    @Column(name = "prize_amount", precision = 10, scale = 2)
+    private BigDecimal prizeAmount;
+
     @Enumerated(EnumType.STRING)
-    @Column(name = "difficulty", nullable = false, columnDefinition = "challenge_difficulty_type")
+    @Column(name = "prize_currency")
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    private ChallengeDifficulty difficulty = ChallengeDifficulty.MEDIUM;
+    private CurrencyType prizeCurrency;
 
-    @Column(name = "created_at", updatable = false)
+    @Column(name = "prize_pool", precision = 10, scale = 2)
+    private BigDecimal prizePool = BigDecimal.ZERO;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_type")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private PaymentType paymentType = PaymentType.FREE;
+
+    // ========== ACCESS CONTROL FOR PRIVATE CHALLENGES ==========
+
+    @OneToMany(mappedBy = "challenge", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    private List<ChallengeAccess> accessList = new ArrayList<>();
+
+    @Column(name = "requires_approval")
+    private boolean requiresApproval = false;
+
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at")
@@ -104,10 +134,41 @@ public class Challenge {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
+        if (prizePool == null) {
+            prizePool = BigDecimal.ZERO;
+        }
     }
 
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    // ========== HELPER METHODS ==========
+
+    public void addToAccessList(User user) {
+        ChallengeAccess access = new ChallengeAccess();
+        access.setChallenge(this);
+        access.setUser(user);
+        access.setGrantedAt(LocalDateTime.now());
+        access.setGrantedBy(this.creator);
+        this.accessList.add(access);
+    }
+
+    public void removeFromAccessList(User user) {
+        accessList.removeIf(access -> access.getUser().getId().equals(user.getId()));
+    }
+
+    public boolean hasAccess(User user) {
+        if (isPublic) return true;
+        if (creator.getId().equals(user.getId())) return true;
+        return accessList.stream()
+                .anyMatch(access -> access.getUser().getId().equals(user.getId()));
+    }
+
+    public void addEntryFee(BigDecimal amount) {
+        if (amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
+            this.prizePool = this.prizePool.add(amount);
+        }
     }
 }

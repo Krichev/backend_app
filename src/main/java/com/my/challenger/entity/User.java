@@ -1,4 +1,4 @@
-package com.my.challenger.entity;// User.java
+package com.my.challenger.entity;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -35,6 +35,16 @@ public class User {
 
     private String bio;
 
+    // ========== POINTS SYSTEM ==========
+    @Column(name = "points", nullable = false)
+    private Long points = 0L;
+
+    @Column(name = "total_points_earned")
+    private Long totalPointsEarned = 0L;
+
+    @Column(name = "total_points_spent")
+    private Long totalPointsSpent = 0L;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -67,6 +77,15 @@ public class User {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
+        if (points == null) {
+            points = 0L;
+        }
+        if (totalPointsEarned == null) {
+            totalPointsEarned = 0L;
+        }
+        if (totalPointsSpent == null) {
+            totalPointsSpent = 0L;
+        }
     }
 
     @PreUpdate
@@ -74,6 +93,22 @@ public class User {
         updatedAt = LocalDateTime.now();
     }
 
+    // ========== HELPER METHODS ==========
 
+    public void addPoints(Long amount) {
+        this.points += amount;
+        this.totalPointsEarned += amount;
+    }
 
+    public void deductPoints(Long amount) {
+        if (this.points < amount) {
+            throw new IllegalStateException("Insufficient points");
+        }
+        this.points -= amount;
+        this.totalPointsSpent += amount;
+    }
+
+    public boolean hasEnoughPoints(Long required) {
+        return this.points >= required;
+    }
 }

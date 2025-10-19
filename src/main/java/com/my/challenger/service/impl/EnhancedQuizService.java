@@ -1,6 +1,5 @@
 package com.my.challenger.service.impl;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.my.challenger.dto.ChallengeDTO;
 import com.my.challenger.dto.quiz.*;
@@ -29,7 +28,7 @@ import java.util.stream.Collectors;
 @Service
 public class EnhancedQuizService extends QuizService {
 
-    private final ObjectMapper objectMapper;
+//    private final ObjectMapper objectMapper;
     private final QuizRoundRepository quizRoundRepository;
     private final TaskRepository taskRepository;
     private final TopicService topicService;
@@ -50,7 +49,7 @@ public class EnhancedQuizService extends QuizService {
                 challengeRepository, userRepository, mediaFileRepository, gameService,
                 mediaStorageService, topicService);
 
-        this.objectMapper = objectMapper;
+//        this.objectMapper = objectMapper;
         this.quizRoundRepository = quizRoundRepository;
         this.taskRepository = taskRepository;
         this.topicService = topicService;
@@ -139,18 +138,18 @@ public class EnhancedQuizService extends QuizService {
                 log.info("Team Based: {}", config.getTeamBased());
                 log.info("================================");
 
-                try {
-                    // Serialize the entire config object to JSON
-                    String quizConfigJson = objectMapper.writeValueAsString(config);
-                    challenge.setQuizConfig(quizConfigJson);
-
-                    log.info("Quiz config serialized successfully");
-                    log.debug("Serialized JSON: {}", quizConfigJson);
-
-                } catch (JsonProcessingException e) {
-                    log.error("Failed to serialize quiz configuration", e);
-                    throw new RuntimeException("Invalid quiz configuration: " + e.getMessage(), e);
-                }
+//                try {
+//                    // Serialize the entire config object to JSON
+//                    String quizConfigJson = objectMapper.writeValueAsString(config);
+//                    challenge.setQuizConfig(quizConfigJson);
+//
+//                    log.info("Quiz config serialized successfully");
+//                    log.debug("Serialized JSON: {}", quizConfigJson);
+//
+//                } catch (JsonProcessingException e) {
+//                    log.error("Failed to serialize quiz configuration", e);
+//                    throw new RuntimeException("Invalid quiz configuration: " + e.getMessage(), e);
+//                }
             } else {
                 log.warn("No quiz configuration provided!");
                 throw new IllegalArgumentException("Quiz configuration is required for quiz challenges");
@@ -572,48 +571,9 @@ public class EnhancedQuizService extends QuizService {
                 .startDate(challenge.getStartDate())
                 .endDate(challenge.getEndDate())
                 .frequency(challenge.getFrequency())
-                .quizConfig(challenge.getQuizConfig()) // This contains the full JSON with all fields
+//                .quizConfig(challenge.getQuizConfig()) // This contains the full JSON with all fields
                 .userIsCreator(true) // Set to true since we're the creator
                 .build();
-    }
-
-    /**
-     * Get quiz configuration from a challenge
-     * Parses the JSON string back into a QuizChallengeConfig object
-     */
-    public QuizChallengeConfig getQuizConfig(Long challengeId) {
-        log.info("Fetching quiz config for challenge ID: {}", challengeId);
-
-        Challenge challenge = challengeRepository.findById(challengeId)
-                .orElseThrow(() -> new IllegalArgumentException("Challenge not found with ID: " + challengeId));
-
-        if (challenge.getType() != ChallengeType.QUIZ) {
-            throw new IllegalArgumentException("Challenge is not a quiz type");
-        }
-
-        if (challenge.getQuizConfig() == null) {
-            log.warn("No quiz config found for challenge ID: {}", challengeId);
-            return null;
-        }
-
-        try {
-            QuizChallengeConfig config = objectMapper.readValue(
-                    challenge.getQuizConfig(),
-                    QuizChallengeConfig.class
-            );
-
-            log.info("Quiz config parsed successfully");
-            log.debug("Parsed config - Team: {}, Members: {}, Difficulty: {}",
-                    config.getTeamName(),
-                    config.getTeamMembers() != null ? config.getTeamMembers().size() : 0,
-                    config.getDefaultDifficulty());
-
-            return config;
-
-        } catch (JsonProcessingException e) {
-            log.error("Failed to parse quiz configuration", e);
-            throw new RuntimeException("Invalid quiz configuration format", e);
-        }
     }
 
     /**

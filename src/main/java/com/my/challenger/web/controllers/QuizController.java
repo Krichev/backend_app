@@ -3,14 +3,23 @@ package com.my.challenger.web.controllers;
 import com.my.challenger.dto.MessageResponse;
 import com.my.challenger.dto.quiz.*;
 import com.my.challenger.entity.User;
+import com.my.challenger.entity.enums.QuestionVisibility;
+import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.enums.QuizSessionStatus;
 import com.my.challenger.repository.UserRepository;
+import com.my.challenger.security.UserPrincipal;
+import com.my.challenger.service.impl.QuestionService;
 import com.my.challenger.service.impl.QuizService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -26,70 +35,63 @@ import java.util.List;
 public class QuizController {
 
     private final QuizService quizService;
+    private final QuestionService questionService;
     private final UserRepository userRepository;
 
-    // =============================================================================
-    // QUESTION MANAGEMENT ENDPOINTS
-    // =============================================================================
 
     @PostMapping("/questions")
-    @Operation(summary = "Create a new user question")
+    @Operation(summary = "Create a user question with visibility policy")
     public ResponseEntity<QuizQuestionDTO> createUserQuestion(
-            @Valid @RequestBody CreateQuizQuestionRequest request,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody CreateQuizQuestionRequest request) {
 
-        User user = getUserFromUserDetails(userDetails);
-        QuizQuestionDTO question = quizService.createUserQuestion(request, user.getId());
-        log.info("User {} created question: {}", user.getId(), question.getId());
-        return ResponseEntity.ok(question);
+        Long userId = ((UserPrincipal) userDetails).getId();
+        QuizQuestionDTO question = questionService.createUserQuestion(request, userId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(question);
     }
 
     @GetMapping("/questions/me")
-    @Operation(summary = "Get all questions created by current user")
-    public ResponseEntity<List<QuizQuestionDTO>> getUserQuestions(
-            @AuthenticationPrincipal UserDetails userDetails) {
+    @Operation(summary = "Get my questions with pagination")
+    public ResponseEntity<Page<QuizQuestionDTO>> getMyQuestions(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDirection) {
 
-        User user = getUserFromUserDetails(userDetails);
-        List<QuizQuestionDTO> questions = quizService.getUserQuestions(user.getId());
+         Long userId = ((UserPrincipal) userDetails).getId();
+        Sort.Direction direction = Sort.Direction.fromString(sortDirection);
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+
+        Page<QuizQuestionDTO> questions = questionService.getUserQuestions(userId, pageable);
         return ResponseEntity.ok(questions);
     }
 
-    @DeleteMapping("/questions/{questionId}")
-    @Operation(summary = "Delete a user-created question")
-    public ResponseEntity<MessageResponse> deleteUserQuestion(
-            @PathVariable Long questionId,
-            @AuthenticationPrincipal UserDetails userDetails) {
+    @GetMapping("/questions/accessible")
+    @Operation(summary = "Search accessible questions (includes public, friends, and quiz-specific)")
+    public ResponseEntity<Page<QuizQuestionDTO>> searchAccessibleQuestions(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String difficulty,
+            @RequestParam(required = false) String topic,
+            @RequestParam(required = false) Long quizId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
 
-        User user = getUserFromUserDetails(userDetails);
-        quizService.deleteUserQuestion(questionId, user.getId());
-        return ResponseEntity.ok(new MessageResponse("Question deleted successfully"));
+         Long userId = ((UserPrincipal) userDetails).getId();
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        QuestionSearchRequest searchRequest = QuestionSearchRequest.builder()
+                .keyword(keyword)
+                .difficulty(difficulty != null ? QuizDifficulty.valueOf(difficulty) : null)
+                .topic(topic)
+                .quizId(quizId)
+                .pageable(pageable)
+                .build();
+
+        Page<QuizQuestionDTO> questions = questionService.searchAccessibleQuestions(userId, searchRequest);
+        return ResponseEntity.ok(questions);
     }
-
-//    @GetMapping("/questions/difficulty/{difficulty}")
-//    @Operation(summary = "Get questions by difficulty level")
-//    public ResponseEntity<List<QuizQuestionDTO>> getQuestionsByDifficulty(
-//            @PathVariable String difficulty,
-//            @RequestParam(defaultValue = "10") int count) {
-//
-//        try {
-//            com.my.challenger.entity.enums.QuizDifficulty diff =
-//                    com.my.challenger.entity.enums.QuizDifficulty.valueOf(difficulty.toUpperCase());
-//            List<QuizQuestionDTO> questions = quizService.getQuestionsByDifficulty(diff, count);
-//            return ResponseEntity.ok(questions);
-//        } catch (IllegalArgumentException e) {
-//            return ResponseEntity.badRequest().build();
-//        }
-//    }
-//
-//    @GetMapping("/questions/search")
-//    @Operation(summary = "Search questions by keyword")
-//    public ResponseEntity<List<QuizQuestionDTO>> searchQuestions(
-//            @RequestParam String keyword,
-//            @RequestParam(defaultValue = "20") int limit) {
-//
-//        List<QuizQuestionDTO> questions = quizService.searchQuestions(keyword, limit);
-//        return ResponseEntity.ok(questions);
-//    }
 
     // =============================================================================
     // QUIZ SESSION MANAGEMENT ENDPOINTS
@@ -118,154 +120,33 @@ public class QuizController {
         return ResponseEntity.ok(session);
     }
 
-//    @PostMapping("/sessions/{sessionId}/rounds/submit")
-//    @Operation(summary = "Submit an answer for current round")
-//    public ResponseEntity<QuizRoundDTO> submitRoundAnswer(
-//            @PathVariable Long sessionId,
-//            @Valid @RequestBody SubmitRoundAnswerRequest request,
-//            @AuthenticationPrincipal UserDetails userDetails) {
-//
-//        User user = getUserFromUserDetails(userDetails);
-//        QuizRoundDTO round = quizService.submitRoundAnswer(sessionId, request, user.getId());
-//        return ResponseEntity.ok(round);
-//    }
 
-//    @PostMapping("/sessions/{sessionId}/complete")
-//    @Operation(summary = "Complete a quiz session")
-//    public ResponseEntity<QuizSessionDTO> completeQuizSession(
-//            @PathVariable Long sessionId,
-//            @AuthenticationPrincipal UserDetails userDetails) {
-//
-//        User user = getUserFromUserDetails(userDetails);
-//        QuizSessionDTO session = quizService.completeQuizSession(sessionId, user.getId());
-//        return ResponseEntity.ok(session);
-//    }
-//
-//    @GetMapping("/sessions/{sessionId}")
-//    @Operation(summary = "Get quiz session details")
-//    public ResponseEntity<QuizSessionDTO> getQuizSession(
-//            @PathVariable Long sessionId,
-//            @AuthenticationPrincipal UserDetails userDetails) {
-//
-//        User user = getUserFromUserDetails(userDetails);
-//        QuizSessionDTO session = quizService.getQuizSession(sessionId, user.getId());
-//        return ResponseEntity.ok(session);
-//    }
-//
-//    @GetMapping("/sessions/me")
-//    @Operation(summary = "Get current user's quiz sessions")
-//    public ResponseEntity<List<QuizSessionDTO>> getUserQuizSessions(
-//            @RequestParam(defaultValue = "20") int limit,
-//            @AuthenticationPrincipal UserDetails userDetails) {
-//
-//        User user = getUserFromUserDetails(userDetails);
-//        List<QuizSessionDTO> sessions = quizService.getUserQuizSessions(user.getId(), limit);
-//        return ResponseEntity.ok(sessions);
-//    }
+    @PutMapping("/questions/{questionId}/visibility")
+    @Operation(summary = "Update question visibility policy")
+    public ResponseEntity<QuizQuestionDTO> updateQuestionVisibility(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long questionId,
+            @RequestParam QuestionVisibility visibility,
+            @RequestParam(required = false) Long originalQuizId) {
 
-    // =============================================================================
-    // ENHANCED SESSION SEARCH & FILTERING (Fixed repository methods)
-    // =============================================================================
+         Long userId = ((UserPrincipal) userDetails).getId();
+        QuizQuestionDTO question = questionService.updateQuestionVisibility(
+                questionId, userId, visibility, originalQuizId);
+        return ResponseEntity.ok(question);
+    }
 
-//    @GetMapping("/sessions/me/by-source")
-//    @Operation(summary = "Get sessions by question source")
-//    public ResponseEntity<List<QuizSessionDTO>> getSessionsByQuestionSource(
-//            @RequestParam String questionSource,
-//            @RequestParam(defaultValue = "false") boolean exactMatch,
-//            @AuthenticationPrincipal UserDetails userDetails) {
-//
-//        User user = getUserFromUserDetails(userDetails);
-//        List<QuizSessionDTO> sessions;
-//
-//        if (exactMatch) {
-//            sessions = quizService.getSessionsByExactQuestionSource(user.getId(), questionSource);
-//        } else {
-//            // FIXED: Now uses correct property name 'questionSource'
-//            sessions = quizService.getSessionsByQuestionSourceContaining(user.getId(), questionSource);
-//        }
-//
-//        return ResponseEntity.ok(sessions);
-//    }
+    @DeleteMapping("/questions/{questionId}")
+    @Operation(summary = "Delete a user question")
+    public ResponseEntity<Void> deleteUserQuestion(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long questionId) {
 
-//    @GetMapping("/sessions/me/user-questions")
-//    @Operation(summary = "Get sessions using user-created questions")
-//    public ResponseEntity<List<QuizSessionDTO>> getUserQuestionSessions(
-//            @AuthenticationPrincipal UserDetails userDetails) {
-//
-//        User user = getUserFromUserDetails(userDetails);
-//        List<QuizSessionDTO> sessions = quizService.getSessionsByExactQuestionSource(user.getId(), "user");
-//        return ResponseEntity.ok(sessions);
-//    }
-//
-//    @GetMapping("/sessions/me/app-questions")
-//    @Operation(summary = "Get sessions using app-generated questions")
-//    public ResponseEntity<List<QuizSessionDTO>> getAppQuestionSessions(
-//            @AuthenticationPrincipal UserDetails userDetails) {
-//
-//        User user = getUserFromUserDetails(userDetails);
-//        List<QuizSessionDTO> sessions = quizService.getSessionsByExactQuestionSource(user.getId(), "app");
-//        return ResponseEntity.ok(sessions);
-//    }
+         Long userId = ((UserPrincipal) userDetails).getId();
+        questionService.deleteUserQuestion(questionId, userId);
+        return ResponseEntity.noContent().build();
+    }
 
-//    @GetMapping("/sessions/me/search")
-//    @Operation(summary = "Search sessions with flexible criteria")
-//    public ResponseEntity<List<QuizSessionDTO>> searchSessions(
-//            @RequestParam(required = false) String questionSource,
-//            @RequestParam(required = false) QuizSessionStatus status,
-//            @RequestParam(required = false) String teamName,
-//            @RequestParam(defaultValue = "20") int limit,
-//            @AuthenticationPrincipal UserDetails userDetails) {
-//
-//        User user = getUserFromUserDetails(userDetails);
-//
-//        // Create search criteria
-//        QuizSessionSearchCriteria criteria = QuizSessionSearchCriteria.builder()
-//                .creatorId(user.getId())
-//                .questionSource(questionSource)
-//                .status(status)
-//                .teamNameFilter(teamName)
-//                .limit(limit)
-//                .build();
-//
-//        List<QuizSessionDTO> sessions = quizService.searchSessions(criteria);
-//        return ResponseEntity.ok(sessions);
-//    }
 
-//    @GetMapping("/sessions/me/recent")
-//    @Operation(summary = "Get recent sessions")
-//    public ResponseEntity<List<QuizSessionDTO>> getRecentSessions(
-//            @RequestParam(defaultValue = "30") int daysBack,
-//            @AuthenticationPrincipal UserDetails userDetails) {
-//
-//        User user = getUserFromUserDetails(userDetails);
-//        List<QuizSessionDTO> sessions = quizService.getRecentSessions(user.getId(), daysBack);
-//        return ResponseEntity.ok(sessions);
-//    }
-
-//    @GetMapping("/sessions/me/stats")
-//    @Operation(summary = "Get session statistics")
-//    public ResponseEntity<QuizSessionStatsDTO> getSessionStats(
-//            @AuthenticationPrincipal UserDetails userDetails) {
-//
-//        User user = getUserFromUserDetails(userDetails);
-//        QuizSessionStatsDTO stats = quizService.getSessionStats(user.getId());
-//        return ResponseEntity.ok(stats);
-//    }
-
-    // =============================================================================
-    // ROUND MANAGEMENT
-    // =============================================================================
-
-//    @GetMapping("/sessions/{sessionId}/rounds")
-//    @Operation(summary = "Get all rounds for a session")
-//    public ResponseEntity<List<QuizRoundDTO>> getQuizRounds(
-//            @PathVariable Long sessionId,
-//            @AuthenticationPrincipal UserDetails userDetails) {
-//
-//        User user = getUserFromUserDetails(userDetails);
-//        List<QuizRoundDTO> rounds = quizService.getQuizRounds(sessionId, user.getId());
-//        return ResponseEntity.ok(rounds);
-//    }
 
     @GetMapping("/sessions/{sessionId}/current-round")
     @Operation(summary = "Get current active round")
