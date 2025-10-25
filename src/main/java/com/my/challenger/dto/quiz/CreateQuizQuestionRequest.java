@@ -1,6 +1,8 @@
 // UpdatedCreateQuizQuestionRequest.java
 package com.my.challenger.dto.quiz;
 
+import com.my.challenger.entity.enums.MediaType;
+import com.my.challenger.entity.enums.QuestionType;
 import com.my.challenger.entity.enums.QuestionVisibility;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import jakarta.validation.constraints.NotBlank;
@@ -25,9 +27,15 @@ public class CreateQuizQuestionRequest {
     private String topic;
     private String source;
     private String additionalInfo;
+    // Media support fields
     private Long mediaFileId;
+    private String questionMediaUrl;
+    private String questionMediaId;
+    private MediaType questionMediaType;
 
-    // NEW FIELDS
+    @Builder.Default
+    private QuestionType questionType = QuestionType.TEXT;
+
     @NotNull(message = "Visibility is required")
     @Builder.Default
     private QuestionVisibility visibility = QuestionVisibility.PRIVATE;

@@ -1,9 +1,12 @@
+// src/main/java/com/my/challenger/web/controllers/MediaController.java
 package com.my.challenger.web.controllers;
 
 import com.my.challenger.entity.MediaFile;
+import com.my.challenger.entity.User;
+import com.my.challenger.entity.enums.MediaCategory;
 import com.my.challenger.entity.enums.MediaType;
+import com.my.challenger.repository.UserRepository;
 import com.my.challenger.service.impl.MediaStorageService;
-import com.my.challenger.service.impl.AdvancedS3Service;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -14,9 +17,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.util.Map;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/media")
@@ -26,18 +27,18 @@ import java.util.Optional;
 public class MediaController {
 
     private final MediaStorageService mediaStorageService;
-    private final AdvancedS3Service advancedS3Service;
+    private final UserRepository userRepository;
 
     @PostMapping("/upload/quiz-media")
     @Operation(summary = "Upload media for quiz question (image, video, or audio)")
     public ResponseEntity<Map<String, Object>> uploadQuizMedia(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "questionId", required = false) String questionId,
-            @RequestParam(value = "mediaCategory", defaultValue = "QUIZ_QUESTION") String mediaCategory,
             @AuthenticationPrincipal UserDetails userDetails) {
 
         try {
-            Long userId = getUserIdFromDetails(userDetails);
+            User user = userRepository.findByUsername(userDetails.getUsername())
+                    .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
             // Parse questionId - handle both Long and String (for temp IDs)
             Long entityId = null;
@@ -45,112 +46,88 @@ public class MediaController {
                 try {
                     entityId = Long.parseLong(questionId);
                 } catch (NumberFormatException e) {
-                    log.warn("Invalid question ID format: {}", questionId);
+                    log.warn("Invalid question ID format: {}, treating as temporary", questionId);
                 }
             }
 
+            // Store media with QUIZ_QUESTION category
             MediaFile mediaFile = mediaStorageService.storeMedia(
                     file,
                     entityId,
-                    userId
+                    MediaCategory.QUIZ_QUESTION,
+                    user.getId()
+            );
+
+            log.info("Quiz media uploaded successfully: {} for question: {}",
+                    mediaFile.getId(), questionId);
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "mediaId", mediaFile.getId(),
+                    "mediaUrl", mediaStorageService.getMediaUrl(mediaFile),
+                    "thumbnailUrl", mediaFile.getThumbnailPath() != null ?
+                            mediaStorageService.getThumbnailUrl(mediaFile) : "",
+                    "mediaType", mediaFile.getMediaType().toString(),
+                    "processingStatus", mediaFile.getProcessingStatus().toString(),
+                    "message", "Media uploaded successfully"
+            ));
+        } catch (Exception e) {
+            log.error("Error uploading quiz media", e);
+            return ResponseEntity.status(500).body(Map.of(
+                    "success", false,
+                    "error", "Failed to upload media: " + e.getMessage()
+            ));
+        }
+    }
+
+    @PostMapping("/upload/avatar")
+    @Operation(summary = "Upload avatar media")
+    public ResponseEntity<Map<String, Object>> uploadAvatar(
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        try {
+            User user = userRepository.findByUsername(userDetails.getUsername())
+                    .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+            MediaFile mediaFile = mediaStorageService.storeMedia(
+                    file,
+                    user.getId(),
+                    MediaCategory.AVATAR,
+                    user.getId()
             );
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "mediaId", mediaFile.getId(),
                     "mediaUrl", mediaStorageService.getMediaUrl(mediaFile),
-                    "thumbnailUrl", mediaFile.getThumbnailPath() != null ? mediaFile.getThumbnailPath() : "",
-                    "mediaType", mediaFile.getMediaCategory().name(),
-                    "fileType", mediaFile.getContentType(),
-                    "processingStatus", mediaFile.getProcessingStatus().name(),
-                    "fileSize", mediaFile.getFileSize(),
-                    "duration", mediaFile.getDurationSeconds(),
-                    "message", "Media uploaded successfully"
+                    "thumbnailUrl", mediaFile.getThumbnailPath() != null ?
+                            mediaStorageService.getThumbnailUrl(mediaFile) : "",
+                    "message", "Avatar uploaded successfully"
             ));
         } catch (Exception e) {
-            log.error("Unexpected error uploading quiz media", e);
-            return ResponseEntity.internalServerError().body(Map.of(
+            log.error("Error uploading avatar", e);
+            return ResponseEntity.status(500).body(Map.of(
                     "success", false,
-                    "message", "An unexpected error occurred"
+                    "error", "Failed to upload avatar: " + e.getMessage()
             ));
         }
     }
 
-    @PostMapping("/presigned-upload")
-    @Operation(summary = "Get presigned URL for direct S3 upload")
-    public ResponseEntity<Map<String, Object>> getPresignedUploadUrl(
-            @RequestBody Map<String, String> request,
-            @AuthenticationPrincipal UserDetails userDetails) {
-
+    @GetMapping("/url/{mediaId}")
+    @Operation(summary = "Get media URL by media ID")
+    public ResponseEntity<Map<String, String>> getMediaUrl(@PathVariable Long mediaId) {
         try {
-            String fileName = request.get("fileName");
-            String fileType = request.get("fileType");
-            String category = request.getOrDefault("category", "QUIZ_QUESTION");
-
-            if (fileName == null || fileType == null) {
-                return ResponseEntity.badRequest().body(Map.of(
-                        "success", false,
-                        "message", "fileName and fileType are required"
-                ));
-            }
-
-            // Generate unique key for S3
-            String s3Key = generateS3Key(category, fileName);
-
-            // Get presigned URL (valid for 15 minutes)
-            String uploadUrl = advancedS3Service.generateUploadPresignedUrl(s3Key, fileType, 15);
-            String mediaUrl = constructMediaUrl(s3Key);
-
+            MediaFile mediaFile = mediaStorageService.getMediaFileById(mediaId);
             return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "uploadUrl", uploadUrl,
-                    "mediaUrl", mediaUrl,
-                    "s3Key", s3Key
-            ));
-        } catch (Exception e) {
-            log.error("Error generating presigned URL", e);
-            return ResponseEntity.internalServerError().body(Map.of(
-                    "success", false,
-                    "message", "Failed to generate upload URL"
-            ));
-        }
-    }
-
-    @GetMapping("/{mediaId}")
-    @Operation(summary = "Get media information by ID")
-    public ResponseEntity<Map<String, Object>> getMediaInfo(
-            @PathVariable String mediaId,
-            @AuthenticationPrincipal UserDetails userDetails) {
-
-        try {
-            Optional<MediaFile> mediaFileOptional = mediaStorageService.getMediaFile(Long.parseLong(mediaId));
-
-            if (mediaFileOptional.isEmpty()) {
-                return ResponseEntity.notFound().build();
-            }
-            MediaFile mediaFile = mediaFileOptional.get();
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "mediaId", mediaFile.getId(),
                     "mediaUrl", mediaStorageService.getMediaUrl(mediaFile),
-                    "thumbnailUrl", mediaFile.getThumbnailPath() != null ? mediaFile.getThumbnailPath() : "",
-                    "mediaType", mediaFile.getMediaCategory().name(),
-                    "fileType", mediaFile.getContentType(),
-                    "fileName", mediaFile.getFilename(),
-                    "fileSize", mediaFile.getFileSize(),
-                    "duration", mediaFile.getDurationSeconds(),
-                    "processingStatus", mediaFile.getProcessingStatus().name()
-            ));
-        } catch (NumberFormatException e) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "message", "Invalid media ID format"
+                    "thumbnailUrl", mediaFile.getThumbnailPath() != null ?
+                            mediaStorageService.getThumbnailUrl(mediaFile) : ""
             ));
         } catch (Exception e) {
-            log.error("Error getting media info", e);
-            return ResponseEntity.internalServerError().body(Map.of(
-                    "success", false,
-                    "message", "Failed to get media info"
+            log.error("Error getting media URL", e);
+            return ResponseEntity.status(404).body(Map.of(
+                    "error", "Media not found"
             ));
         }
     }
@@ -158,69 +135,25 @@ public class MediaController {
     @DeleteMapping("/{mediaId}")
     @Operation(summary = "Delete media file")
     public ResponseEntity<Map<String, Object>> deleteMedia(
-            @PathVariable String mediaId,
+            @PathVariable Long mediaId,
             @AuthenticationPrincipal UserDetails userDetails) {
 
         try {
-            Long userId = getUserIdFromDetails(userDetails);
-            boolean deleted = mediaStorageService.deleteMedia(Long.parseLong(mediaId));
+            User user = userRepository.findByUsername(userDetails.getUsername())
+                    .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-            if (deleted) {
-                return ResponseEntity.ok(Map.of(
-                        "success", true,
-                        "message", "Media deleted successfully"
-                ));
-            } else {
-                return ResponseEntity.notFound().build();
-            }
-        } catch (NumberFormatException e) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "message", "Invalid media ID format"
+            mediaStorageService.deleteMedia(mediaId, user.getId());
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Media deleted successfully"
             ));
         } catch (Exception e) {
             log.error("Error deleting media", e);
-            return ResponseEntity.internalServerError().body(Map.of(
+            return ResponseEntity.status(500).body(Map.of(
                     "success", false,
-                    "message", "Failed to delete media"
+                    "error", "Failed to delete media: " + e.getMessage()
             ));
         }
-    }
-
-    // Helper methods
-    private Long getUserIdFromDetails(UserDetails userDetails) {
-        // Implementation depends on your UserDetails implementation
-        // This is a placeholder - implement according to your auth system
-        return 1L; // Replace with actual user ID extraction
-    }
-
-    private String generateS3Key(String category, String fileName) {
-        String timestamp = String.valueOf(System.currentTimeMillis());
-        String extension = getFileExtension(fileName);
-        return String.format("%s/%s_%s.%s",
-                category.toLowerCase(),
-                timestamp,
-                generateRandomString(8),
-                extension);
-    }
-
-    private String getFileExtension(String fileName) {
-        int lastDotIndex = fileName.lastIndexOf('.');
-        return lastDotIndex > 0 ? fileName.substring(lastDotIndex + 1) : "bin";
-    }
-
-    private String generateRandomString(int length) {
-        String chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-        StringBuilder result = new StringBuilder();
-        for (int i = 0; i < length; i++) {
-            result.append(chars.charAt((int) (Math.random() * chars.length())));
-        }
-        return result.toString();
-    }
-
-    private String constructMediaUrl(String s3Key) {
-        // Construct the media URL based on your S3 configuration
-        // This could be CloudFront URL or direct S3 URL
-        return String.format("https://your-bucket.s3.region.amazonaws.com/%s", s3Key);
     }
 }

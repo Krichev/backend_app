@@ -307,7 +307,7 @@ public class EnhancedQuizService extends QuizService {
 
         // First, try to get user-created questions for this challenge
         List<QuizQuestion> userQuestions = quizQuestionRepository
-                .findByCreatorIdAndSourceContaining(
+                .findByCreator_IdAndSourceContaining(
                         challenge.getCreator().getId(),
                         "USER_CREATED_FOR_CHALLENGE_" + challengeId);
 
@@ -532,7 +532,7 @@ public class EnhancedQuizService extends QuizService {
                 .completedSessions(completedSessions)
                 .averageScore(avgScore)
                 .averageAccuracy(avgAccuracy)
-                .totalQuestions(quizQuestionRepository.countByCreatorIdAndSourceContaining(
+                .totalQuestions(quizQuestionRepository.countByCreator_IdAndSourceContaining(
                         challenge.getCreator().getId(),
                         "USER_CREATED_FOR_CHALLENGE_" + challengeId))
                 .build();

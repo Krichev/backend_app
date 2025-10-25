@@ -25,7 +25,7 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
     /**
      * Find questions by creator with pagination
      */
-    Page<QuizQuestion> findByCreatorIdAndIsUserCreatedTrue(Long creatorId, Pageable pageable);
+    Page<QuizQuestion> findByCreator_IdAndIsUserCreatedTrue(Long creatorId, Pageable pageable);
 
     /**
      * Find questions accessible by a user based on visibility
@@ -106,10 +106,10 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
             "ORDER BY qq.usageCount DESC")
     Page<QuizQuestion> findMostUsedQuestions(Pageable pageable);
 
-    @Query("SELECT qq FROM QuizQuestion qq " +
-            "LEFT JOIN FETCH qq.tournamentQuestions " +
-            "WHERE qq.id = :id")
-    Optional<QuizQuestion> findByIdWithUsages(@Param("id") Long id);
+//    @Query("SELECT qq FROM QuizQuestion qq " +
+//            "LEFT JOIN FETCH qq.tournamentQuestions " +
+//            "WHERE qq.id = :id")
+//    Optional<QuizQuestion> findByIdWithUsages(@Param("id") Long id);
 
     /**
      * Find questions by creator ID ordered by creation time
@@ -189,7 +189,7 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
             "   LOWER(q.answer) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
             "   LOWER(t.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
             "   LOWER(q.source) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND " +
-            "(CAST(:difficulty AS string) IS NULL OR q.difficulty = :difficulty) AND " +
+            "(:difficulty IS NULL OR CAST(q.difficulty AS string) = :difficulty) AND " +
             "(:topic IS NULL OR :topic = '' OR LOWER(t.name) = LOWER(:topic)) AND " +
             "(:isUserCreated IS NULL OR q.isUserCreated = :isUserCreated) " +
             "ORDER BY q.createdAt DESC")
@@ -323,19 +323,19 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
     @Query("SELECT q FROM QuizQuestion q WHERE q.question IS NULL OR q.answer IS NULL OR TRIM(q.question) = '' OR TRIM(q.answer) = ''")
     List<QuizQuestion> findQuestionsWithMissingFields();
 
-    List<QuizQuestion> findByCreatorIdAndIsUserCreated(Long userId, boolean b);
+    List<QuizQuestion> findByCreator_IdAndIsUserCreated(Long userId, boolean b);
 
     List<QuizQuestion> findByDifficulty(QuizDifficulty difficulty);
 
-    List<QuizQuestion> findByCreatorIdAndSourceContaining(Long id, String s);
+    List<QuizQuestion> findByCreator_IdAndSourceContaining(Long id, String s);
 
     List<QuizQuestion> findByDifficulty(QuizDifficulty difficulty, Pageable pageable);
 
-    Long countByCreatorIdAndSourceContaining(Long id, String s);
+    Long countByCreator_IdAndSourceContaining(Long id, String s);
 
     List<QuizQuestion> findByDifficultyOrderByUsageCountAsc(@NotNull(message = "Difficulty is required") QuizDifficulty difficulty, PageRequest pageRequest);
 
-    List<QuizQuestion> findByCreatorIdAndIsUserCreatedTrueOrderByCreatedAtDesc(Long userId);
+    List<QuizQuestion> findByCreator_IdAndIsUserCreatedTrueOrderByCreatedAtDesc(Long userId);
 
     long countByDifficulty(QuizDifficulty difficulty);
 }

@@ -96,7 +96,7 @@ public class QuestionService {
      */
     @Transactional(readOnly = true)
     public Page<QuizQuestionDTO> getUserQuestions(Long userId, Pageable pageable) {
-        Page<QuizQuestion> questions = quizQuestionRepository.findByCreatorIdAndIsUserCreatedTrue(userId, pageable);
+        Page<QuizQuestion> questions = quizQuestionRepository.findByCreator_IdAndIsUserCreatedTrue(userId, pageable);
         return questions.map(q -> toDTO(q, userId));
     }
 
@@ -189,7 +189,7 @@ public class QuestionService {
         log.info("Getting user questions for user: {}", userId);
 
         List<QuizQuestion> questions = quizQuestionRepository
-                .findByCreatorIdAndIsUserCreatedTrueOrderByCreatedAtDesc(userId);
+                .findByCreator_IdAndIsUserCreatedTrueOrderByCreatedAtDesc(userId);
 
         return questions.stream()
                 .map(this::convertQuestionToDTO)

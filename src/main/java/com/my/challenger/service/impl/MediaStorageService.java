@@ -91,6 +91,66 @@ public class MediaStorageService {
         }
     }
 
+
+    /**
+     * Get media file by ID
+     */
+    public MediaFile getMediaFileById(Long mediaId) {
+        return mediaFileRepository.findById(mediaId)
+                .orElseThrow(() -> new IllegalArgumentException("Media file not found with ID: " + mediaId));
+    }
+
+    /**
+     * Delete media file with authorization check
+     */
+    @Transactional
+    public void deleteMedia(Long mediaId, Long userId) {
+        MediaFile mediaFile = getMediaFileById(mediaId);
+
+        // Check if user is authorized to delete
+        if (!mediaFile.getUploadedBy().equals(userId)) {
+            throw new IllegalStateException("You are not authorized to delete this media file");
+        }
+
+        // Delete physical files
+        try {
+            Path filePath = Paths.get(mediaFile.getFilePath());
+            Files.deleteIfExists(filePath);
+
+            if (mediaFile.getThumbnailPath() != null) {
+                Path thumbnailPath = Paths.get(mediaFile.getThumbnailPath());
+                Files.deleteIfExists(thumbnailPath);
+            }
+        } catch (IOException e) {
+            log.error("Error deleting physical files for media {}", mediaId, e);
+            // Continue with database deletion even if physical file deletion fails
+        }
+
+        // Delete database record
+        mediaFileRepository.delete(mediaFile);
+        log.info("Media file {} deleted by user {}", mediaId, userId);
+    }
+
+//    /**
+//     * Get public URL for media file
+//     */
+//    public String getMediaUrl(MediaFile mediaFile) {
+//        if (mediaFile == null) {
+//            return null;
+//        }
+//        return baseUrl + "/api/media/files/" + mediaFile.getId() + "/" + mediaFile.getFilename();
+//    }
+
+    /**
+     * Get public URL for thumbnail
+     */
+    public String getThumbnailUrl(MediaFile mediaFile) {
+        if (mediaFile == null || mediaFile.getThumbnailPath() == null) {
+            return null;
+        }
+        return baseUrl + "/api/media/thumbnails/" + mediaFile.getId() + "/thumbnail.jpg";
+    }
+
     /**
      * Get media URL by media ID
      */

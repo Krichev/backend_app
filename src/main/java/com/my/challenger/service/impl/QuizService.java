@@ -2,8 +2,11 @@ package com.my.challenger.service.impl;
 
 import com.my.challenger.dto.SessionStatsDTO;
 import com.my.challenger.dto.quiz.*;
+import com.my.challenger.entity.MediaFile;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.challenge.Challenge;
+import com.my.challenger.entity.enums.MediaType;
+import com.my.challenger.entity.enums.QuestionType;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.enums.QuizSessionStatus;
 import com.my.challenger.entity.quiz.QuizQuestion;
@@ -48,16 +51,46 @@ public class QuizService {
     // =============================================================================
 
     @Transactional
-    public QuizQuestionDTO createUserQuestion(CreateQuizQuestionRequest request, Long creatorId) {
-        log.info("Creating user question for creator: {}", creatorId);
+    public QuizQuestionDTO createUserQuestion(CreateQuizQuestionRequest request, Long userId) {
+        log.info("Creating user question for user: {}", userId);
 
-        User creator = userRepository.findById(creatorId)
+        User creator = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Creator not found"));
 
         Topic topic = null;
         if (request.getTopic() != null && !request.getTopic().isBlank()) {
             topic = topicService.getOrCreateTopic(request.getTopic());
         }
+
+        // Determine question type based on media
+        QuestionType questionType = request.getQuestionType();
+        MediaType mediaType = null;
+        String mediaUrl = null;
+        String mediaId = null;
+        String thumbnailUrl = null;
+
+        // Handle media file if provided
+        if (request.getMediaFileId() != null) {
+            MediaFile mediaFile = mediaFileRepository.findById(request.getMediaFileId())
+                    .orElseThrow(() -> new IllegalArgumentException("Media file not found"));
+
+            mediaUrl = mediaStorageService.getMediaUrl(mediaFile);
+            mediaId = mediaFile.getId().toString();
+            mediaType = mediaFile.getMediaType();
+            thumbnailUrl = mediaFile.getThumbnailPath() != null ?
+                    mediaStorageService.getThumbnailUrl(mediaFile) : null;
+
+            // Auto-set question type based on media type if not explicitly set
+            if (questionType == QuestionType.TEXT) {
+                questionType = mapMediaTypeToQuestionType(mediaType);
+            }
+        } else if (request.getQuestionMediaUrl() != null) {
+            // Use provided URL directly
+            mediaUrl = request.getQuestionMediaUrl();
+            mediaId = request.getQuestionMediaId();
+            mediaType = request.getQuestionMediaType();
+        }
+
         QuizQuestion question = QuizQuestion.builder()
                 .question(request.getQuestion())
                 .answer(request.getAnswer())
@@ -65,19 +98,41 @@ public class QuizService {
                 .topic(topic)
                 .source(request.getSource())
                 .additionalInfo(request.getAdditionalInfo())
+                .questionType(questionType)
+                .questionMediaUrl(mediaUrl)
+                .questionMediaId(mediaId)
+                .questionMediaType(mediaType)
+                .questionThumbnailUrl(thumbnailUrl)
                 .isUserCreated(true)
                 .creator(creator)
                 .usageCount(0)
+                .isActive(true)
                 .build();
 
         QuizQuestion saved = quizQuestionRepository.save(question);
-        log.info("Created question with ID: {}", saved.getId());
+        log.info("Created question with ID: {} and type: {}", saved.getId(), saved.getQuestionType());
         return QuizQuestionMapper.INSTANCE.toDTO(saved);
+    }
+
+    private QuestionType mapMediaTypeToQuestionType(MediaType mediaType) {
+        if (mediaType == null) {
+            return QuestionType.TEXT;
+        }
+        switch (mediaType) {
+            case IMAGE:
+                return QuestionType.IMAGE;
+            case VIDEO:
+                return QuestionType.VIDEO;
+            case AUDIO:
+                return QuestionType.AUDIO;
+            default:
+                return QuestionType.TEXT;
+        }
     }
 
     public List<QuizQuestionDTO> getUserQuestions(Long userId) {
         log.info("Getting questions for user: {}", userId);
-        List<QuizQuestion> questions = quizQuestionRepository.findByCreatorIdAndIsUserCreated(userId, true);
+        List<QuizQuestion> questions = quizQuestionRepository.findByCreator_IdAndIsUserCreated(userId, true);
         return questions.stream()
                 .map(QuizQuestionMapper.INSTANCE::toDTO)
                 .collect(Collectors.toList());

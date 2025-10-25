@@ -1,14 +1,19 @@
 package com.my.challenger.entity.quiz;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.challenge.Challenge;
-import com.my.challenger.entity.enums.*;
+import com.my.challenger.entity.enums.MediaType;
+import com.my.challenger.entity.enums.QuestionType;
+import com.my.challenger.entity.enums.QuestionVisibility;
+import com.my.challenger.entity.enums.QuizDifficulty;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
@@ -17,102 +22,102 @@ import java.util.List;
 
 @Entity
 @Table(name = "quiz_questions", indexes = {
-        @Index(name = "idx_topic_id", columnList = "topic_id"),  // Changed from topic to topic_id
-        @Index(name = "idx_difficulty", columnList = "difficulty"),
-        @Index(name = "idx_question_type", columnList = "question_type"),
-        @Index(name = "idx_external_id", columnList = "external_id"),
-        @Index(name = "idx_legacy_question_id", columnList = "legacy_question_id"),
-        @Index(name = "idx_is_active", columnList = "is_active")
+        @Index(name = "idx_quiz_question_difficulty", columnList = "difficulty"),
+        @Index(name = "idx_quiz_question_topic_id", columnList = "topic_id"),
+        @Index(name = "idx_quiz_question_user_created", columnList = "is_user_created"),
+        @Index(name = "idx_quiz_question_creator_id", columnList = "creator_id"),
+        @Index(name = "idx_quiz_question_type", columnList = "question_type"),
+        @Index(name = "idx_quiz_question_active", columnList = "is_active")
 })
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(exclude = {"tournamentQuestions", "creator", "topic"})
-@ToString(exclude = {"tournamentQuestions", "creator", "topic"})
+@Builder
 public class QuizQuestion {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
-    private String question;
-
-    @Column(nullable = false, columnDefinition = "TEXT")
-    private String answer;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "difficulty", nullable = false, columnDefinition = "quiz_difficulty")
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Builder.Default
-    private QuizDifficulty difficulty = QuizDifficulty.MEDIUM;
-
-    // CHANGED: From String topic to ManyToOne relationship
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "topic_id", foreignKey = @ForeignKey(name = "fk_quiz_question_topic"))
-    private Topic topic;
-
-    // Keep legacy topic for migration purposes (optional)
-    @Column(name = "legacy_topic", length = 100)
-    private String legacyTopic;
-
-    @Column(length = 100)
-    private String source;
-
-    @Column(name = "additional_info", columnDefinition = "TEXT")
-    private String additionalInfo;
-
-    @Column(name = "is_user_created", nullable = false)
-    @Builder.Default
-    private Boolean isUserCreated = false;
-
-    @Column(name = "is_active", nullable = false)
-    @Builder.Default
-    private Boolean isActive = true;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "creator_id")
-    private User creator;
-
-    @Column(name = "usage_count")
-    @Builder.Default
-    private Integer usageCount = 0;
-
-    @Column(name = "external_id", length = 100)
+    @Column(name = "external_id", unique = true)
     private String externalId;
 
     @Column(name = "legacy_question_id")
     private Integer legacyQuestionId;
 
+    // Core question content
+    @Column(name = "question", nullable = false, length = 1000)
+    private String question;
+
+    @Column(name = "answer", nullable = false, length = 500)
+    private String answer;
+
+    // Classification
     @Enumerated(EnumType.STRING)
-    @Column(name = "question_type", nullable = false)
+    @Column(name = "difficulty")
+    private QuizDifficulty difficulty;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "question_type")
     @Builder.Default
     private QuestionType questionType = QuestionType.TEXT;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "topic_id")
+    private Topic topic;
+
+    @Column(name = "legacy_topic", length = 100)
+    private String legacyTopic;
+
+    @Column(name = "source", length = 100)
+    private String source;
+
+    // Enhanced metadata
+    @Column(name = "authors", length = 200)
+    private String authors;
+
+    @Column(name = "comments", length = 500)
+    private String comments;
+
+    @Column(name = "pass_criteria", length = 200)
+    private String passCriteria;
+
+    @Column(name = "additional_info", length = 500)
+    private String additionalInfo;
+
+    // Media properties - NEW/ENHANCED FOR MEDIA SUPPORT
     @Column(name = "question_media_url", length = 500)
     private String questionMediaUrl;
 
-    @Column(name = "question_media_id", length = 100)
+    @Column(name = "question_media_id", length = 50)
     private String questionMediaId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "question_media_type", columnDefinition = "media_type_enum")
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "question_media_type")
     private MediaType questionMediaType;
 
     @Column(name = "question_thumbnail_url", length = 500)
     private String questionThumbnailUrl;
 
-    @Column(name = "authors", columnDefinition = "TEXT")
-    private String authors;
+    // User creation tracking
+    @Column(name = "is_user_created")
+    @Builder.Default
+    private Boolean isUserCreated = false;
 
-    @Column(name = "pass_criteria", columnDefinition = "TEXT")
-    private String passCriteria;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "creator_id")
+    private User creator;
 
-    @Column(name = "comments", columnDefinition = "TEXT")
-    private String comments;
+    // Status and usage
+    @Column(name = "is_active")
+    @Builder.Default
+    private Boolean isActive = true;
 
+    @Column(name = "usage_count")
+    @Builder.Default
+    private Integer usageCount = 0;
+
+    // Timestamps
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -121,33 +126,25 @@ public class QuizQuestion {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    @JsonBackReference
-    @OneToMany(mappedBy = "quizQuestion", cascade = CascadeType.ALL, orphanRemoval = true)
-    @Builder.Default
-    private List<Question> tournamentQuestions = new ArrayList<>();
-
+    /**
+     * Visibility setting for the question
+     * Controls who can see and use this question
+     */
     @Enumerated(EnumType.STRING)
-    @Column(name = "visibility", nullable = false, columnDefinition = "question_visibility")
+    @Column(name = "visibility", nullable = false, columnDefinition = "visibility_type")
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Builder.Default
-    private QuestionVisibility visibility = QuestionVisibility.PRIVATE;
+    private QuestionVisibility visibility = QuestionVisibility.QUIZ_ONLY;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "original_quiz_id", foreignKey = @ForeignKey(name = "fk_question_original_quiz"))
+    @JoinColumn(name = "original_quiz_id")
     private Challenge originalQuiz;
 
-    @OneToMany(mappedBy = "question", cascade = CascadeType.ALL, orphanRemoval = true)
-    @Builder.Default
-    private List<QuestionAccessLog> accessLogs = new ArrayList<>();
+//    @OneToMany(mappedBy = "originalQuiz", cascade = CascadeType.ALL)
+//    @Builder.Default
+//    private List<Challenge> derivedQuestions = new ArrayList<>();
 
-    // =============== HELPER METHODS ===============
-
-
-    // Helper method to get topic name safely
-    public String getTopicName() {
-        return topic != null ? topic.getName() : legacyTopic;
-    }
-
+    // Helper methods for media handling
     public boolean hasMedia() {
         return questionMediaUrl != null && !questionMediaUrl.trim().isEmpty();
     }
@@ -180,22 +177,26 @@ public class QuizQuestion {
         return questionMediaType == MediaType.AUDIO;
     }
 
-    public boolean hasDocumentMedia() {
-        return questionMediaType == MediaType.DOCUMENT;
+    public boolean isMultimediaQuestion() {
+        return questionType == QuestionType.MULTIMEDIA;
     }
 
+    // Validation helper
     public boolean isMediaTypeConsistent() {
         if (questionType == QuestionType.TEXT) {
             return questionMediaType == null;
         }
         if (questionType == QuestionType.IMAGE) {
-            return questionMediaType == MediaType.IMAGE || questionMediaType == MediaType.QUIZ_QUESTION;
+            return questionMediaType == MediaType.IMAGE ||
+                    questionMediaType == MediaType.QUIZ_QUESTION;
         }
         if (questionType == QuestionType.AUDIO) {
-            return questionMediaType == MediaType.AUDIO || questionMediaType == MediaType.QUIZ_QUESTION;
+            return questionMediaType == MediaType.AUDIO ||
+                    questionMediaType == MediaType.QUIZ_QUESTION;
         }
         if (questionType == QuestionType.VIDEO) {
-            return questionMediaType == MediaType.VIDEO || questionMediaType == MediaType.QUIZ_QUESTION;
+            return questionMediaType == MediaType.VIDEO ||
+                    questionMediaType == MediaType.QUIZ_QUESTION;
         }
         if (questionType == QuestionType.MULTIMEDIA) {
             return questionMediaType != null;
@@ -203,14 +204,20 @@ public class QuizQuestion {
         return true;
     }
 
+    // Auto-set media type based on question type
     public MediaType getExpectedMediaType() {
         switch (questionType) {
-            case IMAGE: return MediaType.IMAGE;
-            case AUDIO: return MediaType.AUDIO;
-            case VIDEO: return MediaType.VIDEO;
-            case MULTIMEDIA: return MediaType.QUIZ_QUESTION;
+            case IMAGE:
+                return MediaType.IMAGE;
+            case AUDIO:
+                return MediaType.AUDIO;
+            case VIDEO:
+                return MediaType.VIDEO;
+            case MULTIMEDIA:
+                return MediaType.QUIZ_QUESTION;
             case TEXT:
-            default: return null;
+            default:
+                return null;
         }
     }
 
@@ -218,16 +225,21 @@ public class QuizQuestion {
         this.questionMediaType = getExpectedMediaType();
     }
 
+    // Validation
     public boolean isValid() {
         if (questionType == QuestionType.TEXT) {
-            return questionMediaUrl == null && questionMediaId == null && questionMediaType == null;
+            return questionMediaUrl == null &&
+                    questionMediaId == null &&
+                    questionMediaType == null;
         }
-        if (questionMediaType != null && (questionMediaUrl == null && questionMediaId == null)) {
+        if (questionMediaType != null &&
+                (questionMediaUrl == null && questionMediaId == null)) {
             return false;
         }
         return isMediaTypeConsistent();
     }
 
+    // Usage tracking
     public void incrementUsageCount() {
         this.usageCount = (this.usageCount == null ? 0 : this.usageCount) + 1;
     }
@@ -238,40 +250,17 @@ public class QuizQuestion {
         }
     }
 
-    /**
-     * Check if this question is accessible to a specific user
-     */
-    public boolean isAccessibleBy(User user) {
-        if (user == null) return false;
-
-        // Creator always has access
-        if (this.creator != null && this.creator.getId().equals(user.getId())) {
-            return true;
-        }
-
-        switch (this.visibility) {
-            case PUBLIC:
-                return true;
-            case PRIVATE:
-                return false;
-            case FRIENDS_FAMILY:
-            case QUIZ_ONLY:
-                // These would be checked at service level
-                return false;
-            default:
-                return false;
-        }
+    // Topic helper
+    public String getTopicName() {
+        return topic != null ? topic.getName() : legacyTopic;
     }
 
-    /**
-     * Log access to this question
-     */
-    public void logAccess(User user, QuestionAccessType accessType) {
-        QuestionAccessLog log = QuestionAccessLog.builder()
-                .question(this)
-                .accessedByUser(user)
-                .accessType(accessType)
-                .build();
-        this.accessLogs.add(log);
+    // Creator helper
+    public String getCreatorUsername() {
+        return creator != null ? creator.getUsername() : null;
+    }
+
+    public Long getCreatorId() {
+        return creator != null ? creator.getId() : null;
     }
 }
