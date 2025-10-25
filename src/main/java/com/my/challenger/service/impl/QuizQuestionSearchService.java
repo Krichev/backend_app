@@ -104,7 +104,7 @@ public class QuizQuestionSearchService {
         String cleanKeyword = StringUtils.hasText(keyword) ? keyword.trim().toLowerCase() : null;
         String cleanTopic = StringUtils.hasText(topic) ? topic.trim().toLowerCase() : null;
         String difficultyStr = difficulty != null ? difficulty.name() : null;
-        return quizQuestionRepository.searchWithFilters(cleanKeyword, difficulty, cleanTopic, isUserCreated, pageable);
+        return quizQuestionRepository.searchWithFilters(cleanKeyword, difficultyStr, cleanTopic, isUserCreated, pageable);
     }
 
     /**
@@ -147,7 +147,7 @@ public class QuizQuestionSearchService {
         String cleanKeyword = StringUtils.hasText(keyword) ? keyword.trim().toLowerCase() : null;
         String cleanTopic = StringUtils.hasText(topic) ? topic.trim().toLowerCase() : null;
         String difficultyStr = difficulty != null ? difficulty.name() : null;
-        return quizQuestionRepository.searchWithFilters(cleanKeyword, difficulty, cleanTopic, isUserCreated, pageable);
+        return quizQuestionRepository.searchWithFilters(cleanKeyword, difficultyStr, cleanTopic, isUserCreated, pageable);
     }
 
     /**
@@ -162,7 +162,7 @@ public class QuizQuestionSearchService {
         String difficultyStr = difficulty != null ? difficulty.name() : null;
         if (StringUtils.hasText(topic) && difficulty != null) {
             // Search by both topic and difficulty
-            Page<QuizQuestion> quizQuestions = quizQuestionRepository.searchWithFilters(normalizedTopic, difficulty, topic, null, PageRequest.of(0, count));
+            Page<QuizQuestion> quizQuestions = quizQuestionRepository.searchWithFilters(normalizedTopic, difficultyStr, topic, null, PageRequest.of(0, count));
             return quizQuestions.toList();
         } else if (difficulty != null) {
             // Search by difficulty only

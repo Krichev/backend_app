@@ -17,8 +17,6 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
 @Table(name = "quiz_questions", indexes = {
@@ -166,15 +164,15 @@ public class QuizQuestion {
     }
 
     public boolean hasVideoMedia() {
-        return questionMediaType == MediaType.VIDEO;
+        return questionMediaType == MediaType.video;
     }
 
     public boolean hasImageMedia() {
-        return questionMediaType == MediaType.IMAGE;
+        return questionMediaType == MediaType.image;
     }
 
     public boolean hasAudioMedia() {
-        return questionMediaType == MediaType.AUDIO;
+        return questionMediaType == MediaType.audio;
     }
 
     public boolean isMultimediaQuestion() {
@@ -187,16 +185,13 @@ public class QuizQuestion {
             return questionMediaType == null;
         }
         if (questionType == QuestionType.IMAGE) {
-            return questionMediaType == MediaType.IMAGE ||
-                    questionMediaType == MediaType.QUIZ_QUESTION;
+            return questionMediaType == MediaType.image;
         }
         if (questionType == QuestionType.AUDIO) {
-            return questionMediaType == MediaType.AUDIO ||
-                    questionMediaType == MediaType.QUIZ_QUESTION;
+            return questionMediaType == MediaType.audio;
         }
         if (questionType == QuestionType.VIDEO) {
-            return questionMediaType == MediaType.VIDEO ||
-                    questionMediaType == MediaType.QUIZ_QUESTION;
+            return questionMediaType == MediaType.video ;
         }
         if (questionType == QuestionType.MULTIMEDIA) {
             return questionMediaType != null;
@@ -208,13 +203,11 @@ public class QuizQuestion {
     public MediaType getExpectedMediaType() {
         switch (questionType) {
             case IMAGE:
-                return MediaType.IMAGE;
+                return MediaType.image;
             case AUDIO:
-                return MediaType.AUDIO;
+                return MediaType.audio;
             case VIDEO:
-                return MediaType.VIDEO;
-            case MULTIMEDIA:
-                return MediaType.QUIZ_QUESTION;
+                return MediaType.video;
             case TEXT:
             default:
                 return null;

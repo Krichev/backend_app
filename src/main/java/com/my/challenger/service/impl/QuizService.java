@@ -119,11 +119,11 @@ public class QuizService {
             return QuestionType.TEXT;
         }
         switch (mediaType) {
-            case IMAGE:
+            case image:
                 return QuestionType.IMAGE;
-            case VIDEO:
+            case video:
                 return QuestionType.VIDEO;
-            case AUDIO:
+            case audio:
                 return QuestionType.AUDIO;
             default:
                 return QuestionType.TEXT;

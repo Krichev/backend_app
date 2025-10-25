@@ -70,16 +70,19 @@ public class MediaFile {
     @NotNull(message = "Media type cannot be null")
     @Enumerated(EnumType.STRING)
     @Column(name = "media_type", nullable = false)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private MediaType mediaType;
 
     @NotNull(message = "Media category cannot be null")
     @Enumerated(EnumType.STRING)
     @Column(name = "media_category", nullable = false)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private MediaCategory mediaCategory;
 
     @NotNull(message = "Processing status cannot be null")
     @Enumerated(EnumType.STRING)
     @Column(name = "processing_status", nullable = false)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private ProcessingStatus processingStatus = ProcessingStatus.PENDING;
 
     // File paths and storage

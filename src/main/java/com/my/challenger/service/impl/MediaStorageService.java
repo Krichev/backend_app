@@ -260,13 +260,13 @@ public class MediaStorageService {
      */
     private MediaType determineMediaType(String contentType) {
         if (IMAGE_TYPES.contains(contentType)) {
-            return MediaType.IMAGE;
+            return MediaType.image;
         } else if (VIDEO_TYPES.contains(contentType)) {
-            return MediaType.VIDEO;
+            return MediaType.video;
         } else if (AUDIO_TYPES.contains(contentType)) {
-            return MediaType.AUDIO;
+            return MediaType.audio;
         } else if (DOCUMENT_TYPES.contains(contentType)) {
-            return MediaType.DOCUMENT;
+            return MediaType.document;
         } else {
             throw new IllegalArgumentException("Unsupported media type: " + contentType);
         }
@@ -322,6 +322,7 @@ public class MediaStorageService {
                                             MediaCategory category, MediaType mediaType, Long uploadedBy) throws IOException {
         MediaFile mediaFile = new MediaFile();
         mediaFile.setFilename(file.getOriginalFilename());
+        mediaFile.setOriginalFilename(file.getOriginalFilename());
         mediaFile.setContentType(file.getContentType());
         mediaFile.setFileSize(file.getSize());
         mediaFile.setFilePath(filePath.toString());
@@ -332,7 +333,7 @@ public class MediaStorageService {
         mediaFile.setProcessingStatus(ProcessingStatus.PENDING);
 
         // Set metadata based on file type
-        if (mediaType == MediaType.IMAGE) {
+        if (mediaType == MediaType.image) {
             setImageMetadata(mediaFile, file);
         }
 
@@ -364,9 +365,9 @@ public class MediaStorageService {
     @Async
     protected void generateThumbnailAsync(MediaFile mediaFile) {
         try {
-            if (mediaFile.getMediaType() == MediaType.IMAGE) {
+            if (mediaFile.getMediaType() == MediaType.image) {
                 generateImageThumbnail(mediaFile);
-            } else if (mediaFile.getMediaType() == MediaType.VIDEO) {
+            } else if (mediaFile.getMediaType() == MediaType.video) {
                 generateVideoThumbnail(mediaFile);
             }
             mediaFile.setProcessingStatus(ProcessingStatus.COMPLETED);

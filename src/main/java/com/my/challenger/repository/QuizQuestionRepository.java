@@ -189,12 +189,12 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
             "   LOWER(q.answer) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
             "   LOWER(t.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
             "   LOWER(q.source) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND " +
-            "(:difficulty IS NULL OR CAST(q.difficulty AS string) = :difficulty) AND " +
+            "(q.difficulty IS NULL OR STR(q.difficulty) = :difficulty) AND " +
             "(:topic IS NULL OR :topic = '' OR LOWER(t.name) = LOWER(:topic)) AND " +
             "(:isUserCreated IS NULL OR q.isUserCreated = :isUserCreated) " +
             "ORDER BY q.createdAt DESC")
     Page<QuizQuestion> searchWithFilters(@Param("keyword") String keyword,
-                                         @Param("difficulty") QuizDifficulty difficulty,
+                                         @Param("difficulty") String difficulty,
                                          @Param("topic") String topic,
                                          @Param("isUserCreated") Boolean isUserCreated,
                                          Pageable pageable);

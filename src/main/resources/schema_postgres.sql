@@ -81,13 +81,7 @@ CREATE TYPE media_type AS ENUM (
 );
 
 CREATE TYPE media_category AS ENUM (
-    'IMAGE',
-    'VIDEO',
-    'AUDIO',
-    'DOCUMENT',
-    'PROFILE_PICTURE',
-    'THUMBNAIL',
-    'ATTACHMENT'
+    'QUIZ_QUESTION', 'AVATAR', 'CHALLENGE_PROOF', 'SYSTEM'
 );
 
 CREATE TYPE processing_status AS ENUM (
@@ -718,30 +712,30 @@ $$
 LANGUAGE plpgsql;
 
 CREATE
-OR REPLACE FUNCTION is_image(media_cat media_category)
+OR REPLACE FUNCTION is_image(media_t media_type)
 RETURNS BOOLEAN AS $$
 BEGIN
-RETURN media_cat = 'IMAGE';
+RETURN media_t = 'IMAGE';
 END;
 $$
 LANGUAGE plpgsql IMMUTABLE;
 
 -- Function to check if media is video (matches isVideo() method)
 CREATE
-OR REPLACE FUNCTION is_video(media_cat media_category)
+OR REPLACE FUNCTION is_video(media_t media_type)
 RETURNS BOOLEAN AS $$
 BEGIN
-RETURN media_cat = 'VIDEO';
+RETURN media_t = 'VIDEO';
 END;
 $$
 LANGUAGE plpgsql IMMUTABLE;
 
 -- Function to check if media is audio (matches isAudio() method)
 CREATE
-OR REPLACE FUNCTION is_audio(media_cat media_category)
+OR REPLACE FUNCTION is_audio(media_t media_type)
 RETURNS BOOLEAN AS $$
 BEGIN
-RETURN media_cat = 'AUDIO';
+RETURN media_t = 'AUDIO';
 END;
 $$
 LANGUAGE plpgsql IMMUTABLE;
@@ -772,7 +766,7 @@ LANGUAGE plpgsql IMMUTABLE;
 CREATE
 OR REPLACE FUNCTION get_media_files_by_user(
     user_id BIGINT,
-    media_cat media_category DEFAULT NULL,
+    media_t media_type DEFAULT NULL,
     proc_status processing_status DEFAULT NULL,
     limit_count INTEGER DEFAULT 20,
     offset_count INTEGER DEFAULT 0
@@ -813,7 +807,7 @@ LANGUAGE plpgsql;
 CREATE
 OR REPLACE FUNCTION get_media_files_by_entity(
     ent_id BIGINT,
-    media_cat media_category DEFAULT NULL,
+    media_t media_type DEFAULT NULL,
     limit_count INTEGER DEFAULT 50
 )
 RETURNS TABLE (
@@ -821,7 +815,7 @@ RETURNS TABLE (
     original_filename VARCHAR(255),
     filename VARCHAR(255),
     s3_url TEXT,
-    media_category media_category,
+    media_t media_type,
     processing_status processing_status,
     uploaded_at TIMESTAMP WITHOUT TIME ZONE
 ) AS $$
@@ -950,21 +944,58 @@ CREATE TRIGGER update_media_files_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
--- Trigger to automatically extract file extension
-CREATE TRIGGER extract_media_files_extension
-    BEFORE INSERT OR
-UPDATE ON media_files
-    FOR EACH ROW
-    EXECUTE FUNCTION extract_file_extension();
+-- -- Trigger to automatically extract file extension
+-- CREATE TRIGGER extract_media_files_extension
+--     BEFORE INSERT OR
+-- UPDATE ON media_files
+--     FOR EACH ROW
+--     EXECUTE FUNCTION extract_file_extension();
+--
+-- create function extract_file_extension() returns trigger
+--     language plpgsql
+-- as
+-- $$
+-- BEGIN
+--     IF
+-- NEW.file_extension IS NULL AND NEW.original_filename IS NOT NULL THEN
+--         NEW.file_extension = lower(substring(NEW.original_filename from '\.([^.]*)$'));
+-- END IF;
+-- RETURN NEW;
+-- END;
+-- $$;
+--
+-- alter function extract_file_extension() owner to challenger_user;
+--
 
 
--- Trigger to automatically generate stored filename
-CREATE TRIGGER generate_media_files_stored_filename
-    BEFORE INSERT
-    ON media_files
-    FOR EACH ROW
-    EXECUTE FUNCTION generate_stored_filename();
 
+-- -- Trigger to automatically generate stored filename
+-- CREATE TRIGGER generate_media_files_stored_filename
+--     BEFORE INSERT
+--     ON media_files
+--     FOR EACH ROW
+--     EXECUTE FUNCTION generate_stored_filename();
+--
+-- create function generate_stored_filename() returns trigger
+--     language plpgsql
+-- as
+-- $$
+-- BEGIN
+--     IF
+-- NEW.stored_filename IS NULL OR NEW.stored_filename = '' THEN
+--         NEW.stored_filename = uuid_generate_v4()::text ||
+--             CASE
+--                 WHEN NEW.file_extension IS NOT NULL
+--                 THEN '.' || NEW.file_extension
+--                 ELSE ''
+-- END;
+-- END IF;
+-- RETURN NEW;
+-- END;
+-- $$;
+--
+-- alter function generate_stored_filename() owner to challenger_user;
+--
 
 
 -- View for completed media files
@@ -1424,11 +1455,6 @@ CREATE TRIGGER trigger_update_media_usage
     FOR EACH ROW
     EXECUTE FUNCTION update_media_usage_stats();
 
--- Insert default media categories if not exists
-INSERT INTO media_files (id, original_file_name, stored_file_name, s3_key, file_type, file_size, media_category,
-                         uploaded_by)
-VALUES (0, 'default', 'default', 'system/default', 'application/octet-stream', 0, 'SYSTEM',
-        1) ON CONFLICT (s3_key) DO NOTHING;
 
 -- Create enum types for better type safety (PostgreSQL)
 DO
@@ -1439,10 +1465,10 @@ NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'question_type_enum') THEN
 CREATE TYPE question_type_enum AS ENUM ('TEXT', 'IMAGE', 'VIDEO', 'AUDIO');
 END IF;
 
-    IF
-NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'media_category_enum') THEN
-CREATE TYPE media_category_enum AS ENUM ('QUIZ_QUESTION', 'AVATAR', 'CHALLENGE_PROOF', 'SYSTEM');
-END IF;
+--     IF
+-- NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'media_category') THEN
+-- CREATE TYPE media_category AS ENUM ('QUIZ_QUESTION', 'AVATAR', 'CHALLENGE_PROOF', 'SYSTEM');
+-- END IF;
 
     IF
 NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'processing_status_enum') THEN
