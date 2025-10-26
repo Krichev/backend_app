@@ -43,7 +43,7 @@ public class QuizService {
     protected final UserRepository userRepository;
     protected final MediaFileRepository mediaFileRepository;
     protected final WWWGameService gameService;
-    protected final MediaStorageService mediaStorageService;
+    protected final MinioMediaStorageService mediaStorageService;
     private final TopicService topicService;
 
     // =============================================================================

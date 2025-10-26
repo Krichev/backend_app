@@ -33,7 +33,7 @@ public interface MediaFileRepository extends JpaRepository<MediaFile, Long> {
 
     /**
      * **MISSING METHOD: Find media files by media type and uploader**
-     * This method was being called in MediaStorageService.getMediaByTypeAndUser()
+     * This method was being called in MinioMediaStorageService.getMediaByTypeAndUser()
      */
     List<MediaFile> findByMediaTypeAndUploadedBy(MediaType mediaType, Long uploadedBy);
 

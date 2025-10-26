@@ -50,21 +50,21 @@ public class TopicController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping
-    @Operation(summary = "Get all topics", description = "Retrieve all active topics with pagination")
-    public ResponseEntity<Page<TopicResponse>> getAllTopics(
-            @Parameter(description = "Page number (0-indexed)") @RequestParam(defaultValue = "0") int page,
-            @Parameter(description = "Page size") @RequestParam(defaultValue = "20") int size,
-            @Parameter(description = "Sort by field") @RequestParam(defaultValue = "name") String sortBy,
-            @Parameter(description = "Sort direction (asc/desc)") @RequestParam(defaultValue = "asc") String sortDir) {
-        
-        Sort sort = sortDir.equalsIgnoreCase("desc") ? 
-                    Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
-        Pageable pageable = PageRequest.of(page, size, sort);
-        
-        Page<TopicResponse> response = topicService.getTopics(pageable);
-        return ResponseEntity.ok(response);
-    }
+//    @GetMapping
+//    @Operation(summary = "Get all topics", description = "Retrieve all active topics with pagination")
+//    public ResponseEntity<Page<TopicResponse>> getAllTopics(
+//            @Parameter(description = "Page number (0-indexed)") @RequestParam(defaultValue = "0") int page,
+//            @Parameter(description = "Page size") @RequestParam(defaultValue = "20") int size,
+//            @Parameter(description = "Sort by field") @RequestParam(defaultValue = "name") String sortBy,
+//            @Parameter(description = "Sort direction (asc/desc)") @RequestParam(defaultValue = "asc") String sortDir) {
+//
+//        Sort sort = sortDir.equalsIgnoreCase("desc") ?
+//                    Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
+//        Pageable pageable = PageRequest.of(page, size, sort);
+//
+//        Page<TopicResponse> response = topicService.getTopics(pageable);
+//        return ResponseEntity.ok(response);
+//    }
 
     @GetMapping("/all")
     @Operation(summary = "Get all topics (no pagination)", description = "Retrieve all active topics without pagination")

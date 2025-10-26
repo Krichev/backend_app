@@ -33,7 +33,7 @@ public interface QuizQuestionMapper {
      * Note: This won't set the creator object, only basic fields
      */
     @Mapping(target = "creator", ignore = true)
-    @Mapping(target = "tournamentQuestions", ignore = true)
+//    @Mapping(target = "tournamentQuestions", ignore = true)
     @Mapping(source = "topic", target = "topic.name")
     QuizQuestion toEntity(QuizQuestionDTO dto);
 

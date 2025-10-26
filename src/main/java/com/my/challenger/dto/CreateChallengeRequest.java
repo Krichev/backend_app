@@ -81,4 +81,6 @@ public class CreateChallengeRequest {
      * Whether joining requires approval from creator
      */
     private Boolean requiresApproval = false;
+
+    private Long userId;
 }

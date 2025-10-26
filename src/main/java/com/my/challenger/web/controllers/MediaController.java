@@ -5,7 +5,7 @@ import com.my.challenger.entity.MediaFile;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.enums.MediaCategory;
 import com.my.challenger.repository.UserRepository;
-import com.my.challenger.service.impl.MediaStorageService;
+import com.my.challenger.service.impl.MinioMediaStorageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -30,7 +30,7 @@ import java.util.Map;
 @Tag(name = "Media Management", description = "Enhanced media upload and management endpoints")
 public class MediaController {
 
-    private final MediaStorageService mediaStorageService;
+    private final MinioMediaStorageService mediaStorageService;
     private final UserRepository userRepository;
 
     @PostMapping("/upload/quiz-media")

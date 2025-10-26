@@ -22,6 +22,16 @@ import java.util.Optional;
 @Repository
 public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long> {
 
+
+    /**
+     * Get all distinct topic names using query (optimized)
+     * This is more efficient than findAll() + stream filtering
+     */
+    @Query("SELECT DISTINCT t.name FROM QuizQuestion q " +
+            "JOIN q.topic t " +
+            "WHERE t IS NOT NULL AND t.name IS NOT NULL AND TRIM(t.name) != '' " +
+            "ORDER BY t.name ASC")
+    List<String> findAllDistinctTopicNames();
     /**
      * Find questions by creator with pagination
      */
@@ -189,7 +199,7 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
             "   LOWER(q.answer) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
             "   LOWER(t.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
             "   LOWER(q.source) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND " +
-            "(q.difficulty IS NULL OR STR(q.difficulty) = :difficulty) AND " +
+            "(:difficulty IS NULL OR :difficulty = '' OR STR(q.difficulty) = :difficulty) AND " +
             "(:topic IS NULL OR :topic = '' OR LOWER(t.name) = LOWER(:topic)) AND " +
             "(:isUserCreated IS NULL OR q.isUserCreated = :isUserCreated) " +
             "ORDER BY q.createdAt DESC")

@@ -40,7 +40,7 @@ public class EnhancedQuizService extends QuizService {
             ChallengeRepository challengeRepository,
             UserRepository userRepository,
             WWWGameService gameService,
-            MediaStorageService mediaStorageService,
+            MinioMediaStorageService mediaStorageService,
             MediaFileRepository mediaFileRepository,
             ObjectMapper objectMapper,
             TaskRepository taskRepository, TopicService topicService) {

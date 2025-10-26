@@ -4,11 +4,15 @@
 package com.my.challenger.web.controllers;
 
 import com.my.challenger.dto.quiz.QuizQuestionDTO;
+import com.my.challenger.dto.quiz.TopicResponse;
 import com.my.challenger.entity.enums.MediaType;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.quiz.QuizQuestion;
 import com.my.challenger.mapper.QuizQuestionMapper;
 import com.my.challenger.service.impl.QuizQuestionSearchService;
+import com.my.challenger.service.impl.TopicService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -31,6 +35,24 @@ import java.util.stream.Collectors;
 public class QuizQuestionController {
 
     private final QuizQuestionSearchService searchService;
+    private final TopicService topicService;
+
+    @GetMapping(name = "/topics")
+    @Operation(summary = "Get all topics", description = "Retrieve all active topics with pagination")
+    public ResponseEntity<Page<TopicResponse>> getAllTopics(
+            @Parameter(description = "Page number (0-indexed)") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Page size") @RequestParam(defaultValue = "20") int size,
+            @Parameter(description = "Sort by field") @RequestParam(defaultValue = "name") String sortBy,
+            @Parameter(description = "Sort direction (asc/desc)") @RequestParam(defaultValue = "asc") String sortDir) {
+
+        Sort sort = sortDir.equalsIgnoreCase("desc") ?
+                Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        Page<TopicResponse> response = topicService.getTopics(pageable);
+        return ResponseEntity.ok(response);
+    }
+
 
     /**
      * Search quiz questions with filters
@@ -156,7 +178,7 @@ public class QuizQuestionController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) QuizDifficulty difficulty,
             @RequestParam(required = false) String topic,
-            @RequestParam(required = false) Boolean isUserCreated,
+            @RequestParam(required = false) boolean isUserCreated,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 

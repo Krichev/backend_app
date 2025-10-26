@@ -35,17 +35,10 @@ public class QuizQuestionSearchService {
      * Get all unique topics
      */
     public List<String> getAllTopics() {
-        List<String> allTopics = quizQuestionRepository.findAll().stream()
-                .map(QuizQuestion::getTopic)
-                .filter(Objects::nonNull)
-                .filter(topic -> !topic.getName().trim().isEmpty())
-                .distinct()
-                .map(Topic::getName)
-                .sorted()
-                .collect(Collectors.toList());
+        List<String> topics = quizQuestionRepository.findAllDistinctTopicNames();
 
-        log.debug("Found {} unique topics", allTopics.size());
-        return allTopics;
+        log.debug("Found {} unique topics", topics.size());
+        return topics;
     }
 
     /**
@@ -135,7 +128,7 @@ public class QuizQuestionSearchService {
     public Page<QuizQuestion> advancedSearch(String keyword,
                                            QuizDifficulty difficulty, 
                                            String topic, 
-                                           Boolean isUserCreated,
+                                           boolean isUserCreated,
                                            int page, 
                                            int size) {
         log.debug("Advanced search - keyword: '{}', difficulty: {}, topic: '{}', userCreated: {}", 
