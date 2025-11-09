@@ -82,5 +82,7 @@ public class CreateChallengeRequest {
      */
     private Boolean requiresApproval = false;
 
+    private ChallengeDifficulty difficulty;
+
     private Long userId;
 }
