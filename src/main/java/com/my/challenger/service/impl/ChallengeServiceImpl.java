@@ -94,6 +94,9 @@ public class ChallengeServiceImpl implements ChallengeService {
         challenge.setStatus(request.getStatus() != null ? request.getStatus() : ChallengeStatus.ACTIVE);
         challenge.setVerificationMethod(request.getVerificationMethod());
 
+        challenge.setDifficulty(request.getDifficulty() != null ?
+                request.getDifficulty() : ChallengeDifficulty.MEDIUM);
+
         // Set visibility
         boolean isPublic = request.getVisibility() == VisibilityType.PUBLIC;
         challenge.setPublic(isPublic);
