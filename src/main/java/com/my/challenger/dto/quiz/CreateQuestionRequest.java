@@ -3,6 +3,8 @@ package com.my.challenger.dto.quiz;
 
 import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.enums.QuestionType;
+import com.my.challenger.entity.enums.MediaType;
+import com.my.challenger.entity.enums.QuestionVisibility;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -36,9 +38,14 @@ public class CreateQuestionRequest {
     @Builder.Default
     private QuestionType questionType = QuestionType.TEXT;
 
+    // Media properties
     private String questionMediaUrl;
-
     private String questionMediaId;
+    private MediaType questionMediaType;
 
     private String source;
+
+    // Access control (defaults to PRIVATE)
+    @Builder.Default
+    private QuestionVisibility visibility = QuestionVisibility.PRIVATE;
 }
