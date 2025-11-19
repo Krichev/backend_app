@@ -106,6 +106,24 @@ public class MinioMediaStorageService {
     }
 
     /**
+     * Update media entity with the question ID after question creation
+     */
+    public void updateMediaEntityId(Long mediaFileId, Long questionId) {
+        try {
+            MediaFile mediaFile = mediaFileRepository.findById(mediaFileId)
+                    .orElseThrow(() -> new IllegalArgumentException("Media file not found"));
+
+            mediaFile.setEntityId(questionId);
+            mediaFileRepository.save(mediaFile);
+
+            log.debug("Updated media file {} with question ID {}", mediaFileId, questionId);
+        } catch (Exception e) {
+            log.warn("Failed to update media entity ID, but question creation succeeded", e);
+            // Don't fail the entire transaction if this update fails
+        }
+    }
+
+    /**
      * Upload file to MinIO
      */
     private void uploadToMinio(String s3Key, byte[] content, String contentType) {

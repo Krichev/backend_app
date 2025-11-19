@@ -1,18 +1,17 @@
 package com.my.challenger.service.impl;
 
 import com.my.challenger.dto.quiz.*;
+import com.my.challenger.entity.MediaFile;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.challenge.Challenge;
-import com.my.challenger.entity.enums.QuestionSource;
-import com.my.challenger.entity.enums.QuestionVisibility;
-import com.my.challenger.entity.enums.QuizDifficulty;
-import com.my.challenger.entity.enums.QuizSessionStatus;
+import com.my.challenger.entity.enums.*;
 import com.my.challenger.entity.quiz.QuizQuestion;
 import com.my.challenger.entity.quiz.QuizRound;
 import com.my.challenger.entity.quiz.QuizSession;
 import com.my.challenger.entity.quiz.Topic;
 import com.my.challenger.exception.BadRequestException;
 import com.my.challenger.exception.ResourceNotFoundException;
+import com.my.challenger.mapper.QuizQuestionMapper;
 import com.my.challenger.repository.*;
 import com.my.challenger.service.WWWGameService;
 import lombok.RequiredArgsConstructor;
@@ -23,11 +22,15 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
+import static com.my.challenger.entity.enums.QuestionType.*;
 
 @Slf4j
 @Service
@@ -43,6 +46,92 @@ public class QuestionService {
     protected final TopicService topicService;
     private final QuestionAccessService accessService;
     private final UserRelationshipService relationshipService;
+    private final MinioMediaStorageService mediaStorageService;
+
+    @Transactional
+    public QuizQuestionDTO createQuestionWithMedia(
+            CreateQuizQuestionRequest request,
+            MultipartFile mediaFile,
+            Long userId) {
+
+        // 1. Get user
+        User creator = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Creator not found"));
+
+        // 2. Handle media upload (if provided)
+        Long mediaFileId = null;
+        String mediaUrl = null;
+        MediaType mediaType = null;
+
+        if (mediaFile != null && !mediaFile.isEmpty()) {
+            validateMediaFile(mediaFile);
+            MediaFile storedMedia = mediaStorageService.storeMedia(
+                    mediaFile, null, MediaCategory.QUIZ_QUESTION, userId);
+            mediaFileId = storedMedia.getId();
+            mediaUrl = mediaStorageService.getMediaUrl(storedMedia);
+            mediaType = storedMedia.getMediaType();
+        }
+
+        // 3. Get/create topic
+        Topic topic = null;
+        if (request.getTopic() != null && !request.getTopic().isBlank()) {
+            topic = topicService.getOrCreateTopic(request.getTopic());
+        }
+
+        // 4. Auto-detect question type from media
+        QuestionType questionType = request.getQuestionType();
+        if (questionType == TEXT && mediaType != null) {
+            questionType = mapMediaTypeToQuestionType(mediaType);
+        }
+
+        // 5. Build and save question
+        QuizQuestion question = QuizQuestion.builder()
+                .question(request.getQuestion())
+                .answer(request.getAnswer())
+                .difficulty(request.getDifficulty())
+                .topic(topic)
+                .questionType(questionType)
+                .questionMediaUrl(mediaUrl)
+                .questionMediaType(mediaType)
+                .visibility(request.getVisibility())
+                .isUserCreated(true)
+                .creator(creator)
+                .build();
+
+        QuizQuestion saved = quizQuestionRepository.save(question);
+
+        // 6. Update media with question reference
+        if (mediaFileId != null) {
+            mediaStorageService.updateMediaEntityId(mediaFileId, saved.getId());
+        }
+
+        return QuizQuestionMapper.INSTANCE.toDTO(saved);
+    }
+
+
+    private void validateMediaFile(MultipartFile file) {
+        if (file.isEmpty()) throw new IllegalArgumentException("File is empty");
+        if (file.getSize() > 100 * 1024 * 1024) {
+            throw new IllegalArgumentException("File too large (max 100MB)");
+        }
+        String contentType = file.getContentType();
+        if (contentType == null || !(contentType.startsWith("image/") ||
+                contentType.startsWith("video/") ||
+                contentType.startsWith("audio/"))) {
+            throw new IllegalArgumentException("Unsupported media type");
+        }
+    }
+
+    private QuestionType mapMediaTypeToQuestionType(MediaType mediaType) {
+        return switch (mediaType) {
+            case MediaType.image -> IMAGE;
+            case MediaType.video -> VIDEO;
+            case MediaType.document-> TEXT;
+            case audio -> null;
+            case QUIZ_QUESTION -> null;
+            case AVATAR -> null;
+        };
+    }
 
     /**
      * Create a user question with visibility policy
@@ -360,7 +449,7 @@ public class QuestionService {
 
         // Calculate total duration if started
         if (session.getStartedAt() != null) {
-            long durationSeconds = java.time.Duration
+            long durationSeconds = Duration
                     .between(session.getStartedAt(), session.getCompletedAt())
                     .getSeconds();
             session.setTotalDurationSeconds((int) durationSeconds);

@@ -20,12 +20,12 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/quiz")
@@ -37,6 +37,21 @@ public class QuizController {
     private final QuizService quizService;
     private final QuestionService questionService;
     private final UserRepository userRepository;
+
+
+    @PostMapping(value = "/questions/with-media", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Create question with optional media (unified endpoint)")
+    public ResponseEntity<QuizQuestionDTO> createQuestionWithMedia(
+            @RequestPart("questionData") @Valid CreateQuizQuestionRequest request,
+            @RequestPart(value = "mediaFile", required = false) MultipartFile mediaFile,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        Long userId = ((UserPrincipal) userDetails).getId();
+        QuizQuestionDTO createdQuestion = questionService.createQuestionWithMedia(
+                request, mediaFile, userId);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(createdQuestion);
+    }
 
 
     @PostMapping("/questions")
