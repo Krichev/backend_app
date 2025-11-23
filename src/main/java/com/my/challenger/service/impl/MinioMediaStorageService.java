@@ -9,7 +9,6 @@ import com.my.challenger.repository.MediaFileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -478,7 +477,7 @@ public class MinioMediaStorageService {
         mediaFile.setProcessingStatus(ProcessingStatus.PENDING);
 
         // Set image-specific metadata
-        if (mediaType == MediaType.image) {
+        if (mediaType == MediaType.IMAGE) {
             setImageMetadata(mediaFile, file);
         }
 
@@ -501,9 +500,9 @@ public class MinioMediaStorageService {
     @Async
     protected void generateThumbnailAsync(MediaFile mediaFile) {
         try {
-            if (mediaFile.getMediaType() == MediaType.image) {
+            if (mediaFile.getMediaType() == MediaType.IMAGE) {
                 generateImageThumbnail(mediaFile);
-            } else if (mediaFile.getMediaType() == MediaType.video) {
+            } else if (mediaFile.getMediaType() == MediaType.VIDEO) {
                 generateVideoThumbnail(mediaFile);
             }
             mediaFile.setProcessingStatus(ProcessingStatus.COMPLETED);
@@ -589,13 +588,13 @@ public class MinioMediaStorageService {
 
     private MediaType determineMediaType(String contentType) {
         if (IMAGE_TYPES.contains(contentType)) {
-            return MediaType.image;
+            return MediaType.IMAGE;
         } else if (VIDEO_TYPES.contains(contentType)) {
-            return MediaType.video;
+            return MediaType.VIDEO;
         } else if (AUDIO_TYPES.contains(contentType)) {
-            return MediaType.audio;
+            return MediaType.AUDIO;
         } else if (DOCUMENT_TYPES.contains(contentType)) {
-            return MediaType.document;
+            return MediaType.DOCUMENT;
         } else {
             throw new IllegalArgumentException("Unsupported media type: " + contentType);
         }

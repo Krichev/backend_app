@@ -124,10 +124,10 @@ public class QuestionService {
 
     private QuestionType mapMediaTypeToQuestionType(MediaType mediaType) {
         return switch (mediaType) {
-            case MediaType.image -> IMAGE;
-            case MediaType.video -> VIDEO;
-            case MediaType.document-> TEXT;
-            case audio -> null;
+            case MediaType.IMAGE -> IMAGE;
+            case MediaType.VIDEO -> VIDEO;
+            case MediaType.DOCUMENT -> TEXT;
+            case AUDIO -> null;
             case QUIZ_QUESTION -> null;
             case AVATAR -> null;
         };

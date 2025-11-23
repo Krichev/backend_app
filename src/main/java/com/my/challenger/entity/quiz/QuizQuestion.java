@@ -164,15 +164,15 @@ public class QuizQuestion {
     }
 
     public boolean hasVideoMedia() {
-        return questionMediaType == MediaType.video;
+        return questionMediaType == MediaType.VIDEO;
     }
 
     public boolean hasImageMedia() {
-        return questionMediaType == MediaType.image;
+        return questionMediaType == MediaType.IMAGE;
     }
 
     public boolean hasAudioMedia() {
-        return questionMediaType == MediaType.audio;
+        return questionMediaType == MediaType.AUDIO;
     }
 
     public boolean isMultimediaQuestion() {
@@ -185,13 +185,13 @@ public class QuizQuestion {
             return questionMediaType == null;
         }
         if (questionType == QuestionType.IMAGE) {
-            return questionMediaType == MediaType.image;
+            return questionMediaType == MediaType.IMAGE;
         }
         if (questionType == QuestionType.AUDIO) {
-            return questionMediaType == MediaType.audio;
+            return questionMediaType == MediaType.AUDIO;
         }
         if (questionType == QuestionType.VIDEO) {
-            return questionMediaType == MediaType.video ;
+            return questionMediaType == MediaType.VIDEO;
         }
         if (questionType == QuestionType.MULTIMEDIA) {
             return questionMediaType != null;
@@ -203,11 +203,11 @@ public class QuizQuestion {
     public MediaType getExpectedMediaType() {
         switch (questionType) {
             case IMAGE:
-                return MediaType.image;
+                return MediaType.IMAGE;
             case AUDIO:
-                return MediaType.audio;
+                return MediaType.AUDIO;
             case VIDEO:
-                return MediaType.video;
+                return MediaType.VIDEO;
             case TEXT:
             default:
                 return null;

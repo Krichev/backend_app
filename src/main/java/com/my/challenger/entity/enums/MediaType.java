@@ -7,22 +7,22 @@ public enum MediaType {
     /**
      * Image files (JPEG, PNG, GIF, WebP)
      */
-    image,
+    IMAGE,
 
     /**
      * Video files (MP4, MOV, AVI)
      */
-    video,
+    VIDEO,
 
     /**
      * Audio files (MP3, WAV, AAC, M4A)
      */
-    audio,
+    AUDIO,
 
     /**
      * Document files (PDF, DOC, etc.)
      */
-    document,
+    DOCUMENT,
 
     /**
      * Quiz question media specifically
@@ -38,14 +38,14 @@ public enum MediaType {
      * Check if this media type supports thumbnails
      */
     public boolean supportsThumbnails() {
-        return this == image || this == video;
+        return this == IMAGE || this == VIDEO;
     }
 
     /**
      * Check if this media type has duration
      */
     public boolean hasDuration() {
-        return this == video || this == audio;
+        return this == VIDEO || this == AUDIO;
     }
 
     /**
@@ -53,13 +53,13 @@ public enum MediaType {
      */
     public String[] getAllowedMimeTypes() {
         switch (this) {
-            case image:
+            case IMAGE:
                 return new String[]{"image/jpeg", "image/png", "image/gif", "image/webp"};
-            case video:
+            case VIDEO:
                 return new String[]{"video/mp4", "video/mov", "video/avi", "video/quicktime"};
-            case audio:
+            case AUDIO:
                 return new String[]{"audio/mp3", "audio/wav", "audio/aac", "audio/m4a", "audio/ogg"};
-            case document:
+            case DOCUMENT:
                 return new String[]{"application/pdf", "application/msword", "text/plain"};
             default:
                 return new String[]{};
