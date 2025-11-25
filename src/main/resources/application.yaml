@@ -14,15 +14,19 @@ spring:
     password: ${DATABASE_PASSWORD:challenger_password_secure_123}
     driver-class-name: org.postgresql.Driver
     hikari:
+      maximum-pool-size: 10
       minimum-idle: 5
-      maximum-pool-size: 20
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
       leak-detection-threshold: 60000
+      connection-test-query: SELECT 1
+      pool-name: ChallengerHikariPool
+      auto-commit: true
 
   # JPA Configuration
   jpa:
+    open-in-view: false  # Critical: Prevents connection leaks
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: validate
@@ -35,6 +39,7 @@ spring:
         format_sql: false
         show_sql: false
         use_sql_comments: false
+        enable_lazy_load_no_trans: false
         jdbc:
           batch_size: 25
           fetch_size: 150

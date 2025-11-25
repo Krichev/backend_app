@@ -2,9 +2,9 @@
 package com.my.challenger.web.controllers;
 
 import com.my.challenger.entity.MediaFile;
-import com.my.challenger.entity.User;
-import com.my.challenger.entity.enums.MediaCategory;
-import com.my.challenger.repository.UserRepository;
+import com.my.challenger.exception.MediaProcessingException;
+import com.my.challenger.exception.UnauthorizedException;
+import com.my.challenger.service.MediaService;
 import com.my.challenger.service.impl.MinioMediaStorageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -30,111 +30,64 @@ import java.util.Map;
 @Tag(name = "Media Management", description = "Enhanced media upload and management endpoints")
 public class MediaController {
 
-    private final MinioMediaStorageService mediaStorageService;
-    private final UserRepository userRepository;
+    private final MediaService mediaService;
+    private final MinioMediaStorageService storageService; // Keep for backward compatibility
 
     @PostMapping("/upload/quiz-media")
     @Operation(summary = "Upload media for quiz question",
-            description = "Upload image, video, or audio file for a quiz question. Supports progress tracking.")
+            description = "Upload image, video, or audio file for a quiz question")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Media uploaded successfully"),
-            @ApiResponse(responseCode = "400", description = "Invalid file or parameters"),
-            @ApiResponse(responseCode = "401", description = "Unauthorized - authentication required"),
+            @ApiResponse(responseCode = "400", description = "Invalid file or request"),
             @ApiResponse(responseCode = "413", description = "File too large"),
-            @ApiResponse(responseCode = "415", description = "Unsupported media type"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<Map<String, Object>> uploadQuizMedia(
             @Parameter(description = "Media file to upload", required = true)
             @RequestParam("file") MultipartFile file,
-            @Parameter(description = "Question ID (optional, can be temporary ID)")
-            @RequestParam(value = "questionId", required = false) String questionId,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        log.info("Received quiz media upload request from user: {}, file: {}, questionId: {}",
-                userDetails.getUsername(), file.getOriginalFilename(), questionId);
-
         try {
-            // Validate file
-            if (file.isEmpty()) {
-                log.warn("Empty file received from user: {}", userDetails.getUsername());
-                return ResponseEntity.badRequest().body(createErrorResponse("File is empty"));
-            }
+            // Delegate to service
+            MediaFile mediaFile = mediaService.uploadQuizMedia(file, userDetails.getUsername());
 
-            // Check file size (max 100MB)
-            long maxFileSize = 100 * 1024 * 1024; // 100MB
-            if (file.getSize() > maxFileSize) {
-                log.warn("File too large: {} bytes from user: {}", file.getSize(), userDetails.getUsername());
-                return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
-                        .body(createErrorResponse("File too large. Maximum size is 100MB"));
-            }
-
-            // Validate content type
-            String contentType = file.getContentType();
-            if (contentType == null || !isValidMediaType(contentType)) {
-                log.warn("Unsupported media type: {} from user: {}", contentType, userDetails.getUsername());
-                return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
-                        .body(createErrorResponse("Unsupported file type: " + contentType));
-            }
-
-            // Get user
-            User user = userRepository.findByUsername(userDetails.getUsername())
-                    .orElseThrow(() -> new IllegalArgumentException("User not found: " + userDetails.getUsername()));
-
-            // Parse questionId - handle both Long and String (for temp IDs)
-            Long entityId = null;
-            if (questionId != null && !questionId.trim().isEmpty() && !questionId.startsWith("temp_")) {
-                try {
-                    entityId = Long.parseLong(questionId);
-                    log.debug("Parsed question ID: {}", entityId);
-                } catch (NumberFormatException e) {
-                    log.warn("Invalid question ID format: {}, treating as temporary", questionId);
-                }
-            }
-
-            // Store media with QUIZ_QUESTION category
-            MediaFile mediaFile = mediaStorageService.storeMedia(
-                    file,
-                    entityId,
-                    MediaCategory.QUIZ_QUESTION,
-                    user.getId()
-            );
-
-            log.info("✅ Quiz media uploaded successfully - ID: {}, Type: {}, User: {}, Question: {}",
-                    mediaFile.getId(), mediaFile.getMediaType(), user.getUsername(), questionId);
-
-            // Build success response
+            // Build response
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("mediaId", mediaFile.getId());
-            response.put("mediaUrl", mediaStorageService.getMediaUrl(mediaFile));
-            response.put("thumbnailUrl", mediaFile.getThumbnailPath() != null ?
-                    mediaStorageService.getThumbnailUrl(mediaFile) : "");
-            response.put("mediaType", mediaFile.getMediaType().toString());
-            response.put("processingStatus", mediaFile.getProcessingStatus().toString());
             response.put("fileName", mediaFile.getFilename());
             response.put("fileSize", mediaFile.getFileSize());
+            response.put("mediaType", mediaFile.getMediaType().toString());
+            response.put("mediaUrl", storageService.getMediaUrl(mediaFile));
+            response.put("thumbnailUrl", mediaFile.getThumbnailPath() != null ?
+                    storageService.getThumbnailUrl(mediaFile) : "");
+            response.put("processingStatus", mediaFile.getProcessingStatus().toString());
             response.put("message", "Media uploaded successfully");
 
             return ResponseEntity.ok(response);
 
         } catch (IllegalArgumentException e) {
-            log.error("❌ Invalid argument during quiz media upload: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
-        } catch (Exception e) {
-            log.error("❌ Error uploading quiz media from user: {}", userDetails.getUsername(), e);
+            log.error("❌ Invalid request: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(createErrorResponse(e.getMessage()));
+        } catch (MediaProcessingException e) {
+            log.error("❌ Media processing error: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(createErrorResponse("Failed to upload media: " + e.getMessage()));
+                    .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            log.error("❌ Unexpected error during media upload", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Failed to upload media"));
         }
     }
 
     @PostMapping("/upload/avatar")
-    @Operation(summary = "Upload avatar/profile picture")
+    @Operation(summary = "Upload user avatar",
+            description = "Upload avatar image for the authenticated user (max 10MB)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Avatar uploaded successfully"),
             @ApiResponse(responseCode = "400", description = "Invalid file"),
-            @ApiResponse(responseCode = "401", description = "Unauthorized"),
-            @ApiResponse(responseCode = "413", description = "File too large"),
+            @ApiResponse(responseCode = "415", description = "Unsupported media type"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<Map<String, Object>> uploadAvatar(
@@ -142,88 +95,57 @@ public class MediaController {
             @RequestParam("file") MultipartFile file,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        log.info("Received avatar upload request from user: {}, file: {}",
-                userDetails.getUsername(), file.getOriginalFilename());
-
         try {
-            // Validate file
-            if (file.isEmpty()) {
-                return ResponseEntity.badRequest().body(createErrorResponse("File is empty"));
-            }
+            // Delegate to service
+            MediaFile mediaFile = mediaService.uploadAvatar(file, userDetails.getUsername());
 
-            // Check file size for avatar (max 10MB)
-            long maxFileSize = 10 * 1024 * 1024; // 10MB
-            if (file.getSize() > maxFileSize) {
-                log.warn("Avatar file too large: {} bytes", file.getSize());
-                return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
-                        .body(createErrorResponse("Avatar file too large. Maximum size is 10MB"));
-            }
-
-            // Validate it's an image
-            String contentType = file.getContentType();
-            if (contentType == null || !contentType.startsWith("image/")) {
-                log.warn("Non-image file submitted as avatar: {}", contentType);
-                return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
-                        .body(createErrorResponse("Avatar must be an image file"));
-            }
-
-            User user = userRepository.findByUsername(userDetails.getUsername())
-                    .orElseThrow(() -> new IllegalArgumentException("User not found: " + userDetails.getUsername()));
-
-            MediaFile mediaFile = mediaStorageService.storeMedia(
-                    file,
-                    user.getId(),
-                    MediaCategory.AVATAR,
-                    user.getId()
-            );
-
-            log.info("✅ Avatar uploaded successfully - ID: {}, User: {}", mediaFile.getId(), user.getUsername());
-
+            // Build response
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("mediaId", mediaFile.getId());
-            response.put("mediaUrl", mediaStorageService.getMediaUrl(mediaFile));
+            response.put("mediaUrl", storageService.getMediaUrl(mediaFile));
             response.put("thumbnailUrl", mediaFile.getThumbnailPath() != null ?
-                    mediaStorageService.getThumbnailUrl(mediaFile) : "");
+                    storageService.getThumbnailUrl(mediaFile) : "");
             response.put("message", "Avatar uploaded successfully");
 
             return ResponseEntity.ok(response);
 
         } catch (IllegalArgumentException e) {
-            log.error("❌ Invalid argument during avatar upload: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
-        } catch (Exception e) {
-            log.error("❌ Error uploading avatar for user: {}", userDetails.getUsername(), e);
+            log.error("❌ Invalid request: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(createErrorResponse(e.getMessage()));
+        } catch (MediaProcessingException e) {
+            log.error("❌ Media processing error: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(createErrorResponse("Failed to upload avatar: " + e.getMessage()));
+                    .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            log.error("❌ Unexpected error during avatar upload", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Failed to upload avatar"));
         }
     }
 
     @GetMapping("/url/{mediaId}")
     @Operation(summary = "Get media URL by media ID")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Media URL retrieved successfully"),
+            @ApiResponse(responseCode = "200", description = "Media URL retrieved"),
             @ApiResponse(responseCode = "404", description = "Media not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<Map<String, String>> getMediaUrl(
             @Parameter(description = "Media ID", required = true)
             @PathVariable Long mediaId) {
+
         try {
-            MediaFile mediaFile = mediaStorageService.getMediaFileById(mediaId);
+            Map<String, String> urls = mediaService.getMediaUrls(mediaId);
+            return ResponseEntity.ok(urls);
 
-            Map<String, String> response = new HashMap<>();
-            response.put("mediaUrl", mediaStorageService.getMediaUrl(mediaFile));
-            response.put("thumbnailUrl", mediaFile.getThumbnailPath() != null ?
-                    mediaStorageService.getThumbnailUrl(mediaFile) : "");
-
-            return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
-            log.error("❌ Media not found with ID: {}", mediaId);
+            log.error("❌ Media not found: {}", mediaId);
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Map.of("error", "Media not found with ID: " + mediaId));
+                    .body(Map.of("error", "Media not found"));
         } catch (Exception e) {
-            log.error("❌ Error getting media URL for ID: {}", mediaId, e);
+            log.error("❌ Error getting media URL: {}", mediaId, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to retrieve media URL"));
         }
@@ -239,8 +161,9 @@ public class MediaController {
     public ResponseEntity<Map<String, Object>> getMediaDetails(
             @Parameter(description = "Media ID", required = true)
             @PathVariable Long mediaId) {
+
         try {
-            MediaFile mediaFile = mediaStorageService.getMediaFileById(mediaId);
+            MediaFile mediaFile = mediaService.getMediaById(mediaId);
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -248,19 +171,20 @@ public class MediaController {
             response.put("fileName", mediaFile.getFilename());
             response.put("fileSize", mediaFile.getFileSize());
             response.put("mediaType", mediaFile.getMediaType().toString());
-            response.put("mediaUrl", mediaStorageService.getMediaUrl(mediaFile));
+            response.put("mediaUrl", storageService.getMediaUrl(mediaFile));
             response.put("thumbnailUrl", mediaFile.getThumbnailPath() != null ?
-                    mediaStorageService.getThumbnailUrl(mediaFile) : "");
+                    storageService.getThumbnailUrl(mediaFile) : "");
             response.put("processingStatus", mediaFile.getProcessingStatus().toString());
             response.put("uploadedAt", mediaFile.getCreatedAt().toString());
 
             return ResponseEntity.ok(response);
+
         } catch (IllegalArgumentException e) {
-            log.error("❌ Media not found with ID: {}", mediaId);
+            log.error("❌ Media not found: {}", mediaId);
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(createErrorResponse("Media not found with ID: " + mediaId));
+                    .body(createErrorResponse("Media not found"));
         } catch (Exception e) {
-            log.error("❌ Error getting media details for ID: {}", mediaId, e);
+            log.error("❌ Error getting media details: {}", mediaId, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(createErrorResponse("Failed to retrieve media details"));
         }
@@ -270,94 +194,47 @@ public class MediaController {
     @Operation(summary = "Delete media file")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Media deleted successfully"),
-            @ApiResponse(responseCode = "403", description = "Not authorized to delete this media"),
+            @ApiResponse(responseCode = "403", description = "Not authorized"),
             @ApiResponse(responseCode = "404", description = "Media not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<Map<String, Object>> deleteMedia(
-            @Parameter(description = "Media ID to delete", required = true)
+            @Parameter(description = "Media ID", required = true)
             @PathVariable Long mediaId,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        log.info("Delete media request - ID: {}, User: {}", mediaId, userDetails.getUsername());
-
         try {
-            User user = userRepository.findByUsername(userDetails.getUsername())
-                    .orElseThrow(() -> new IllegalArgumentException("User not found: " + userDetails.getUsername()));
+            // Delegate to service
+            mediaService.deleteMedia(mediaId, userDetails.getUsername());
 
-            mediaStorageService.deleteMedia(mediaId, user.getId());
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Media deleted successfully");
 
-            log.info("✅ Media deleted successfully - ID: {}, User: {}", mediaId, user.getUsername());
+            return ResponseEntity.ok(response);
 
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", "Media deleted successfully"
-            ));
-
-        } catch (IllegalArgumentException e) {
-            log.error("❌ Media not found or user not found: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(createErrorResponse(e.getMessage()));
-        } catch (IllegalStateException e) {
-            log.error("❌ Unauthorized delete attempt - Media ID: {}, User: {}",
-                    mediaId, userDetails.getUsername());
+        } catch (UnauthorizedException e) {
+            log.error("❌ Unauthorized delete attempt: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(createErrorResponse("You are not authorized to delete this media"));
+                    .body(createErrorResponse(e.getMessage()));
+        } catch (IllegalArgumentException e) {
+            log.error("❌ Media not found: {}", mediaId);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(createErrorResponse("Media not found"));
         } catch (Exception e) {
-            log.error("❌ Error deleting media - ID: {}, User: {}",
-                    mediaId, userDetails.getUsername(), e);
+            log.error("❌ Error deleting media: {}", mediaId, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(createErrorResponse("Failed to delete media: " + e.getMessage()));
+                    .body(createErrorResponse("Failed to delete media"));
         }
     }
 
     /**
-     * Helper method to create consistent error responses
+     * Helper method to create error response
      */
-    private Map<String, Object> createErrorResponse(String errorMessage) {
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", false);
-        response.put("error", errorMessage);
-        return response;
-    }
-
-    /**
-     * Validate if the content type is a supported media type
-     */
-    private boolean isValidMediaType(String contentType) {
-        if (contentType == null) {
-            return false;
-        }
-
-        String lowerContentType = contentType.toLowerCase();
-
-        // Image types
-        if (lowerContentType.startsWith("image/jpeg") ||
-                lowerContentType.startsWith("image/jpg") ||
-                lowerContentType.startsWith("image/png") ||
-                lowerContentType.startsWith("image/gif") ||
-                lowerContentType.startsWith("image/webp")) {
-            return true;
-        }
-
-        // Video types
-        if (lowerContentType.startsWith("video/mp4") ||
-                lowerContentType.startsWith("video/mov") ||
-                lowerContentType.startsWith("video/avi") ||
-                lowerContentType.startsWith("video/quicktime")) {
-            return true;
-        }
-
-        // Audio types
-        if (lowerContentType.startsWith("audio/mp3") ||
-                lowerContentType.startsWith("audio/mpeg") ||
-                lowerContentType.startsWith("audio/wav") ||
-                lowerContentType.startsWith("audio/aac") ||
-                lowerContentType.startsWith("audio/m4a") ||
-                lowerContentType.startsWith("audio/ogg")) {
-            return true;
-        }
-
-        return false;
+    private Map<String, Object> createErrorResponse(String message) {
+        Map<String, Object> error = new HashMap<>();
+        error.put("success", false);
+        error.put("error", message);
+        return error;
     }
 }
