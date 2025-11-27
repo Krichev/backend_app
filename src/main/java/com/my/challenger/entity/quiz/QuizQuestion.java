@@ -52,11 +52,13 @@ public class QuizQuestion {
 
     // Classification
     @Enumerated(EnumType.STRING)
-    @Column(name = "difficulty")
+    @Column(name = "difficulty", columnDefinition = "quiz_difficulty")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private QuizDifficulty difficulty;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "question_type")
+    @Column(name = "question_type", columnDefinition = "question_type")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Builder.Default
     private QuestionType questionType = QuestionType.TEXT;
 
@@ -91,7 +93,8 @@ public class QuizQuestion {
     private String questionMediaId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "question_media_type")
+    @Column(name = "question_media_type", columnDefinition = "media_type")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private MediaType questionMediaType;
 
     @Column(name = "question_thumbnail_url", length = 500)
@@ -129,7 +132,7 @@ public class QuizQuestion {
      * Controls who can see and use this question
      */
     @Enumerated(EnumType.STRING)
-    @Column(name = "visibility", nullable = false, columnDefinition = "visibility_type")
+    @Column(name = "visibility", nullable = false, columnDefinition = "question_visibility")
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Builder.Default
     private QuestionVisibility visibility = QuestionVisibility.QUIZ_ONLY;
