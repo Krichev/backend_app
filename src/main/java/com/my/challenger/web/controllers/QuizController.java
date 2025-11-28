@@ -1,5 +1,7 @@
 package com.my.challenger.web.controllers;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.my.challenger.dto.MessageResponse;
 import com.my.challenger.dto.quiz.*;
 import com.my.challenger.entity.User;
@@ -37,20 +39,40 @@ public class QuizController {
     private final QuizService quizService;
     private final QuestionService questionService;
     private final UserRepository userRepository;
+    private final ObjectMapper objectMapper;
 
 
     @PostMapping(value = "/questions/with-media", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Create question with optional media (unified endpoint)")
     public ResponseEntity<QuizQuestionDTO> createQuestionWithMedia(
-            @RequestPart("questionData") @Valid CreateQuizQuestionRequest request,
+            @RequestPart("questionData") String questionDataJson,  // Changed from CreateQuizQuestionRequest to String
             @RequestPart(value = "mediaFile", required = false) MultipartFile mediaFile,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        Long userId = ((UserPrincipal) userDetails).getId();
-        QuizQuestionDTO createdQuestion = questionService.createQuestionWithMedia(
-                request, mediaFile, userId);
+        try {
+            // Parse JSON string to DTO
+            CreateQuizQuestionRequest request = objectMapper.readValue(questionDataJson, CreateQuizQuestionRequest.class);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(createdQuestion);
+            // Validate manually since @Valid won't work on String
+            if (request.getQuestion() == null || request.getQuestion().isBlank()) {
+                log.error("Validation failed: question is required");
+                return ResponseEntity.badRequest().build();
+            }
+            if (request.getAnswer() == null || request.getAnswer().isBlank()) {
+                log.error("Validation failed: answer is required");
+                return ResponseEntity.badRequest().build();
+            }
+
+            Long userId = ((UserPrincipal) userDetails).getId();
+            QuizQuestionDTO createdQuestion = questionService.createQuestionWithMedia(
+                    request, mediaFile, userId);
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(createdQuestion);
+
+        } catch (JsonProcessingException e) {
+            log.error("Failed to parse questionData JSON: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        }
     }
 
 

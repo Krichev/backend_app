@@ -61,15 +61,26 @@ public class QuestionService {
         // 2. Handle media upload (if provided)
         Long mediaFileId = null;
         String mediaUrl = null;
+        String mediaId = null;
         MediaType mediaType = null;
+        String thumbnailUrl = null;
 
         if (mediaFile != null && !mediaFile.isEmpty()) {
+            log.info("📤 Uploading media file: {} ({} bytes)",
+                    mediaFile.getOriginalFilename(), mediaFile.getSize());
+
             validateMediaFile(mediaFile);
             MediaFile storedMedia = mediaStorageService.storeMedia(
                     mediaFile, null, MediaCategory.QUIZ_QUESTION, userId);
+
             mediaFileId = storedMedia.getId();
             mediaUrl = mediaStorageService.getMediaUrl(storedMedia);
+            mediaId = storedMedia.getId().toString();
             mediaType = storedMedia.getMediaType();
+            thumbnailUrl = storedMedia.getThumbnailPath() != null ?
+                    mediaStorageService.getThumbnailUrl(storedMedia) : null;
+
+            log.info("✅ Media stored: ID={}, URL={}, Type={}", mediaFileId, mediaUrl, mediaType);
         }
 
         // 3. Get/create topic
@@ -80,25 +91,33 @@ public class QuestionService {
 
         // 4. Auto-detect question type from media
         QuestionType questionType = request.getQuestionType();
-        if (questionType == TEXT && mediaType != null) {
+        if ((questionType == null || questionType == TEXT) && mediaType != null) {
             questionType = mapMediaTypeToQuestionType(mediaType);
+            log.info("Auto-detected question type: {}", questionType);
         }
 
-        // 5. Build and save question
+        // 5. Build and save question - INCLUDE ALL MEDIA FIELDS
         QuizQuestion question = QuizQuestion.builder()
                 .question(request.getQuestion())
                 .answer(request.getAnswer())
-                .difficulty(request.getDifficulty())
+                .difficulty(request.getDifficulty() != null ? request.getDifficulty() : QuizDifficulty.MEDIUM)
                 .topic(topic)
-                .questionType(questionType)
+                .questionType(questionType != null ? questionType : TEXT)
                 .questionMediaUrl(mediaUrl)
+                .questionMediaId(mediaId)
                 .questionMediaType(mediaType)
-                .visibility(request.getVisibility())
+                .questionThumbnailUrl(thumbnailUrl)
+                .visibility(request.getVisibility() != null ? request.getVisibility() : QuestionVisibility.PRIVATE)
                 .isUserCreated(true)
                 .creator(creator)
+                .isActive(true)
+                .usageCount(0)
                 .build();
 
         QuizQuestion saved = quizQuestionRepository.save(question);
+
+        log.info("✅ Question created: ID={}, Type={}, HasMedia={}",
+                saved.getId(), saved.getQuestionType(), mediaUrl != null);
 
         // 6. Update media with question reference
         if (mediaFileId != null) {
