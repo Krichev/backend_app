@@ -47,6 +47,7 @@ public class QuestionService {
     private final QuestionAccessService accessService;
     private final UserRelationshipService relationshipService;
     private final MinioMediaStorageService mediaStorageService;
+    private final QuizQuestionDTOEnricher dtoEnricher;
 
     @Transactional
     public QuizQuestionDTO createQuestionWithMedia(
@@ -60,10 +61,9 @@ public class QuestionService {
 
         // 2. Handle media upload (if provided)
         Long mediaFileId = null;
-        String mediaUrl = null;
-        String mediaId = null;
+        String mediaS3Key = null;        // CHANGED: Store S3 key, not URL
+        String thumbnailS3Key = null;    // CHANGED: Store S3 key, not URL
         MediaType mediaType = null;
-        String thumbnailUrl = null;
 
         if (mediaFile != null && !mediaFile.isEmpty()) {
             log.info("📤 Uploading media file: {} ({} bytes)",
@@ -74,13 +74,11 @@ public class QuestionService {
                     mediaFile, null, MediaCategory.QUIZ_QUESTION, userId);
 
             mediaFileId = storedMedia.getId();
-            mediaUrl = mediaStorageService.getMediaUrl(storedMedia);
-            mediaId = storedMedia.getId().toString();
+            mediaS3Key = storedMedia.getS3Key();           // CHANGED: Use S3 key
+            thumbnailS3Key = storedMedia.getThumbnailPath(); // CHANGED: Use thumbnail S3 key
             mediaType = storedMedia.getMediaType();
-            thumbnailUrl = storedMedia.getThumbnailPath() != null ?
-                    mediaStorageService.getThumbnailUrl(storedMedia) : null;
 
-            log.info("✅ Media stored: ID={}, URL={}, Type={}", mediaFileId, mediaUrl, mediaType);
+            log.info("✅ Media stored: ID={}, S3Key={}, Type={}", mediaFileId, mediaS3Key, mediaType);
         }
 
         // 3. Get/create topic
@@ -96,17 +94,17 @@ public class QuestionService {
             log.info("Auto-detected question type: {}", questionType);
         }
 
-        // 5. Build and save question - INCLUDE ALL MEDIA FIELDS
+        // 5. Build and save question - STORE S3 KEYS, NOT URLS
         QuizQuestion question = QuizQuestion.builder()
                 .question(request.getQuestion())
                 .answer(request.getAnswer())
                 .difficulty(request.getDifficulty() != null ? request.getDifficulty() : QuizDifficulty.MEDIUM)
                 .topic(topic)
                 .questionType(questionType != null ? questionType : TEXT)
-                .questionMediaUrl(mediaUrl)
-                .questionMediaId(mediaId)
+                .questionMediaUrl(mediaS3Key)           // STORE S3 KEY
+                .questionMediaId(mediaFileId != null ? mediaFileId.toString() : null)
                 .questionMediaType(mediaType)
-                .questionThumbnailUrl(thumbnailUrl)
+                .questionThumbnailUrl(thumbnailS3Key)   // STORE S3 KEY
                 .visibility(request.getVisibility() != null ? request.getVisibility() : QuestionVisibility.PRIVATE)
                 .isUserCreated(true)
                 .creator(creator)
@@ -116,15 +114,17 @@ public class QuestionService {
 
         QuizQuestion saved = quizQuestionRepository.save(question);
 
-        log.info("✅ Question created: ID={}, Type={}, HasMedia={}",
-                saved.getId(), saved.getQuestionType(), mediaUrl != null);
+        log.info("✅ Question created: ID={}, Type={}, MediaS3Key={}",
+                saved.getId(), saved.getQuestionType(), mediaS3Key);
 
         // 6. Update media with question reference
         if (mediaFileId != null) {
             mediaStorageService.updateMediaEntityId(mediaFileId, saved.getId());
         }
 
-        return QuizQuestionMapper.INSTANCE.toDTO(saved);
+        // 7. Convert to DTO and enrich with presigned URLs
+        QuizQuestionDTO dto = QuizQuestionMapper.INSTANCE.toDTO(saved);
+        return dtoEnricher.enrichWithUrls(dto);
     }
 
 

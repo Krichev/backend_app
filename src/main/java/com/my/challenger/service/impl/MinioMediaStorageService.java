@@ -316,6 +316,50 @@ public class MinioMediaStorageService {
     }
 
     /**
+     * Generate presigned URL from S3 key
+     * This is used when the entity stores only the S3 key (not full URL)
+     */
+    public String generatePresignedUrlFromKey(String s3Key) {
+        if (s3Key == null || s3Key.trim().isEmpty()) {
+            return null;
+        }
+
+        // If it's already a full URL (legacy data), extract key first
+        if (s3Key.startsWith("http://") || s3Key.startsWith("https://")) {
+            log.warn("S3 key appears to be a full URL, extracting key: {}", s3Key);
+            s3Key = extractS3KeyFromUrl(s3Key);
+            if (s3Key == null) {
+                return null;
+            }
+        }
+
+        return generatePresignedUrl(s3Key);
+    }
+
+    /**
+     * Extract S3 key from a full MinIO URL (for legacy data migration)
+     */
+    private String extractS3KeyFromUrl(String url) {
+        try {
+            // URL format: http://host:port/bucket/key?params
+            // We need to extract: key
+            java.net.URL parsedUrl = new java.net.URL(url);
+            String path = parsedUrl.getPath(); // /bucket/key
+
+            // Remove leading slash and bucket name
+            if (path.startsWith("/" + bucketName + "/")) {
+                return path.substring(bucketName.length() + 2); // +2 for both slashes
+            }
+
+            // Fallback: just remove leading slash
+            return path.startsWith("/") ? path.substring(1) : path;
+        } catch (Exception e) {
+            log.error("Failed to extract S3 key from URL: {}", url, e);
+            return null;
+        }
+    }
+
+    /**
      * Get media file by ID
      */
     public Optional<MediaFile> getMediaFile(Long mediaId) {
