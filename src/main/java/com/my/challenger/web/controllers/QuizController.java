@@ -11,6 +11,7 @@ import com.my.challenger.entity.enums.QuizSessionStatus;
 import com.my.challenger.repository.UserRepository;
 import com.my.challenger.security.UserPrincipal;
 import com.my.challenger.service.impl.QuestionService;
+import com.my.challenger.service.impl.QuizQuestionDTOEnricher;
 import com.my.challenger.service.impl.QuizService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -38,6 +39,7 @@ public class QuizController {
 
     private final QuizService quizService;
     private final QuestionService questionService;
+    private final QuizQuestionDTOEnricher dtoEnricher;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
 
@@ -101,7 +103,7 @@ public class QuizController {
         Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
 
         Page<QuizQuestionDTO> questions = questionService.getUserQuestions(userId, pageable);
-        return ResponseEntity.ok(questions);
+        return ResponseEntity.ok(dtoEnricher.enrichWithUrls(questions));
     }
 
     @GetMapping("/questions/accessible")
@@ -127,7 +129,7 @@ public class QuizController {
                 .build();
 
         Page<QuizQuestionDTO> questions = questionService.searchAccessibleQuestions(userId, searchRequest);
-        return ResponseEntity.ok(questions);
+        return ResponseEntity.ok(dtoEnricher.enrichWithUrls(questions));
     }
 
     // =============================================================================
