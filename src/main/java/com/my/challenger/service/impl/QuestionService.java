@@ -265,24 +265,53 @@ public class QuestionService {
                 question.getCreator().getId().equals(currentUserId);
 
         return QuizQuestionDTO.builder()
+                // Basic identifiers
                 .id(question.getId())
+                .externalId(question.getExternalId())
+                .legacyQuestionId(question.getLegacyQuestionId())
+
+                // Core question content
                 .question(question.getQuestion())
                 .answer(question.getAnswer())
+
+                // Classification
                 .difficulty(question.getDifficulty())
+                .questionType(question.getQuestionType())
                 .topic(question.getTopic() != null ? question.getTopic().getName() : null)
                 .source(question.getSource())
+
+                // Enhanced metadata
+                .authors(question.getAuthors())
+                .comments(question.getComments())
+                .passCriteria(question.getPassCriteria())
                 .additionalInfo(question.getAdditionalInfo())
+
+                // Media properties
+                .questionMediaUrl(question.getQuestionMediaUrl())
+                .questionMediaId(question.getQuestionMediaId())
+                .questionMediaType(question.getQuestionMediaType())
+                .questionThumbnailUrl(question.getQuestionThumbnailUrl())
+
+                // User creation tracking
                 .isUserCreated(question.getIsUserCreated())
                 .creatorId(question.getCreator() != null ? question.getCreator().getId() : null)
                 .creatorUsername(question.getCreator() != null ? question.getCreator().getUsername() : null)
+
+                // Access control
                 .visibility(question.getVisibility())
                 .originalQuizId(question.getOriginalQuiz() != null ? question.getOriginalQuiz().getId() : null)
                 .originalQuizTitle(question.getOriginalQuiz() != null ? question.getOriginalQuiz().getTitle() : null)
+
+                // Access information for current user
                 .canEdit(isCreator)
                 .canDelete(isCreator)
                 .canUseInQuiz(accessService.canAccessQuestion(question, currentUserId))
+
+                // Status and usage
                 .isActive(question.getIsActive())
                 .usageCount(question.getUsageCount())
+
+                // Timestamps
                 .createdAt(question.getCreatedAt())
                 .updatedAt(question.getUpdatedAt())
                 .build();
