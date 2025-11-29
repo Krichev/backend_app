@@ -10,6 +10,7 @@ import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.quiz.QuizQuestion;
 import com.my.challenger.mapper.QuizQuestionMapper;
 import com.my.challenger.service.impl.QuizQuestionSearchService;
+import com.my.challenger.service.impl.QuizQuestionDTOEnricher;
 import com.my.challenger.service.impl.TopicService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -35,6 +36,7 @@ import java.util.stream.Collectors;
 public class QuizQuestionController {
 
     private final QuizQuestionSearchService searchService;
+    private final QuizQuestionDTOEnricher dtoEnricher;
     private final TopicService topicService;
 
     @GetMapping(name = "/topics")
@@ -84,7 +86,8 @@ public class QuizQuestionController {
         // Convert to DTOs
         Page<QuizQuestionDTO> dtoPage = questionPage.map(QuizQuestionMapper.INSTANCE::toDTO);
 
-        return ResponseEntity.ok(dtoPage);
+        // Enrich with presigned URLs
+        return ResponseEntity.ok(dtoEnricher.enrichWithUrls(dtoPage));
     }
 
     /**
@@ -152,7 +155,7 @@ public class QuizQuestionController {
                 .map(QuizQuestionMapper.INSTANCE::toDTO)
                 .collect(Collectors.toList());
 
-        return ResponseEntity.ok(dtos);
+        return ResponseEntity.ok(dtoEnricher.enrichWithUrls(dtos));
     }
 
     /**
@@ -166,7 +169,8 @@ public class QuizQuestionController {
         QuizQuestion question = searchService.getQuestionById(id)
                 .orElseThrow(() -> new RuntimeException("Question not found with id: " + id));
 
-        return ResponseEntity.ok(QuizQuestionMapper.INSTANCE.toDTO(question));
+        QuizQuestionDTO dto = QuizQuestionMapper.INSTANCE.toDTO(question);
+        return ResponseEntity.ok(dtoEnricher.enrichWithUrls(dto));
     }
 
 
@@ -174,7 +178,7 @@ public class QuizQuestionController {
      * Advanced search with multiple filters
      */
     @GetMapping("/search/advanced")
-    public ResponseEntity<Page<QuizQuestion>> advancedSearch(
+    public ResponseEntity<Page<QuizQuestionDTO>> advancedSearch(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) QuizDifficulty difficulty,
             @RequestParam(required = false) String topic,
@@ -185,47 +189,57 @@ public class QuizQuestionController {
         log.info("Advanced search - keyword: '{}', difficulty: {}, topic: '{}', userCreated: {}",
                 keyword, difficulty, topic, isUserCreated);
 
-        Page<QuizQuestion> results = searchService.advancedSearch(keyword, difficulty, topic, isUserCreated, page, size);
+        Page<QuizQuestion> entityPage = searchService.advancedSearch(keyword, difficulty, topic, isUserCreated, page, size);
 
-        return ResponseEntity.ok(results);
+        // Map page content to DTOs
+        Page<QuizQuestionDTO> dtoPage = entityPage.map(QuizQuestionMapper.INSTANCE::toDTO);
+
+        // Enrich with presigned URLs
+        return ResponseEntity.ok(dtoEnricher.enrichWithUrls(dtoPage));
     }
 
     /**
      * Search questions for quiz generation
      */
     @GetMapping("/search/for-quiz")
-    public ResponseEntity<List<QuizQuestion>> searchForQuiz(
+    public ResponseEntity<List<QuizQuestionDTO>> searchForQuiz(
             @RequestParam(required = false) String topic,
             @RequestParam(required = false) QuizDifficulty difficulty,
             @RequestParam(defaultValue = "10") int count) {
 
         log.info("Searching questions for quiz - topic: '{}', difficulty: {}, count: {}", topic, difficulty, count);
 
-        List<QuizQuestion> results = searchService.searchForQuiz(topic, difficulty, count);
+        List<QuizQuestion> entities = searchService.searchForQuiz(topic, difficulty, count);
+        List<QuizQuestionDTO> dtos = entities.stream()
+                .map(QuizQuestionMapper.INSTANCE::toDTO)
+                .collect(Collectors.toList());
 
-        return ResponseEntity.ok(results);
+        return ResponseEntity.ok(dtoEnricher.enrichWithUrls(dtos));
     }
 
     /**
      * Get random questions by difficulties
      */
     @PostMapping("/search/random")
-    public ResponseEntity<List<QuizQuestion>> getRandomQuestions(
+    public ResponseEntity<List<QuizQuestionDTO>> getRandomQuestions(
             @RequestBody List<QuizDifficulty> difficulties,
             @RequestParam(defaultValue = "10") int count) {
 
         log.info("Getting {} random questions with difficulties: {}", count, difficulties);
 
-        List<QuizQuestion> results = searchService.getRandomQuestions(difficulties, count);
+        List<QuizQuestion> entities = searchService.getRandomQuestions(difficulties, count);
+        List<QuizQuestionDTO> dtos = entities.stream()
+                .map(QuizQuestionMapper.INSTANCE::toDTO)
+                .collect(Collectors.toList());
 
-        return ResponseEntity.ok(results);
+        return ResponseEntity.ok(dtoEnricher.enrichWithUrls(dtos));
     }
 
     /**
      * Search questions by specific field
      */
     @GetMapping("/search/by-field")
-    public ResponseEntity<List<QuizQuestion>> searchByField(
+    public ResponseEntity<List<QuizQuestionDTO>> searchByField(
             @RequestParam String field,
             @RequestParam String value,
             @RequestParam(defaultValue = "0") int page,
@@ -233,16 +247,19 @@ public class QuizQuestionController {
 
         log.info("Searching by field - field: '{}', value: '{}', page: {}, size: {}", field, value, page, size);
 
-        List<QuizQuestion> results = searchService.searchByField(field, value, page, size);
+        List<QuizQuestion> entities = searchService.searchByField(field, value, page, size);
+        List<QuizQuestionDTO> dtos = entities.stream()
+                .map(QuizQuestionMapper.INSTANCE::toDTO)
+                .collect(Collectors.toList());
 
-        return ResponseEntity.ok(results);
+        return ResponseEntity.ok(dtoEnricher.enrichWithUrls(dtos));
     }
 
     /**
      * Search user's questions
      */
     @GetMapping("/search/my-questions")
-    public ResponseEntity<Page<QuizQuestion>> searchMyQuestions(
+    public ResponseEntity<Page<QuizQuestionDTO>> searchMyQuestions(
             @RequestParam Long userId,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "0") int page,
@@ -250,9 +267,10 @@ public class QuizQuestionController {
 
         log.info("Searching user {} questions with keyword: '{}'", userId, keyword);
 
-        Page<QuizQuestion> results = searchService.searchUserQuestions(userId, keyword, page, size);
+        Page<QuizQuestion> entityPage = searchService.searchUserQuestions(userId, keyword, page, size);
+        Page<QuizQuestionDTO> dtoPage = entityPage.map(QuizQuestionMapper.INSTANCE::toDTO);
 
-        return ResponseEntity.ok(results);
+        return ResponseEntity.ok(dtoEnricher.enrichWithUrls(dtoPage));
     }
 
     /**
@@ -273,7 +291,7 @@ public class QuizQuestionController {
      * Get multimedia questions
      */
     @GetMapping("/search/multimedia")
-    public ResponseEntity<List<QuizQuestion>> getMultimediaQuestions(
+    public ResponseEntity<List<QuizQuestionDTO>> getMultimediaQuestions(
             @RequestParam(required = false) MediaType mediaType,
             @RequestParam(required = false) QuizDifficulty difficulty,
             @RequestParam(defaultValue = "0") int page,
@@ -281,9 +299,12 @@ public class QuizQuestionController {
 
         log.info("Getting multimedia questions - mediaType: {}, difficulty: {}", mediaType, difficulty);
 
-        List<QuizQuestion> results = searchService.getMultimediaQuestions(mediaType, difficulty, page, size);
+        List<QuizQuestion> entities = searchService.getMultimediaQuestions(mediaType, difficulty, page, size);
+        List<QuizQuestionDTO> dtos = entities.stream()
+                .map(QuizQuestionMapper.INSTANCE::toDTO)
+                .collect(Collectors.toList());
 
-        return ResponseEntity.ok(results);
+        return ResponseEntity.ok(dtoEnricher.enrichWithUrls(dtos));
     }
 
     /**
