@@ -9,6 +9,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3AsyncClientBuilder;
+import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -75,9 +76,15 @@ public class S3Config {
                 .region(Region.of(region))
                 .credentialsProvider(StaticCredentialsProvider.create(credentials));
 
-        // For LocalStack or custom S3-compatible services
+        // For LocalStack or custom S3-compatible services (MinIO)
         if (!endpoint.isEmpty()) {
             builder.endpointOverride(URI.create(endpoint));
+            // Enable path style access for MinIO compatibility
+            builder.serviceConfiguration(
+                    S3Configuration.builder()
+                            .pathStyleAccessEnabled(true)
+                            .build()
+            );
         }
 
         return builder.build();

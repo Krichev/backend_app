@@ -1,0 +1,17 @@
+# Production Configuration
+# This file overrides settings from application.yaml when spring.profiles.active=prod
+
+app:
+  # Storage Configuration for Production
+  storage:
+    minio:
+      public-bucket: false  # IMPORTANT: Private bucket in production - requires presigned URLs
+      presigned-url-duration: 60  # Duration in minutes for presigned URLs
+
+# Logging for Production
+logging:
+  level:
+    com.my.challenger: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: ERROR
+    org.springframework.web: WARN

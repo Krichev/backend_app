@@ -25,6 +25,9 @@ public class MinioStartupConfig {
     @Value("${app.storage.s3.bucket-name}")
     private String bucketName;
 
+    @Value("${app.storage.minio.public-bucket:false}")
+    private boolean publicBucket;
+
     @Bean
     public ApplicationRunner initializeMinio() {
         return args -> {
@@ -73,6 +76,14 @@ public class MinioStartupConfig {
     }
 
     private void setBucketPolicy() {
+        if (!publicBucket) {
+            log.info("Bucket '{}' is PRIVATE - presigned URLs required", bucketName);
+            return; // Don't set public policy
+        }
+
+        // Only for development - set public policy
+        log.warn("⚠️ Bucket '{}' is PUBLIC - not recommended for production!", bucketName);
+
         try {
             // Public read policy
             String policy = String.format("""
@@ -95,7 +106,7 @@ public class MinioStartupConfig {
                     .build();
 
             s3Client.putBucketPolicy(policyRequest);
-            log.info("Set bucket policy for: {}", bucketName);
+            log.info("Set public bucket policy for: {}", bucketName);
 
         } catch (Exception e) {
             log.warn("Failed to set bucket policy (this is optional): {}", e.getMessage());

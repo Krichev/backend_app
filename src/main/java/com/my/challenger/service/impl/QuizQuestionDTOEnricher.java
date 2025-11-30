@@ -3,6 +3,7 @@ package com.my.challenger.service.impl;
 import com.my.challenger.dto.quiz.QuizQuestionDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 
@@ -10,37 +11,60 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Service to enrich QuizQuestionDTO objects with presigned URLs
- * This converts S3 keys stored in the database to temporary presigned URLs
+ * Service to enrich QuizQuestionDTO objects with PROXY URLs
+ * This converts S3 keys stored in the database to backend proxy URLs
+ * that stream media through the application instead of direct MinIO URLs
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class QuizQuestionDTOEnricher {
 
-    private final MinioMediaStorageService mediaStorageService;
+    @Value("${server.servlet.context-path:/api}")
+    private String contextPath;
+
+    @Value("${app.base.url:http://localhost:8082}")
+    private String baseUrl;
 
     /**
-     * Enrich a single DTO with presigned URLs
+     * Enrich a single DTO with PROXY URLs (not direct MinIO URLs)
      */
     public QuizQuestionDTO enrichWithUrls(QuizQuestionDTO dto) {
         if (dto == null) {
             return null;
         }
 
-        // Generate presigned URL for main media
+        // Generate proxy URL for main media
         if (dto.getQuestionMediaUrl() != null && !dto.getQuestionMediaUrl().isEmpty()) {
-            String presignedUrl = mediaStorageService.generatePresignedUrlFromKey(dto.getQuestionMediaUrl());
-            dto.setQuestionMediaUrl(presignedUrl);
+            String proxyUrl = buildMediaProxyUrl(dto.getId());
+            dto.setQuestionMediaUrl(proxyUrl);
+            log.debug("Enriched question {} with media proxy URL: {}", dto.getId(), proxyUrl);
         }
 
-        // Generate presigned URL for thumbnail
+        // Generate proxy URL for thumbnail
         if (dto.getQuestionThumbnailUrl() != null && !dto.getQuestionThumbnailUrl().isEmpty()) {
-            String presignedUrl = mediaStorageService.generatePresignedUrlFromKey(dto.getQuestionThumbnailUrl());
-            dto.setQuestionThumbnailUrl(presignedUrl);
+            String thumbnailProxyUrl = buildThumbnailProxyUrl(dto.getId());
+            dto.setQuestionThumbnailUrl(thumbnailProxyUrl);
+            log.debug("Enriched question {} with thumbnail proxy URL: {}", dto.getId(), thumbnailProxyUrl);
         }
 
         return dto;
+    }
+
+    /**
+     * Build proxy URL for media streaming through backend
+     * Format: {baseUrl}/api/media/question/{questionId}/stream
+     */
+    private String buildMediaProxyUrl(Long questionId) {
+        return String.format("%s%s/media/question/%d/stream", baseUrl, contextPath, questionId);
+    }
+
+    /**
+     * Build proxy URL for thumbnail streaming through backend
+     * Format: {baseUrl}/api/media/question/{questionId}/thumbnail
+     */
+    private String buildThumbnailProxyUrl(Long questionId) {
+        return String.format("%s%s/media/question/%d/thumbnail", baseUrl, contextPath, questionId);
     }
 
     /**
