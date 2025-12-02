@@ -79,6 +79,10 @@ public class QuestionService {
             mediaType = storedMedia.getMediaType();
 
             log.info("✅ Media stored: ID={}, S3Key={}, Type={}", mediaFileId, mediaS3Key, mediaType);
+        } else {
+            log.warn("⚠️ No media file received or file is empty. mediaFile null: {}, isEmpty: {}",
+                    mediaFile == null,
+                    mediaFile != null ? mediaFile.isEmpty() : "N/A");
         }
 
         // 3. Get/create topic

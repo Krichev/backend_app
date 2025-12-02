@@ -51,6 +51,18 @@ public class QuizController {
             @RequestPart(value = "mediaFile", required = false) MultipartFile mediaFile,
             @AuthenticationPrincipal UserDetails userDetails) {
 
+        // Add detailed logging
+        log.info("📥 Received createQuestionWithMedia request");
+        log.info("📄 questionDataJson length: {}", questionDataJson != null ? questionDataJson.length() : "null");
+        log.info("📎 mediaFile present: {}", mediaFile != null);
+        if (mediaFile != null) {
+            log.info("📎 mediaFile details - name: {}, size: {}, contentType: {}, isEmpty: {}",
+                    mediaFile.getOriginalFilename(),
+                    mediaFile.getSize(),
+                    mediaFile.getContentType(),
+                    mediaFile.isEmpty());
+        }
+
         try {
             // Parse JSON string to DTO
             CreateQuizQuestionRequest request = objectMapper.readValue(questionDataJson, CreateQuizQuestionRequest.class);
