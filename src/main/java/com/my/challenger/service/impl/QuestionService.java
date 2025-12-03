@@ -55,32 +55,39 @@ public class QuestionService {
             MultipartFile mediaFile,
             Long userId) {
 
+        log.info("========== QuestionService.createQuestionWithMedia START ==========");
+        log.info("📥 Request questionType: {}", request.getQuestionType());
+        log.info("📎 mediaFile is null: {}", mediaFile == null);
+        log.info("📎 mediaFile isEmpty: {}", mediaFile != null ? mediaFile.isEmpty() : "N/A");
+
         // 1. Get user
         User creator = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Creator not found"));
 
-        // 2. Handle media upload (if provided)
+        // 2. Handle media upload
         Long mediaFileId = null;
-        String mediaS3Key = null;        // CHANGED: Store S3 key, not URL
-        String thumbnailS3Key = null;    // CHANGED: Store S3 key, not URL
+        String mediaS3Key = null;
+        String thumbnailS3Key = null;
         MediaType mediaType = null;
 
         if (mediaFile != null && !mediaFile.isEmpty()) {
-            log.info("📤 Uploading media file: {} ({} bytes)",
-                    mediaFile.getOriginalFilename(), mediaFile.getSize());
+            log.info("📤 Processing media file: {} ({} bytes, type: {})",
+                    mediaFile.getOriginalFilename(),
+                    mediaFile.getSize(),
+                    mediaFile.getContentType());
 
             validateMediaFile(mediaFile);
             MediaFile storedMedia = mediaStorageService.storeMedia(
                     mediaFile, null, MediaCategory.QUIZ_QUESTION, userId);
 
             mediaFileId = storedMedia.getId();
-            mediaS3Key = storedMedia.getS3Key();           // CHANGED: Use S3 key
-            thumbnailS3Key = storedMedia.getThumbnailPath(); // CHANGED: Use thumbnail S3 key
+            mediaS3Key = storedMedia.getS3Key();
+            thumbnailS3Key = storedMedia.getThumbnailPath();
             mediaType = storedMedia.getMediaType();
 
             log.info("✅ Media stored: ID={}, S3Key={}, Type={}", mediaFileId, mediaS3Key, mediaType);
         } else {
-            log.warn("⚠️ No media file received or file is empty. mediaFile null: {}, isEmpty: {}",
+            log.warn("⚠️ No media file to process (null: {}, empty: {})",
                     mediaFile == null,
                     mediaFile != null ? mediaFile.isEmpty() : "N/A");
         }
@@ -93,22 +100,24 @@ public class QuestionService {
 
         // 4. Auto-detect question type from media
         QuestionType questionType = request.getQuestionType();
+        log.info("📄 Request questionType: {}, mediaType: {}", questionType, mediaType);
+
         if ((questionType == null || questionType == TEXT) && mediaType != null) {
             questionType = mapMediaTypeToQuestionType(mediaType);
-            log.info("Auto-detected question type: {}", questionType);
+            log.info("🔄 Auto-detected questionType from media: {}", questionType);
         }
 
-        // 5. Build and save question - STORE S3 KEYS, NOT URLS
+        // 5. Build and save question
         QuizQuestion question = QuizQuestion.builder()
                 .question(request.getQuestion())
                 .answer(request.getAnswer())
                 .difficulty(request.getDifficulty() != null ? request.getDifficulty() : QuizDifficulty.MEDIUM)
                 .topic(topic)
                 .questionType(questionType != null ? questionType : TEXT)
-                .questionMediaUrl(mediaS3Key)           // STORE S3 KEY
+                .questionMediaUrl(mediaS3Key)
                 .questionMediaId(mediaFileId != null ? mediaFileId.toString() : null)
                 .questionMediaType(mediaType)
-                .questionThumbnailUrl(thumbnailS3Key)   // STORE S3 KEY
+                .questionThumbnailUrl(thumbnailS3Key)
                 .visibility(request.getVisibility() != null ? request.getVisibility() : QuestionVisibility.PRIVATE)
                 .isUserCreated(true)
                 .creator(creator)
@@ -118,8 +127,9 @@ public class QuestionService {
 
         QuizQuestion saved = quizQuestionRepository.save(question);
 
-        log.info("✅ Question created: ID={}, Type={}, MediaS3Key={}",
-                saved.getId(), saved.getQuestionType(), mediaS3Key);
+        log.info("✅ Question saved: ID={}, Type={}, MediaS3Key={}, MediaId={}",
+                saved.getId(), saved.getQuestionType(), mediaS3Key, mediaFileId);
+        log.info("========== QuestionService.createQuestionWithMedia END ==========");
 
         // 6. Update media with question reference
         if (mediaFileId != null) {

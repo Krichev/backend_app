@@ -47,27 +47,30 @@ public class QuizController {
     @PostMapping(value = "/questions/with-media", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Create question with optional media (unified endpoint)")
     public ResponseEntity<QuizQuestionDTO> createQuestionWithMedia(
-            @RequestPart("questionData") String questionDataJson,  // Changed from CreateQuizQuestionRequest to String
+            @RequestPart("questionData") String questionDataJson,
             @RequestPart(value = "mediaFile", required = false) MultipartFile mediaFile,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        // Add detailed logging
-        log.info("📥 Received createQuestionWithMedia request");
-        log.info("📄 questionDataJson length: {}", questionDataJson != null ? questionDataJson.length() : "null");
-        log.info("📎 mediaFile present: {}", mediaFile != null);
+        log.info("========== createQuestionWithMedia START ==========");
+        log.info("📥 questionDataJson: {}", questionDataJson != null ? questionDataJson.substring(0, Math.min(200, questionDataJson.length())) : "null");
+        log.info("📎 mediaFile is null: {}", mediaFile == null);
+
         if (mediaFile != null) {
-            log.info("📎 mediaFile details - name: {}, size: {}, contentType: {}, isEmpty: {}",
-                    mediaFile.getOriginalFilename(),
-                    mediaFile.getSize(),
-                    mediaFile.getContentType(),
-                    mediaFile.isEmpty());
+            log.info("📎 mediaFile.isEmpty(): {}", mediaFile.isEmpty());
+            log.info("📎 mediaFile.getOriginalFilename(): {}", mediaFile.getOriginalFilename());
+            log.info("📎 mediaFile.getSize(): {}", mediaFile.getSize());
+            log.info("📎 mediaFile.getContentType(): {}", mediaFile.getContentType());
+            log.info("📎 mediaFile.getName(): {}", mediaFile.getName());
+        } else {
+            log.warn("⚠️ mediaFile is NULL - file was not received from client");
         }
 
         try {
-            // Parse JSON string to DTO
             CreateQuizQuestionRequest request = objectMapper.readValue(questionDataJson, CreateQuizQuestionRequest.class);
+            log.info("📄 Parsed request - question: {}, questionType: {}",
+                    request.getQuestion().substring(0, Math.min(50, request.getQuestion().length())),
+                    request.getQuestionType());
 
-            // Validate manually since @Valid won't work on String
             if (request.getQuestion() == null || request.getQuestion().isBlank()) {
                 log.error("Validation failed: question is required");
                 return ResponseEntity.badRequest().build();
@@ -78,14 +81,25 @@ public class QuizController {
             }
 
             Long userId = ((UserPrincipal) userDetails).getId();
+            log.info("👤 User ID: {}", userId);
+
             QuizQuestionDTO createdQuestion = questionService.createQuestionWithMedia(
                     request, mediaFile, userId);
+
+            log.info("✅ Question created: ID={}, Type={}, MediaId={}",
+                    createdQuestion.getId(),
+                    createdQuestion.getQuestionType(),
+                    createdQuestion.getQuestionMediaId());
+            log.info("========== createQuestionWithMedia END ==========");
 
             return ResponseEntity.status(HttpStatus.CREATED).body(createdQuestion);
 
         } catch (JsonProcessingException e) {
-            log.error("Failed to parse questionData JSON: {}", e.getMessage());
+            log.error("Failed to parse questionData JSON: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            log.error("Unexpected error creating question: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
         }
     }
 
