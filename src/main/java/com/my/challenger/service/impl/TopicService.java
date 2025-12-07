@@ -237,12 +237,188 @@ public class TopicService {
                 .questionCount(topic.getQuestionCount())
                 .isActive(topic.getIsActive())
                 .creatorId(topic.getCreator() != null ? topic.getCreator().getId() : null)
+                .parentId(topic.getParent() != null ? topic.getParent().getId() : null)
+                .parentName(topic.getParent() != null ? topic.getParent().getName() : null)
+                .path(topic.getPath())
+                .depth(topic.getDepth())
+                .isSystemTopic(topic.getIsSystemTopic())
+                .validationStatus(topic.getValidationStatus())
+                .slug(topic.getSlug())
+                .childCount(topic.getChildCount())
                 .createdAt(topic.getCreatedAt())
                 .updatedAt(topic.getUpdatedAt())
+                .validatedAt(topic.getValidatedAt())
+                .build();
+    }
+
+    /**
+     * Helper method to map entity to response with accurate childCount from database
+     * Used for tree navigation where we need to know if a node is expandable
+     */
+    private TopicResponse mapToResponseWithChildCount(Topic topic) {
+        int childCount = topicRepository.countByParentIdAndIsActiveTrue(topic.getId());
+
+        return TopicResponse.builder()
+                .id(topic.getId())
+                .name(topic.getName())
+                .category(topic.getCategory())
+                .description(topic.getDescription())
+                .questionCount(topic.getQuestionCount())
+                .isActive(topic.getIsActive())
+                .creatorId(topic.getCreator() != null ? topic.getCreator().getId() : null)
+                .parentId(topic.getParent() != null ? topic.getParent().getId() : null)
+                .parentName(topic.getParent() != null ? topic.getParent().getName() : null)
+                .path(topic.getPath())
+                .depth(topic.getDepth())
+                .slug(topic.getSlug())
+                .isSystemTopic(topic.getIsSystemTopic())
+                .validationStatus(topic.getValidationStatus())
+                .childCount(childCount)
+                .createdAt(topic.getCreatedAt())
+                .updatedAt(topic.getUpdatedAt())
+                .validatedAt(topic.getValidatedAt())
                 .build();
     }
 
     public Topic findOrCreateTopic(String topic, User creator) {
         return null;
+    }
+
+    /**
+     * Get direct children of a topic
+     */
+    @Transactional(readOnly = true)
+    public List<TopicResponse> getTopicChildren(Long parentId) {
+        log.info("Fetching children for topic: {}", parentId);
+
+        // Verify parent topic exists
+        if (!topicRepository.existsById(parentId)) {
+            throw new ResourceNotFoundException("Topic not found with id: " + parentId);
+        }
+
+        return topicRepository.findByParentIdAndIsActiveTrue(parentId).stream()
+                .sorted((t1, t2) -> t1.getName().compareToIgnoreCase(t2.getName()))
+                .map(this::mapToResponseWithChildCount)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get root topics (no parent)
+     */
+    @Transactional(readOnly = true)
+    public List<TopicResponse> getRootTopics() {
+        log.info("Fetching root topics");
+
+        return topicRepository.findByParentIsNullAndIsActiveTrue().stream()
+                .sorted((t1, t2) -> t1.getName().compareToIgnoreCase(t2.getName()))
+                .map(this::mapToResponseWithChildCount)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get selectable topics for current user
+     * Returns APPROVED topics + user's own PENDING topics with full hierarchical paths
+     */
+    @Transactional(readOnly = true)
+    public List<com.my.challenger.dto.quiz.SelectableTopicResponse> getSelectableTopics() {
+        log.debug("Getting selectable topics for current user");
+
+        // Get current user ID
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Long currentUserId = currentUser.getId();
+
+        // Get selectable topics using repository method
+        List<Topic> topics = topicRepository.findSelectableTopicsForUser(currentUserId);
+
+        // Map to SelectableTopicResponse with full path
+        return topics.stream()
+                .map(topic -> mapToSelectableResponse(topic, currentUserId))
+                .sorted((t1, t2) -> t1.getFullPath().compareToIgnoreCase(t2.getFullPath()))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Move topic to a new parent
+     * Updates parent reference; DB triggers will recalculate path and depth
+     */
+    @Transactional
+    public TopicResponse moveTopic(Long topicId, Long newParentId) {
+        log.info("Moving topic {} to new parent {}", topicId, newParentId);
+
+        // Validate topic exists
+        Topic topic = topicRepository.findById(topicId)
+                .orElseThrow(() -> new ResourceNotFoundException("Topic not found with id: " + topicId));
+
+        // Validate newParent exists if not null
+        Topic newParent = null;
+        if (newParentId != null) {
+            newParent = topicRepository.findById(newParentId)
+                    .orElseThrow(() -> new ResourceNotFoundException("New parent topic not found with id: " + newParentId));
+
+            // Check for circular reference: prevent moving topic to itself
+            if (topicId.equals(newParentId)) {
+                throw new IllegalArgumentException("Cannot move topic to itself");
+            }
+
+            // Check for circular reference: prevent moving topic to one of its descendants
+            if (newParent.getPath() != null && topic.getPath() != null) {
+                // If newParent's path contains this topic's id, it's a descendant
+                String topicPathSegment = "/" + topicId + "/";
+                if (newParent.getPath().contains(topicPathSegment)) {
+                    throw new IllegalArgumentException("Cannot move topic to one of its descendants (circular reference)");
+                }
+            }
+        }
+
+        // Store old parent for logging
+        Long oldParentId = topic.getParent() != null ? topic.getParent().getId() : null;
+
+        // Update parent - DB triggers will recalculate path and depth for this topic and all descendants
+        topic.setParent(newParent);
+        Topic updatedTopic = topicRepository.save(topic);
+
+        log.info("Topic {} moved from parent {} to parent {}", topicId, oldParentId, newParentId);
+
+        return mapToResponse(updatedTopic);
+    }
+
+    /**
+     * Map Topic entity to SelectableTopicResponse with full path
+     */
+    private com.my.challenger.dto.quiz.SelectableTopicResponse mapToSelectableResponse(Topic topic, Long currentUserId) {
+        return com.my.challenger.dto.quiz.SelectableTopicResponse.builder()
+                .id(topic.getId())
+                .name(topic.getName())
+                .fullPath(buildFullPath(topic))
+                .depth(topic.getDepth())
+                .validationStatus(topic.getValidationStatus())
+                .isOwn(topic.getCreator() != null && topic.getCreator().getId().equals(currentUserId))
+                .build();
+    }
+
+    /**
+     * Build full hierarchical path from topic
+     * Example: "Geography > Geology > Minerals"
+     */
+    private String buildFullPath(Topic topic) {
+        if (topic.getParent() == null) {
+            return topic.getName();
+        }
+
+        // Build path by traversing up the hierarchy
+        StringBuilder pathBuilder = new StringBuilder();
+        buildPathRecursive(topic, pathBuilder);
+        return pathBuilder.toString();
+    }
+
+    private void buildPathRecursive(Topic topic, StringBuilder pathBuilder) {
+        if (topic.getParent() != null) {
+            buildPathRecursive(topic.getParent(), pathBuilder);
+            pathBuilder.append(" > ");
+        }
+        pathBuilder.append(topic.getName());
     }
 }

@@ -108,4 +108,9 @@ public interface TopicRepository extends JpaRepository<Topic, Long> {
      */
     @Query("SELECT t FROM Topic t WHERE t.isActive = true AND (t.validationStatus = 'APPROVED' OR t.validationStatus = 'AUTO_APPROVED' OR t.creator.id = :userId)")
     List<Topic> findSelectableTopicsForUser(@Param("userId") Long userId);
+
+    /**
+     * Count children of a topic
+     */
+    int countByParentIdAndIsActiveTrue(Long parentId);
 }

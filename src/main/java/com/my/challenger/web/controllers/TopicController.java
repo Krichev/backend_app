@@ -1,6 +1,8 @@
 package com.my.challenger.web.controllers;
 
 import com.my.challenger.dto.quiz.CreateTopicRequest;
+import com.my.challenger.dto.quiz.MoveTopicRequest;
+import com.my.challenger.dto.quiz.SelectableTopicResponse;
 import com.my.challenger.dto.quiz.TopicResponse;
 import com.my.challenger.dto.quiz.UpdateTopicRequest;
 import com.my.challenger.service.impl.TopicService;
@@ -34,11 +36,42 @@ public class TopicController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @GetMapping("/roots")
+    @Operation(summary = "Get root topics", description = "Get all root-level topics (no parent)")
+    public ResponseEntity<List<TopicResponse>> getRootTopics() {
+        List<TopicResponse> response = topicService.getRootTopics();
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/selectable")
+    @Operation(summary = "Get selectable topics", description = "Get topics user can select (approved + own pending) with full hierarchical paths")
+    public ResponseEntity<List<SelectableTopicResponse>> getSelectableTopics() {
+        List<SelectableTopicResponse> response = topicService.getSelectableTopics();
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "Get topic by ID", description = "Retrieve a specific topic by its ID")
     public ResponseEntity<TopicResponse> getTopicById(
             @Parameter(description = "Topic ID") @PathVariable Long id) {
         TopicResponse response = topicService.getTopicById(id);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{id}/children")
+    @Operation(summary = "Get topic children", description = "Get direct children of a topic")
+    public ResponseEntity<List<TopicResponse>> getTopicChildren(
+            @Parameter(description = "Parent topic ID") @PathVariable Long id) {
+        List<TopicResponse> response = topicService.getTopicChildren(id);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{id}/move")
+    @Operation(summary = "Move topic", description = "Move topic to a new parent (or root if newParentId is null)")
+    public ResponseEntity<TopicResponse> moveTopic(
+            @Parameter(description = "Topic ID to move") @PathVariable Long id,
+            @Valid @RequestBody MoveTopicRequest request) {
+        TopicResponse response = topicService.moveTopic(id, request.getNewParentId());
         return ResponseEntity.ok(response);
     }
 
