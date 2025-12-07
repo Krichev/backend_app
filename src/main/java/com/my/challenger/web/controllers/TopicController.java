@@ -66,7 +66,7 @@ public class TopicController {
 //        return ResponseEntity.ok(response);
 //    }
 
-    @GetMapping("/all")
+    @GetMapping("/tree")
     @Operation(summary = "Get all topics (no pagination)", description = "Retrieve all active topics without pagination")
     public ResponseEntity<List<TopicResponse>> getAllTopicsNoPagination() {
         List<TopicResponse> response = topicService.getAllTopics();
