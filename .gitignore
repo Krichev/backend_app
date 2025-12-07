@@ -36,3 +36,11 @@ build/
 # Ignore H2 database files
 *.mv.db
 *.trace.db
+
+# Ignore local environment configuration files
+.env
+.env.local
+.env.*.local
+
+# Ignore Flyway configuration with credentials
+docker-composes/flyway-commands/flyway.conf

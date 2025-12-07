@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  flyway:
+    image: flyway/flyway:10-alpine
+    container_name: challenger_flyway
+    command: -url=jdbc:postgresql://postgres:5432/challenger_db -user=challenger_user -password=challenger_password_secure_123 -connectRetries=5 migrate
+    volumes:
+      - ../src/main/resources/db/migration:/flyway/sql:ro
+    networks:
+      - challenger_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+networks:
+  challenger_network:
+    external: true

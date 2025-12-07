@@ -6,6 +6,7 @@ import com.my.challenger.entity.enums.MediaType;
 import com.my.challenger.entity.enums.QuestionType;
 import com.my.challenger.entity.enums.QuestionVisibility;
 import com.my.challenger.entity.enums.QuizDifficulty;
+import com.my.challenger.entity.enums.ValidationStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -136,6 +137,26 @@ public class QuizQuestion {
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Builder.Default
     private QuestionVisibility visibility = QuestionVisibility.QUIZ_ONLY;
+
+    /**
+     * Validation status for user-created questions
+     * Tracks the approval workflow for public content
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "validation_status")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Builder.Default
+    private ValidationStatus validationStatus = ValidationStatus.DRAFT;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "validated_by")
+    private User validatedBy;
+
+    @Column(name = "validated_at")
+    private LocalDateTime validatedAt;
+
+    @Column(name = "rejection_reason", length = 500)
+    private String rejectionReason;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "original_quiz_id")

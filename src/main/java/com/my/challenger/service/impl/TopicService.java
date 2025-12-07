@@ -2,8 +2,11 @@ package com.my.challenger.service.impl;
 
 import com.my.challenger.dto.quiz.CreateTopicRequest;
 import com.my.challenger.dto.quiz.TopicResponse;
+import com.my.challenger.dto.quiz.TopicTreeResponse;
 import com.my.challenger.dto.quiz.UpdateTopicRequest;
+import com.my.challenger.dto.quiz.ValidateTopicRequest;
 import com.my.challenger.entity.User;
+import com.my.challenger.entity.enums.ValidationStatus;
 import com.my.challenger.entity.quiz.Topic;
 import com.my.challenger.exception.ResourceNotFoundException;
 import com.my.challenger.repository.TopicRepository;

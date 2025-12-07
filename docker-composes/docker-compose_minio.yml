@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # MinIO Object Storage
+  minio:
+    image: minio/minio:latest
+    container_name: minio_standalone
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-challenger_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-challenger_secret_123}
+      MINIO_BROWSER_REDIRECT_URL: ${MINIO_BROWSER_REDIRECT_URL:-http://localhost:9001}
+      MINIO_SERVER_URL: ${MINIO_SERVER_URL:-http://localhost:9000}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"      # API port for your Java app
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"  # Web Console port
+    volumes:
+      - minio_data:/data
+      - minio_config:/root/.minio
+    networks:
+      - minio_network
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 3m
+
+  # MinIO Client - Automatically creates buckets on startup
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio_init
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-challenger_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-challenger_secret_123}
+    networks:
+      - minio_network
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      echo 'Setting up MinIO alias...';
+      mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+      
+      echo 'Creating application buckets...';
+      mc mb local/challenger-app --ignore-existing;
+      mc mb local/photos --ignore-existing;
+      mc mb local/uploads --ignore-existing;
+      mc mb local/documents --ignore-existing;
+      mc mb local/temp --ignore-existing;
+      
+      echo 'Setting up bucket policies...';
+      mc anonymous set download local/photos;
+      
+      echo '✅ MinIO initialization complete!';
+      echo 'Access Console: http://localhost:9001';
+      echo 'Username: $${MINIO_ROOT_USER}';
+      echo 'Password: $${MINIO_ROOT_PASSWORD}';
+      
+      exit 0;
+      "
+
+volumes:
+  minio_data:
+    driver: local
+  minio_config:
+    driver: local
+
+networks:
+  minio_network:
+    driver: bridge

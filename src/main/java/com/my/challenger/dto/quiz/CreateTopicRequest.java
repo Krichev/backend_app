@@ -28,5 +28,8 @@ public class CreateTopicRequest {
     @Size(max = 500, message = "Description cannot exceed 500 characters")
     @Schema(description = "Topic description", example = "Questions related to science and technology")
     private String description;
+
+    @Schema(description = "Parent topic ID (for hierarchical structure)", example = "1")
+    private Long parentId;
 }
 

@@ -19,7 +19,13 @@ public enum QuestionVisibility {
      * Only accessible within the specific quiz/challenge where it was added
      */
     QUIZ_ONLY,
-    
+
+    /**
+     * Submitted for public visibility but awaiting validation/approval
+     * Visible to creator but not in public searches
+     */
+    PENDING_PUBLIC,
+
     /**
      * Available to everyone in question search and can be used by anyone
      */
@@ -36,6 +42,8 @@ public enum QuestionVisibility {
                 return "Friends & Family";
             case QUIZ_ONLY:
                 return "This Quiz Only";
+            case PENDING_PUBLIC:
+                return "Pending Public Approval";
             case PUBLIC:
                 return "Everyone (Public)";
             default:

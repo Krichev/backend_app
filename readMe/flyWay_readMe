@@ -1,0 +1,35 @@
+Adding a New Migration
+Step 1: Create the Migration File
+bash# Go to migration folder
+cd ../src/main/resources/db/migration/
+
+# Create new file with proper naming
+nano V2__Add_New_Feature.sql
+```
+
+### Naming Convention
+```
+V2__Add_New_Feature.sql
+│ │  │
+│ │  └── Description (use underscores for spaces)
+│ └───── Double underscore (required!)
+└─────── Version number (must be higher than previous)
+Step 2: Write Your SQL
+
+Step 3: Check Status
+bashcd ~/postgres-project
+docker-compose -f docker-compose.yml --profile migrate run --rm flyway info
+```
+
+**You should see:**
+```
++-----------+---------+------------------------+------+---------+
+| Version   | State   | Description            | Type | Source  |
++-----------+---------+------------------------+------+---------+
+| 1         | Success | Initial Schema         | SQL  | V1__... |
+| 2         | Pending | Add User Preferences   | SQL  | V2__... |
++-----------+---------+------------------------+------+---------+
+
+Step 4: Apply Migration
+bash
+docker-compose -f docker-compose.yml --profile migrate run --rm flyway migrate
