@@ -53,6 +53,20 @@ public class Quest {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    // Audio configuration fields
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "audio_media_id")
+    private MediaFile audioMedia;
+
+    @Column(name = "audio_start_time")
+    private Double audioStartTime = 0.0;
+
+    @Column(name = "audio_end_time")
+    private Double audioEndTime;
+
+    @Column(name = "minimum_score_percentage")
+    private Integer minimumScorePercentage = 0;
+
     @ManyToOne
     @JoinColumn(name = "creator_id")
     private User creator;

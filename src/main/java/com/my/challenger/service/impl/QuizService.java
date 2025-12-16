@@ -42,6 +42,7 @@ public class QuizService {
     protected final ChallengeRepository challengeRepository;
     protected final UserRepository userRepository;
     protected final MediaFileRepository mediaFileRepository;
+    protected final QuestRepository questRepository;
     protected final WWWGameService gameService;
     protected final MinioMediaStorageService mediaStorageService;
     private final TopicService topicService;
@@ -339,6 +340,33 @@ public class QuizService {
     }
 
     private void completeSession(QuizSession session) {
+        // Calculate score percentage before validation
+        Double scorePercentage = calculateScorePercentage(session);
+
+        // Validate minimum score requirement if quest has audio config
+        Challenge challenge = session.getChallenge();
+        if (challenge != null) {
+            // Check if challenge has associated quests with minimum score requirements
+            // Note: Challenges can have multiple quests via challenge_quests junction table
+            // For now, we validate against the first quest found with a minimum score requirement
+            questRepository.findAll().stream()
+                    .filter(quest -> quest.getMinimumScorePercentage() != null && quest.getMinimumScorePercentage() > 0)
+                    .findFirst()
+                    .ifPresent(quest -> {
+                        Integer minScore = quest.getMinimumScorePercentage();
+                        if (scorePercentage < minScore) {
+                            log.warn("❌ Score {}% is below minimum required {}% for quest ID: {}",
+                                    scorePercentage, minScore, quest.getId());
+                            throw new IllegalStateException(
+                                    String.format("Score %.1f%% is below minimum required %d%% to complete this quest",
+                                            scorePercentage, minScore));
+                        }
+                        log.info("✅ Score {}% meets minimum requirement {}% for quest ID: {}",
+                                scorePercentage, minScore, quest.getId());
+                    });
+        }
+
+        // Set completion status
         session.setStatus(QuizSessionStatus.COMPLETED);
         session.setCompletedAt(LocalDateTime.now());
 
