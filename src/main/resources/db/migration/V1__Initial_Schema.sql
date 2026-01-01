@@ -1277,7 +1277,7 @@ ALTER TABLE quiz_questions
 ALTER TABLE quiz_questions
     ADD COLUMN IF NOT EXISTS question_media_url VARCHAR (500);
 ALTER TABLE quiz_questions
-    ADD COLUMN IF NOT EXISTS question_media_id VARCHAR (100);
+    ADD COLUMN IF NOT EXISTS question_media_id BIGINT;
 ALTER TABLE quiz_questions
     ADD COLUMN IF NOT EXISTS question_media_type VARCHAR (50);
 ALTER TABLE quiz_questions
@@ -1286,14 +1286,6 @@ ALTER TABLE quiz_questions
 -- Create index for question_type for faster queries
 CREATE INDEX IF NOT EXISTS idx_quiz_questions_question_type ON quiz_questions(question_type);
 CREATE INDEX IF NOT EXISTS idx_quiz_questions_media_id ON quiz_questions(question_media_id);
-
--- Create indexes for media_files
-CREATE INDEX IF NOT EXISTS idx_media_files_entity ON media_files(entity_id, entity_type);
-CREATE INDEX IF NOT EXISTS idx_media_files_uploaded_by ON media_files(uploaded_by);
-CREATE INDEX IF NOT EXISTS idx_media_files_s3_key ON media_files(s3_key);
-CREATE INDEX IF NOT EXISTS idx_media_files_processing_status ON media_files(processing_status);
-CREATE INDEX IF NOT EXISTS idx_media_files_media_category ON media_files(media_category);
-CREATE INDEX IF NOT EXISTS idx_media_files_created_at ON media_files(created_at);
 
 -- Add foreign key constraint between quiz_questions and media_files
 ALTER TABLE quiz_questions
@@ -1345,7 +1337,7 @@ SELECT qq.id,
        mf.thumbnail_url      as media_thumbnail_url
 FROM quiz_questions qq
          LEFT JOIN users u ON qq.creator_id = u.id
-         LEFT JOIN media_files mf ON qq.question_media_id = mf.id::varchar;
+         LEFT JOIN media_files mf ON qq.question_media_id = mf.id;
 
 -- Function to clean up orphaned media files
 CREATE
