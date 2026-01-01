@@ -1327,14 +1327,14 @@ SELECT qq.id,
        qq.created_at,
        qq.updated_at,
        mf.id                 as media_id,
-       mf.original_file_name as media_filename,
-       mf.file_type          as media_mime_type,
+       mf.original_filename  as media_filename,
+       mf.content_type       as media_mime_type,
        mf.file_size          as media_size,
        mf.duration_seconds   as media_duration,
        mf.width              as media_width,
        mf.height             as media_height,
        mf.processing_status  as media_processing_status,
-       mf.thumbnail_url      as media_thumbnail_url
+       mf.thumbnail_path     as media_thumbnail_url
 FROM quiz_questions qq
          LEFT JOIN users u ON qq.creator_id = u.id
          LEFT JOIN media_files mf ON qq.question_media_id = mf.id;
@@ -1392,32 +1392,6 @@ CREATE TRIGGER trigger_update_media_usage
     FOR EACH ROW
     EXECUTE FUNCTION update_media_usage_stats();
 
-
--- Create enum types for better type safety (PostgreSQL)
-DO
-$$
-BEGIN
-    IF
-NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'question_type_enum') THEN
-CREATE TYPE question_type_enum AS ENUM ('TEXT', 'IMAGE', 'VIDEO', 'AUDIO');
-END IF;
-
---     IF
--- NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'media_category') THEN
--- CREATE TYPE media_category AS ENUM ('QUIZ_QUESTION', 'AVATAR', 'CHALLENGE_PROOF', 'SYSTEM');
--- END IF;
-
-    IF
-NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'processing_status_enum') THEN
-CREATE TYPE processing_status_enum AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED');
-END IF;
-END
-$$;
-
--- Update column types to use enums (optional, for better type safety)
--- ALTER TABLE quiz_questions ALTER COLUMN question_type TYPE question_type_enum USING question_type::question_type_enum;
--- ALTER TABLE media_files ALTER COLUMN media_category TYPE media_category_enum USING media_category::media_category_enum;
--- ALTER TABLE media_files ALTER COLUMN processing_status TYPE processing_status_enum USING processing_status::processing_status_enum;
 
 -- Add useful stored procedures for media management
 
@@ -1493,39 +1467,6 @@ ON COLUMN quiz_questions.question_thumbnail_url IS 'URL to thumbnail for video/i
 -- GRANT SELECT, UPDATE ON quiz_questions TO quiz_app_user;
 -- GRANT USAGE, SELECT ON SEQUENCE media_files_id_seq TO quiz_app_user;
 
-
-        -- Create question_type enum (if not exists)
-DO
-$$
-BEGIN
-    IF
-NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'question_type_enum') THEN
-CREATE TYPE question_type_enum AS ENUM (
-            'TEXT',
-            'IMAGE',
-            'AUDIO',
-            'VIDEO',
-            'MULTIMEDIA'
-        );
-END IF;
-END$$;
-
--- Create media_type enum (if not exists)
-DO
-$$
-BEGIN
-    IF
-NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'media_type_enum') THEN
-CREATE TYPE media_type_enum AS ENUM (
-            'IMAGE',
-            'VIDEO',
-            'AUDIO',
-            'DOCUMENT',
-            'QUIZ_QUESTION',
-            'AVATAR'
-        );
-END IF;
-END$$;
 
 -- 2. Migration script to convert question_media_type from text to enum
 -- =====================================================
