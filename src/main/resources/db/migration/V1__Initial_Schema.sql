@@ -133,6 +133,7 @@ CREATE TABLE media_files
 
     -- Entity relationships
     entity_id         BIGINT,
+    entity_type       VARCHAR(50),
     uploaded_by       BIGINT            NOT NULL,
 
     -- Timestamp fields - matching Java LocalDateTime
@@ -179,6 +180,8 @@ COMMENT
 ON COLUMN media_files.processing_status IS 'Current processing status (PENDING, COMPLETED, FAILED)';
 COMMENT
 ON COLUMN media_files.entity_id IS 'ID of related entity this media belongs to';
+COMMENT
+ON COLUMN media_files.entity_type IS 'Type of the related entity (e.g., quiz_question)';
 COMMENT
 ON COLUMN media_files.uploaded_by IS 'ID of user who uploaded the file';
 COMMENT
@@ -1284,78 +1287,6 @@ ALTER TABLE quiz_questions
 CREATE INDEX IF NOT EXISTS idx_quiz_questions_question_type ON quiz_questions(question_type);
 CREATE INDEX IF NOT EXISTS idx_quiz_questions_media_id ON quiz_questions(question_media_id);
 
--- Enhanced media_files table with better support for quiz media
-CREATE TABLE IF NOT EXISTS media_files
-(
-    id
-    BIGSERIAL
-    PRIMARY
-    KEY,
-    original_file_name
-    VARCHAR
-(
-    255
-) NOT NULL,
-    stored_file_name VARCHAR
-(
-    255
-) NOT NULL,
-    s3_key VARCHAR
-(
-    500
-) NOT NULL UNIQUE,
-    file_type VARCHAR
-(
-    100
-) NOT NULL,
-    file_size BIGINT NOT NULL,
-    media_category VARCHAR
-(
-    50
-) NOT NULL DEFAULT 'QUIZ_QUESTION',
-    media_type VARCHAR
-(
-    20
-) NOT NULL DEFAULT 'IMAGE',
-    processing_status VARCHAR
-(
-    20
-) NOT NULL DEFAULT 'PENDING',
-
-    -- Entity association
-    entity_id BIGINT,
-    entity_type VARCHAR
-(
-    50
-),
-
-    -- Media metadata
-    width INTEGER,
-    height INTEGER,
-    duration_seconds INTEGER,
-    thumbnail_url VARCHAR
-(
-    500
-),
-    metadata JSONB,
-
-    -- User tracking
-    uploaded_by BIGINT NOT NULL,
-
-    -- Timestamps
-    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    processed_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_media_files_uploaded_by FOREIGN KEY
-(
-    uploaded_by
-) REFERENCES users
-(
-    id
-) ON DELETE CASCADE
-    );
-
 -- Create indexes for media_files
 CREATE INDEX IF NOT EXISTS idx_media_files_entity ON media_files(entity_id, entity_type);
 CREATE INDEX IF NOT EXISTS idx_media_files_uploaded_by ON media_files(uploaded_by);
@@ -1556,15 +1487,6 @@ COMMENT
 ON TABLE media_files IS 'Stores metadata for all uploaded media files including quiz question media';
 COMMENT
 ON COLUMN media_files.s3_key IS 'Unique S3 object key for the stored file';
-COMMENT
-ON COLUMN media_files.entity_id IS 'ID of the related entity (e.g., quiz_question.id)';
-COMMENT
-ON COLUMN media_files.entity_type IS 'Type of the related entity (e.g., quiz_question)';
-COMMENT
-ON COLUMN media_files.duration_seconds IS 'Duration for video/audio files in seconds';
-COMMENT
-ON COLUMN media_files.metadata IS 'Additional metadata stored as JSON';
-
 COMMENT
 ON COLUMN quiz_questions.question_type IS 'Type of question: TEXT, IMAGE, VIDEO, or AUDIO';
 COMMENT
