@@ -53,6 +53,38 @@ CREATE
 EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE SCHEMA IF NOT EXISTS challenger;
 
+-- Drop ENUM types if they exist
+DROP TYPE IF EXISTS user_role;
+DROP TYPE IF EXISTS group_type;
+DROP TYPE IF EXISTS privacy_setting;
+DROP TYPE IF EXISTS quest_type;
+DROP TYPE IF EXISTS quest_visibility;
+DROP TYPE IF EXISTS quest_status;
+DROP TYPE IF EXISTS task_type;
+DROP TYPE IF EXISTS task_status;
+DROP TYPE IF EXISTS verification_method;
+DROP TYPE IF EXISTS completion_status;
+DROP TYPE IF EXISTS reward_type;
+DROP TYPE IF EXISTS reward_source;
+DROP TYPE IF EXISTS connection_status;
+DROP TYPE IF EXISTS challenge_type;
+DROP TYPE IF EXISTS challenge_frequency;
+DROP TYPE IF EXISTS challenge_status;
+DROP TYPE IF EXISTS participant_status;
+DROP TYPE IF EXISTS quiz_difficulty;
+DROP TYPE IF EXISTS quiz_session_status;
+DROP TYPE IF EXISTS question_source;
+DROP TYPE IF EXISTS currency_type;
+DROP TYPE IF EXISTS photo_type_enum;
+DROP TYPE IF EXISTS processing_status_enum;
+DROP TYPE IF EXISTS media_type;
+DROP TYPE IF EXISTS media_category;
+DROP TYPE IF EXISTS processing_status;
+DROP TYPE IF EXISTS challenge_difficulty_type;
+DROP TYPE IF EXISTS frequency_type;
+DROP TYPE IF EXISTS activity_type;
+DROP TYPE IF EXISTS payment_type;
+DROP TYPE IF EXISTS question_visibility;
 
 -- Create ENUM types for better type safety
 CREATE TYPE user_role AS ENUM ('ADMIN', 'MEMBER', 'MODERATOR');
@@ -76,21 +108,13 @@ CREATE TYPE quiz_difficulty AS ENUM ('EASY', 'MEDIUM', 'HARD');
 CREATE TYPE quiz_session_status AS ENUM ('CREATED', 'IN_PROGRESS', 'COMPLETED', 'ABANDONED', 'CANCELLED', 'ARCHIVED');
 CREATE TYPE question_source AS ENUM ('app', 'user');
 CREATE TYPE currency_type AS ENUM ('USD', 'EUR', 'GBP', 'CAD', 'AUD', 'POINTS');
-
-
--- Create enum type for photo_type
 CREATE TYPE photo_type_enum AS ENUM (
     'AVATAR', 'QUIZ_QUESTION', 'CHALLENGE_COVER', 'TASK_VERIFICATION',
     'GENERAL', 'THUMBNAIL', 'BACKGROUND', 'BANNER', 'GALLERY', 'DOCUMENT'
 );
-
--- Create enum type for processing_status
 CREATE TYPE processing_status_enum AS ENUM (
     'PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'
 );
-
-
--- Create ENUM types matching your Java enums
 CREATE TYPE media_type AS ENUM (
     'IMAGE',
     'VIDEO',
@@ -98,17 +122,40 @@ CREATE TYPE media_type AS ENUM (
     'DOCUMENT',
     'ARCHIVE'
 );
-
 CREATE TYPE media_category AS ENUM (
     'QUIZ_QUESTION', 'AVATAR', 'CHALLENGE_PROOF', 'SYSTEM'
 );
-
 CREATE TYPE processing_status AS ENUM (
     'PENDING',
     'PROCESSING',
     'COMPLETED',
     'FAILED',
     'CANCELLED'
+);
+CREATE TYPE challenge_difficulty_type AS ENUM (
+    'BEGINNER',
+    'EASY',
+    'MEDIUM',
+    'HARD',
+    'EXPERT',
+    'EXTREME'
+);
+CREATE TYPE frequency_type AS ENUM ('DAILY', 'WEEKLY', 'MONTHLY', 'ONE_TIME', 'CUSTOM');
+CREATE TYPE activity_type AS ENUM (
+    'TASK_COMPLETION',
+    'JOIN_GROUP',
+    'COMPLETE_QUEST',
+    'REWARD_EARNED',
+    'CONNECTION_MADE',
+    'CHALLENGE_JOINED',
+    'CHALLENGE_COMPLETED'
+);
+CREATE TYPE payment_type AS ENUM ('FREE', 'ENTRY_FEE', 'PRIZE_POOL', 'SUBSCRIPTION');
+CREATE TYPE question_visibility AS ENUM (
+    'PRIVATE',           -- Only visible to creator
+    'FRIENDS_FAMILY',    -- Visible to creator and their friends/family
+    'QUIZ_ONLY',         -- Only in the specific quiz/challenge where it was added
+    'PUBLIC'             -- Available to everyone in question search
 );
 
 -- Create the media_files table matching your Java entity exactly
@@ -1213,16 +1260,6 @@ CREATE TABLE IF NOT EXISTS reward_users
 -- Migration script to add difficulty column to challenges table
 -- File: src/main/resources/db/migration/V{next_version_number}__add_difficulty_to_challenges.sql
 
--- Create custom enum type for challenge difficulty
-CREATE TYPE challenge_difficulty_type AS ENUM (
-    'BEGINNER',
-    'EASY',
-    'MEDIUM',
-    'HARD',
-    'EXPERT',
-    'EXTREME'
-);
-
 -- Add difficulty column to challenges table using the custom enum type
 ALTER TABLE challenges
     ADD COLUMN difficulty challenge_difficulty_type NOT NULL DEFAULT 'MEDIUM';
@@ -1591,9 +1628,6 @@ ORDER BY question_type, question_media_type;
 -- Add created_by and frequency columns to tasks table
 -- ============================================================================
 
--- Create frequency_type ENUM if not exists
-CREATE TYPE frequency_type AS ENUM ('DAILY', 'WEEKLY', 'MONTHLY', 'ONE_TIME', 'CUSTOM');
-
 -- Add created_by column
 ALTER TABLE tasks
     ADD COLUMN IF NOT EXISTS created_by BIGINT;
@@ -1613,17 +1647,6 @@ ALTER TABLE tasks
 CREATE INDEX IF NOT EXISTS idx_tasks_created_by ON tasks(created_by);
 CREATE INDEX IF NOT EXISTS idx_tasks_frequency ON tasks(frequency);
 
-
--- Step 1: Create the custom ENUM type (if not already exists)
-CREATE TYPE activity_type AS ENUM (
-    'TASK_COMPLETION',
-    'JOIN_GROUP',
-    'COMPLETE_QUEST',
-    'REWARD_EARNED',
-    'CONNECTION_MADE',
-    'CHALLENGE_JOINED',
-    'CHALLENGE_COMPLETED'
-);
 
 -- Step 2: Alter the column to use the new ENUM type
 ALTER TABLE user_activity_logs
@@ -1825,13 +1848,6 @@ CREATE INDEX idx_topic_id ON quiz_questions(topic_id);
 -- ALTER TABLE quiz_questions DROP COLUMN topic;
 
 
--- Migration: Add Payment and Access Control Features
--- Author: Challenge System
--- Date: 2025-01-10
-
--- Step 1: Create PaymentType ENUM
-CREATE TYPE payment_type AS ENUM ('FREE', 'ENTRY_FEE', 'PRIZE_POOL', 'SUBSCRIPTION');
-
 -- Step 2: Add payment fields to challenges table
 ALTER TABLE challenges
     ADD COLUMN IF NOT EXISTS payment_type payment_type DEFAULT 'FREE',
@@ -1999,18 +2015,6 @@ GROUP BY c.id, c.title, c.payment_type, c.entry_fee_amount,
 -- DROP TYPE IF EXISTS payment_type;
 
 
--- ============================================================================
--- Migration: Add Question Access Policy and Friend/Family Relationships
--- ============================================================================
-
--- Step 1: Create ENUM type for question visibility
-CREATE TYPE question_visibility AS ENUM (
-    'PRIVATE',           -- Only visible to creator
-    'FRIENDS_FAMILY',    -- Visible to creator and their friends/family
-    'QUIZ_ONLY',         -- Only in the specific quiz/challenge where it was added
-    'PUBLIC'             -- Available to everyone in question search
-);
-
 -- Step 2: Add visibility column to quiz_questions table
 ALTER TABLE quiz_questions
     ADD COLUMN visibility question_visibility DEFAULT 'PRIVATE' NOT NULL,
@@ -2068,7 +2072,6 @@ SET visibility = 'PRIVATE'
 WHERE is_user_created = true;
 
 -- Step 7: Add comment documentation
-COMMENT ON TYPE question_visibility IS 'Controls who can view and use a user-created question';
 COMMENT ON COLUMN quiz_questions.visibility IS 'Access policy for user-created questions';
 COMMENT ON COLUMN quiz_questions.original_quiz_id IS 'Original quiz/challenge ID if visibility is QUIZ_ONLY';
 COMMENT ON TABLE user_relationships IS 'Manages friend and family relationships between users';
@@ -2145,5 +2148,6 @@ $$ LANGUAGE plpgsql STABLE;
 GRANT EXECUTE ON FUNCTION can_user_access_question(BIGINT, BIGINT) TO challenger_app;
 
 COMMENT ON FUNCTION can_user_access_question IS 'Determines if a user can access a specific question based on visibility and relationships';
+
 
 

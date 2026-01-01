@@ -42,5 +42,7 @@ build/
 .env.local
 .env.*.local
 
+*.log
+
 # Ignore Flyway configuration with credentials
 docker-composes/flyway-commands/flyway.conf
