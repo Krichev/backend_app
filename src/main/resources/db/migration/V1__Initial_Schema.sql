@@ -51,6 +51,8 @@
 -- Create extension for UUID generation if not exists
 CREATE
 EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE SCHEMA IF NOT EXISTS challenger;
+
 
 -- Create ENUM types for better type safety
 CREATE TYPE user_role AS ENUM ('ADMIN', 'MEMBER', 'MODERATOR');
@@ -821,21 +823,22 @@ $$
 LANGUAGE plpgsql;
 
 -- Get media files by entity
-CREATE
-OR REPLACE FUNCTION get_media_files_by_entity(
-    ent_id BIGINT,
-    media_t media_type DEFAULT NULL,
-    limit_count INTEGER DEFAULT 50
+CREATE OR REPLACE FUNCTION get_media_files_by_entity(
+    p_ent_id BIGINT,
+    p_media_type media_type DEFAULT NULL,
+    p_limit_count INTEGER DEFAULT 50
 )
 RETURNS TABLE (
     id BIGINT,
     original_filename VARCHAR(255),
     filename VARCHAR(255),
     s3_url TEXT,
-    media_t media_type,
+    media_type media_type,
     processing_status processing_status,
     uploaded_at TIMESTAMP WITHOUT TIME ZONE
-) AS $$
+)
+LANGUAGE plpgsql
+AS $$
 BEGIN
 RETURN QUERY
 SELECT mf.id,
@@ -846,13 +849,14 @@ SELECT mf.id,
        mf.processing_status,
        mf.uploaded_at
 FROM media_files mf
-WHERE mf.entity_id = ent_id
-  AND (media_cat IS NULL OR mf.media_category = media_cat)
+WHERE mf.entity_id = p_ent_id
+  AND (p_media_type IS NULL OR mf.media_category = p_media_type)
   AND mf.processing_status = 'COMPLETED'
-ORDER BY mf.uploaded_at DESC LIMIT limit_count;
+ORDER BY mf.uploaded_at DESC
+    LIMIT p_limit_count;
 END;
-$$
-LANGUAGE plpgsql;
+$$;
+
 
 -- Update processing status
 CREATE
@@ -1067,7 +1071,7 @@ SELECT DISTINCT
         ON (uploaded_by)
         id, original_filename, filename, s3_url, width, height, uploaded_by, uploaded_at
         FROM media_files
-        WHERE media_category = 'PROFILE_PICTURE'
+        WHERE media_category = 'AVATAR'
         AND processing_status = 'COMPLETED'
         ORDER BY uploaded_by, uploaded_at DESC;
 
