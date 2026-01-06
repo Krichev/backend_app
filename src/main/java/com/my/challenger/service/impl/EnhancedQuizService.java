@@ -39,14 +39,15 @@ public class EnhancedQuizService extends QuizService {
             QuizRoundRepository quizRoundRepository,
             ChallengeRepository challengeRepository,
             UserRepository userRepository,
+            MediaFileRepository mediaFileRepository,
+            QuestRepository questRepository,
             WWWGameService gameService,
             MinioMediaStorageService mediaStorageService,
-            MediaFileRepository mediaFileRepository,
             ObjectMapper objectMapper,
             TaskRepository taskRepository, TopicService topicService) {
 
         super(quizQuestionRepository, quizSessionRepository, quizRoundRepository,
-                challengeRepository, userRepository, mediaFileRepository, gameService,
+                challengeRepository, userRepository, mediaFileRepository, questRepository, gameService,
                 mediaStorageService, topicService);
 
 //        this.objectMapper = objectMapper;

@@ -9,7 +9,7 @@ spring:
 
   # Database Configuration (Default - Production)
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/challenger_db}
+    url: ${DATABASE_URL:jdbc:postgresql://45.129.186.166:5432/challenger_db}
     username: ${DATABASE_USERNAME:challenger_user}
     password: ${DATABASE_PASSWORD:challenger_password_secure_123}
     driver-class-name: org.postgresql.Driver
