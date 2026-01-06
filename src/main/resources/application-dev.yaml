@@ -2,7 +2,7 @@
 spring:
   # Database Configuration - PostgreSQL for Development
   datasource:
-    url: jdbc:postgresql://45.129.186.166:5432/challenger_db
+    url: jdbc:postgresql://45.129.186.166:5432/challenger_db?sslmode=disable
     username: challenger_user
     password: challenger_password_secure_123
     driver-class-name: org.postgresql.Driver
