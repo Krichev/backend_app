@@ -2,23 +2,27 @@
 spring:
   # Database Configuration - PostgreSQL for Development
   datasource:
-    url: jdbc:postgresql://45.129.186.166:5432/challenger_db?sslmode=disable&socketTimeout=0&tcpKeepAlive=true
+    url: jdbc:postgresql://45.129.186.166:5432/challenger_db?currentSchema=challenger&sslmode=disable&socketTimeout=0&tcpKeepAlive=true
     username: challenger_user
     password: challenger_password_secure_123
     driver-class-name: org.postgresql.Driver
     hikari:
       data-source-properties:
         tcpKeepAlive: true
-      minimum-idle: 0
-      maximum-pool-size: 1
+      minimum-idle: 1
+      maximum-pool-size: 20
       connection-timeout: 20000
       idle-timeout: 300000
       max-lifetime: 1200000
       leak-detection-threshold: 30000
+      keepalive-time: 300000
       # Development optimizations
       connection-init-sql: SELECT 1
       auto-commit: false
-
+  data:
+    jdbc:
+      repositories:
+        enabled: false
   # JPA Configuration - Development Settings
   jpa:
     #    hibernate:
@@ -29,8 +33,11 @@ spring:
     #        implicit-strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyLegacyJpaImpl
     properties:
       hibernate:
+        temp:
+          use_jdbc_metadata_defaults: false
+#        default_schema: challenger
         hbm2ddl:
-          auto: validate
+          auto: none
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
         show_sql: true
@@ -49,12 +56,6 @@ spring:
         batch_versioned_data: true
     show-sql: true
   #    generate-ddl: true
-
-  # Flyway Configuration - Disabled for development (using create-drop)
-  flyway:
-    enabled: false
-    baseline-on-migrate: true
-    validate-on-migrate: false
 
 #  # H2 Console (disabled since we're using PostgreSQL)
 #  h2:
