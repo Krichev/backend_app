@@ -2,13 +2,15 @@
 spring:
   # Database Configuration - PostgreSQL for Development
   datasource:
-    url: jdbc:postgresql://45.129.186.166:5432/challenger_db?sslmode=disable
+    url: jdbc:postgresql://45.129.186.166:5432/challenger_db?sslmode=disable&socketTimeout=0&tcpKeepAlive=true
     username: challenger_user
     password: challenger_password_secure_123
     driver-class-name: org.postgresql.Driver
     hikari:
-      minimum-idle: 2
-      maximum-pool-size: 10
+      data-source-properties:
+        tcpKeepAlive: true
+      minimum-idle: 0
+      maximum-pool-size: 1
       connection-timeout: 20000
       idle-timeout: 300000
       max-lifetime: 1200000
@@ -54,10 +56,10 @@ spring:
     baseline-on-migrate: true
     validate-on-migrate: false
 
-  # H2 Console (disabled since we're using PostgreSQL)
-  h2:
-    console:
-      enabled: false
+#  # H2 Console (disabled since we're using PostgreSQL)
+#  h2:
+#    console:
+#      enabled: false
 
   # Development Web Configuration
   servlet:
