@@ -1,7 +1,9 @@
 package com.my.challenger.entity.quiz;
 
+import com.my.challenger.entity.MediaFile;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.challenge.Challenge;
+import com.my.challenger.entity.enums.AudioChallengeType;
 import com.my.challenger.entity.enums.MediaType;
 import com.my.challenger.entity.enums.QuestionType;
 import com.my.challenger.entity.enums.QuestionVisibility;
@@ -91,7 +93,7 @@ public class QuizQuestion {
     private String questionMediaUrl;
 
     @Column(name = "question_media_id", length = 50)
-    private String questionMediaId;
+    private Long questionMediaId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "question_media_type", columnDefinition = "media_type")
@@ -100,6 +102,38 @@ public class QuizQuestion {
 
     @Column(name = "question_thumbnail_url", length = 500)
     private String questionThumbnailUrl;
+
+    // ===== AUDIO CHALLENGE FIELDS =====
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "audio_challenge_type", columnDefinition = "audio_challenge_type")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private AudioChallengeType audioChallengeType;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "audio_reference_media_id")
+    private MediaFile audioReferenceMedia;
+
+    @Column(name = "audio_segment_start")
+    @Builder.Default
+    private Double audioSegmentStart = 0.0;
+
+    @Column(name = "audio_segment_end")
+    private Double audioSegmentEnd;
+
+    @Column(name = "minimum_score_percentage")
+    @Builder.Default
+    private Integer minimumScorePercentage = 60;
+
+    @Column(name = "rhythm_bpm")
+    private Integer rhythmBpm;
+
+    @Column(name = "rhythm_time_signature")
+    private String rhythmTimeSignature;
+
+    @Column(name = "audio_challenge_config", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private String audioChallengeConfig;
 
     // User creation tracking
     @Column(name = "is_user_created")
@@ -279,5 +313,33 @@ public class QuizQuestion {
 
     public Long getCreatorId() {
         return creator != null ? creator.getId() : null;
+    }
+
+    // ===== AUDIO CHALLENGE HELPER METHODS =====
+
+    public boolean isAudioChallenge() {
+        return questionType == QuestionType.AUDIO && audioChallengeType != null;
+    }
+
+    public boolean requiresReferenceAudio() {
+        return audioChallengeType != null && audioChallengeType.requiresReferenceAudio();
+    }
+
+    public Double getEffectiveAudioEnd() {
+        if (audioSegmentEnd != null) {
+            return audioSegmentEnd;
+        }
+        if (audioReferenceMedia != null && audioReferenceMedia.getDurationSeconds() != null) {
+            return audioReferenceMedia.getDurationSeconds();
+        }
+        return null;
+    }
+
+    public Double getAudioSegmentDuration() {
+        Double end = getEffectiveAudioEnd();
+        if (end == null || audioSegmentStart == null) {
+            return null;
+        }
+        return end - audioSegmentStart;
     }
 }

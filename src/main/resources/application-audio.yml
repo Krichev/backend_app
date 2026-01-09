@@ -1,0 +1,18 @@
+# Karaoke Service Integration
+karaoke:
+  service:
+    url: ${KARAOKE_SERVICE_URL:http://localhost:8081}
+    timeout: 30000
+    retry:
+      max-attempts: 3
+      delay: 1000
+
+# Async processing for audio challenges
+spring:
+  task:
+    execution:
+      pool:
+        core-size: 4
+        max-size: 8
+        queue-capacity: 100
+      thread-name-prefix: audio-processing-

@@ -88,7 +88,7 @@ public class TournamentQuestionDetailDTO {
         private String additionalInfo;
         private QuestionType questionType;
         private String questionMediaUrl;
-        private String questionMediaId;
+        private Long questionMediaId;
         private MediaType questionMediaType;
         private String questionThumbnailUrl;
         private Integer usageCount;
