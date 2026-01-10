@@ -19,7 +19,6 @@ import com.my.challenger.repository.AudioChallengeSubmissionRepository;
 import com.my.challenger.repository.MediaFileRepository;
 import com.my.challenger.repository.QuizQuestionRepository;
 import com.my.challenger.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Qualifier;
 import com.my.challenger.service.AudioChallengeService;
 import com.my.challenger.service.integration.KaraokeServiceClient;
 import lombok.RequiredArgsConstructor;
@@ -38,7 +37,6 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AudioChallengeServiceImpl implements AudioChallengeService {
 
-    @Qualifier("quizQuestionRepository")
     private final QuizQuestionRepository questionRepository;
     private final AudioChallengeSubmissionRepository submissionRepository;
     private final MediaFileRepository mediaFileRepository;
