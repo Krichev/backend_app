@@ -115,7 +115,7 @@ public class QuestionService {
                 .topic(topic)
                 .questionType(questionType != null ? questionType : TEXT)
                 .questionMediaUrl(mediaS3Key)
-                .questionMediaId(mediaFileId != null ? mediaFileId.toString() : null)
+                .questionMediaId(mediaFileId != null ? mediaFileId : null)
                 .questionMediaType(mediaType)
                 .questionThumbnailUrl(thumbnailS3Key)
                 .visibility(request.getVisibility() != null ? request.getVisibility() : QuestionVisibility.PRIVATE)

@@ -3,7 +3,7 @@ package com.my.challenger.web.controllers;
 import com.my.challenger.dto.audio.AudioChallengeConfigDTO;
 import com.my.challenger.dto.audio.AudioChallengeSubmissionDTO;
 import com.my.challenger.dto.audio.CreateAudioQuestionRequest;
-import com.my.challenger.dto.question.QuestionResponseDTO;
+import com.my.challenger.dto.audio.QuestionResponseDTO;
 import com.my.challenger.entity.enums.AudioChallengeType;
 import com.my.challenger.service.AudioChallengeService;
 import io.swagger.v3.oas.annotations.Operation;

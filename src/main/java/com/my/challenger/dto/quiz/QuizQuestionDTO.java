@@ -40,7 +40,7 @@ public class QuizQuestionDTO {
 
     // Media properties
     private String questionMediaUrl;
-    private String questionMediaId;
+    private Long questionMediaId;
     private MediaType questionMediaType;
     private String questionThumbnailUrl;
 

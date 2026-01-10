@@ -67,7 +67,7 @@ public class QuizService {
         QuestionType questionType = request.getQuestionType();
         MediaType mediaType = null;
         String mediaUrl = null;
-        String mediaId = null;
+        Long mediaId = null;
         String thumbnailUrl = null;
 
         // Handle media file if provided
@@ -76,7 +76,7 @@ public class QuizService {
                     .orElseThrow(() -> new IllegalArgumentException("Media file not found"));
 
             mediaUrl = mediaStorageService.getMediaUrl(mediaFile);
-            mediaId = mediaFile.getId().toString();
+            mediaId = mediaFile.getId();
             mediaType = mediaFile.getMediaType();
             thumbnailUrl = mediaFile.getThumbnailPath() != null ?
                     mediaStorageService.getThumbnailUrl(mediaFile) : null;

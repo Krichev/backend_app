@@ -30,7 +30,7 @@ public class CreateQuizQuestionRequest {
     // Media support fields
     private Long mediaFileId;
     private String questionMediaUrl;
-    private String questionMediaId;
+    private Long questionMediaId;
     private MediaType questionMediaType;
 
     @Builder.Default

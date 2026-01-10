@@ -3,7 +3,7 @@ package com.my.challenger.service;
 import com.my.challenger.dto.audio.AudioChallengeConfigDTO;
 import com.my.challenger.dto.audio.AudioChallengeSubmissionDTO;
 import com.my.challenger.dto.audio.CreateAudioQuestionRequest;
-import com.my.challenger.dto.question.QuestionResponseDTO;
+import com.my.challenger.dto.audio.QuestionResponseDTO;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;

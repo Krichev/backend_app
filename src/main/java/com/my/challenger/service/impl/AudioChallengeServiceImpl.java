@@ -3,7 +3,7 @@ package com.my.challenger.service.impl;
 import com.my.challenger.dto.audio.AudioChallengeConfigDTO;
 import com.my.challenger.dto.audio.AudioChallengeSubmissionDTO;
 import com.my.challenger.dto.audio.CreateAudioQuestionRequest;
-import com.my.challenger.dto.question.QuestionResponseDTO;
+import com.my.challenger.dto.audio.QuestionResponseDTO;
 import com.my.challenger.entity.AudioChallengeSubmission;
 import com.my.challenger.entity.MediaFile;
 import com.my.challenger.entity.User;
@@ -19,6 +19,7 @@ import com.my.challenger.repository.AudioChallengeSubmissionRepository;
 import com.my.challenger.repository.MediaFileRepository;
 import com.my.challenger.repository.QuizQuestionRepository;
 import com.my.challenger.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Qualifier;
 import com.my.challenger.service.AudioChallengeService;
 import com.my.challenger.service.integration.KaraokeServiceClient;
 import lombok.RequiredArgsConstructor;
@@ -37,12 +38,13 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AudioChallengeServiceImpl implements AudioChallengeService {
 
+    @Qualifier("quizQuestionRepository")
     private final QuizQuestionRepository questionRepository;
     private final AudioChallengeSubmissionRepository submissionRepository;
     private final MediaFileRepository mediaFileRepository;
     private final UserRepository userRepository;
     private final TopicService topicService;
-    private final MediaStorageService mediaStorageService;
+    private final MinioMediaStorageService mediaStorageService;
     private final KaraokeServiceClient karaokeClient;
 
     @Override
@@ -91,7 +93,7 @@ public class AudioChallengeServiceImpl implements AudioChallengeService {
                 .audioChallengeType(challengeType)
                 .audioReferenceMedia(audioMedia)
                 .questionMediaUrl(audioMedia != null ? audioMedia.getS3Key() : null)
-                .questionMediaId(audioMedia != null ? audioMedia.getId().toString() : null)
+                .questionMediaId(audioMedia != null ? audioMedia.getId() : null)
                 .questionMediaType(MediaType.AUDIO)
                 .audioSegmentStart(request.getAudioSegmentStart() != null ?
                         request.getAudioSegmentStart() : 0.0)
@@ -142,7 +144,7 @@ public class AudioChallengeServiceImpl implements AudioChallengeService {
 
             question.setAudioReferenceMedia(audioMedia);
             question.setQuestionMediaUrl(audioMedia.getS3Key());
-            question.setQuestionMediaId(audioMedia.getId().toString());
+            question.setQuestionMediaId(audioMedia.getId());
         }
 
         // Update segment times
