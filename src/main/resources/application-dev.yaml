@@ -9,8 +9,8 @@ spring:
     hikari:
       data-source-properties:
         tcpKeepAlive: true
-      minimum-idle: 1
-      maximum-pool-size: 20
+      minimum-idle: 2
+      maximum-pool-size: 10
       connection-timeout: 20000
       idle-timeout: 300000
       max-lifetime: 1200000

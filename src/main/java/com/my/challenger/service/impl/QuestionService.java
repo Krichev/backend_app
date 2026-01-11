@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static com.my.challenger.entity.enums.QuestionType.*;
+import com.my.challenger.entity.enums.QuestionType;
 
 @Slf4j
 @Service
@@ -102,7 +102,7 @@ public class QuestionService {
         QuestionType questionType = request.getQuestionType();
         log.info("📄 Request questionType: {}, mediaType: {}", questionType, mediaType);
 
-        if ((questionType == null || questionType == TEXT) && mediaType != null) {
+        if ((questionType == null || questionType ==QuestionType.TEXT) && mediaType != null) {
             questionType = mapMediaTypeToQuestionType(mediaType);
             log.info("🔄 Auto-detected questionType from media: {}", questionType);
         }
@@ -113,7 +113,7 @@ public class QuestionService {
                 .answer(request.getAnswer())
                 .difficulty(request.getDifficulty() != null ? request.getDifficulty() : QuizDifficulty.MEDIUM)
                 .topic(topic)
-                .questionType(questionType != null ? questionType : TEXT)
+                .questionType(questionType != null ? questionType :QuestionType.TEXT)
                 .questionMediaUrl(mediaS3Key)
                 .questionMediaId(mediaFileId != null ? mediaFileId : null)
                 .questionMediaType(mediaType)
@@ -157,12 +157,11 @@ public class QuestionService {
 
     private QuestionType mapMediaTypeToQuestionType(MediaType mediaType) {
         return switch (mediaType) {
-            case MediaType.IMAGE -> IMAGE;
-            case MediaType.VIDEO -> VIDEO;
-            case MediaType.DOCUMENT -> TEXT;
-            case AUDIO -> null;
-            case QUIZ_QUESTION -> null;
-            case AVATAR -> null;
+            case IMAGE -> QuestionType.IMAGE;
+            case VIDEO -> QuestionType.VIDEO;
+            case AUDIO -> QuestionType.AUDIO;
+            case DOCUMENT -> QuestionType.TEXT;
+            case QUIZ_QUESTION, AVATAR -> null;
         };
     }
 
