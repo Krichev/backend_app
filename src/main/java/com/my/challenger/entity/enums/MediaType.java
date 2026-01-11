@@ -58,7 +58,7 @@ public enum MediaType {
             case VIDEO:
                 return new String[]{"video/mp4", "video/mov", "video/avi", "video/quicktime"};
             case AUDIO:
-                return new String[]{"audio/mp3", "audio/wav", "audio/aac", "audio/m4a", "audio/ogg"};
+                return new String[]{"audio/mp3", "audio/wav", "audio/aac", "audio/m4a", "audio/ogg", "audio/mpeg", "audio/x-wav", "audio/webm"};
             case DOCUMENT:
                 return new String[]{"application/pdf", "application/msword", "text/plain"};
             default:

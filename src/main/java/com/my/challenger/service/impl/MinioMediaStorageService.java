@@ -62,7 +62,10 @@ public class MinioMediaStorageService {
 
     private static final Set<String> IMAGE_TYPES = Set.of("image/jpeg", "image/png", "image/gif", "image/webp");
     private static final Set<String> VIDEO_TYPES = Set.of("video/mp4", "video/avi", "video/mov", "video/wmv", "video/flv", "video/webm");
-    private static final Set<String> AUDIO_TYPES = Set.of("audio/mp3", "audio/wav", "audio/ogg", "audio/m4a", "audio/aac");
+    private static final Set<String> AUDIO_TYPES = Set.of(
+            "audio/wav", "audio/mp3", "audio/ogg", "audio/m4a",
+            "audio/aac", "audio/mpeg", "audio/x-wav", "audio/webm"
+    );
     private static final Set<String> DOCUMENT_TYPES = Set.of("application/pdf", "application/msword", "text/plain",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
 
