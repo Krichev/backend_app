@@ -130,6 +130,18 @@ public class Challenge {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "max_participants")
+    private Integer maxParticipants;
+
+    @Column(name = "current_participant_count")
+    private Integer currentParticipantCount = 0;
+
+    @Column(name = "allow_open_enrollment")
+    private Boolean allowOpenEnrollment = true;
+
+    @Column(name = "enrollment_deadline")
+    private LocalDateTime enrollmentDeadline;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
@@ -145,6 +157,16 @@ public class Challenge {
     }
 
     // ========== HELPER METHODS ==========
+
+    public boolean canAcceptMoreParticipants() {
+        if (maxParticipants == null) return true;
+        return currentParticipantCount < maxParticipants;
+    }
+
+    public boolean isEnrollmentOpen() {
+        if (enrollmentDeadline == null) return true;
+        return LocalDateTime.now().isBefore(enrollmentDeadline);
+    }
 
     public void addToAccessList(User user) {
         ChallengeAccess access = new ChallengeAccess();
