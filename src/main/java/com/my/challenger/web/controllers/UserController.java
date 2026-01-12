@@ -2,6 +2,7 @@
 package com.my.challenger.web.controllers;
 
 import com.my.challenger.config.JwtTokenUtil;
+import com.my.challenger.dto.quiz.UserSearchResultDTO;
 import com.my.challenger.dto.user.UpdateUserProfileRequest;
 import com.my.challenger.dto.user.UpdateUserProfileResponse;
 import com.my.challenger.dto.user.UserProfileResponse;
@@ -16,8 +17,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -100,14 +101,19 @@ public class UserController {
         }
     }
 
-    @Operation(summary = "Search users")
+
+    @Operation(summary = "Search users with enhanced filters")
     @GetMapping("/search")
-    public ResponseEntity<?> searchUsers(
+    public ResponseEntity<Page<UserSearchResultDTO>> searchUsers(
             @RequestParam String q,
-            @RequestParam(defaultValue = "10") int limit) {
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int limit,
+            @RequestParam(defaultValue = "false") boolean excludeConnected,
+            @CurrentUser UserPrincipal currentUser) {
 
         try {
-            return ResponseEntity.ok(userService.searchUsers(q, limit));
+            Long currentUserId = currentUser != null ? currentUser.getId() : null;
+            return ResponseEntity.ok(userService.searchUsersEnhanced(q, currentUserId, excludeConnected, page, limit));
         } catch (Exception e) {
             log.error("Error searching users with query: {}", q, e);
             throw e;

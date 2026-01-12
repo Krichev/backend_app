@@ -38,6 +38,15 @@ public class UserRelationshipDTO {
     @Schema(description = "Relationship status")
     private RelationshipStatus status;
 
+    @Schema(description = "User's custom nickname for the contact")
+    private String nickname;
+
+    @Schema(description = "Private notes about the contact")
+    private String notes;
+
+    @Schema(description = "Whether the contact is marked as favorite")
+    private Boolean isFavorite;
+
     @Schema(description = "Created timestamp")
     private LocalDateTime createdAt;
 }

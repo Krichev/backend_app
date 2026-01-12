@@ -1,16 +1,22 @@
 package com.my.challenger.service.impl;
 
+import com.my.challenger.dto.quiz.UserSearchResultDTO;
 import com.my.challenger.dto.user.UpdateUserProfileRequest;
 import com.my.challenger.dto.user.UserProfileResponse;
 import com.my.challenger.dto.user.UserStatsResponse;
 import com.my.challenger.entity.User;
+import com.my.challenger.entity.UserRelationship;
 import com.my.challenger.exception.BadRequestException;
 import com.my.challenger.exception.ResourceNotFoundException;
 import com.my.challenger.repository.ChallengeProgressRepository;
 import com.my.challenger.repository.ChallengeRepository;
+import com.my.challenger.repository.UserRelationshipRepository;
 import com.my.challenger.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -28,6 +34,55 @@ public class UserService {
     private final UserRepository userRepository;
     private final ChallengeRepository challengeRepository;
     private final ChallengeProgressRepository challengeProgressRepository;
+    private final UserRelationshipRepository relationshipRepository;
+
+    /**
+     * Search users with enhanced filters and mutual connections count
+     */
+    @Transactional(readOnly = true)
+    public Page<UserSearchResultDTO> searchUsersEnhanced(String searchTerm, Long currentUserId, boolean excludeConnected, int page, int limit) {
+        log.debug("Enhanced searching users with term: {} (currentUserId: {}, excludeConnected: {})", 
+                searchTerm, currentUserId, excludeConnected);
+
+        if (!StringUtils.hasText(searchTerm)) {
+            throw new BadRequestException("Search term cannot be empty");
+        }
+
+        if (searchTerm.length() < 2) {
+            throw new BadRequestException("Search term must be at least 2 characters long");
+        }
+
+        Pageable pageable = PageRequest.of(page, limit);
+        Page<User> userPage = userRepository.searchUsers(searchTerm, currentUserId, excludeConnected, pageable);
+
+        return userPage.map(user -> {
+            long mutualCount = 0;
+            String connectionStatus = "NONE";
+
+            if (currentUserId != null) {
+                mutualCount = relationshipRepository.countMutualConnections(currentUserId, user.getId());
+                
+                var relationship = relationshipRepository.findBetweenUsers(currentUserId, user.getId());
+                if (relationship.isPresent()) {
+                    UserRelationship rel = relationship.get();
+                    if (rel.getStatus().name().equals("ACCEPTED")) {
+                        connectionStatus = "CONNECTED";
+                    } else if (rel.getStatus().name().equals("PENDING")) {
+                        connectionStatus = rel.getUser().getId().equals(currentUserId) ? "PENDING_SENT" : "PENDING_RECEIVED";
+                    }
+                }
+            }
+
+            return UserSearchResultDTO.builder()
+                    .id(user.getId())
+                    .username(user.getUsername())
+                    .avatar(user.getProfilePictureUrl())
+                    .bio(user.getBio())
+                    .mutualConnectionsCount(mutualCount)
+                    .connectionStatus(connectionStatus)
+                    .build();
+        });
+    }
 
     /**
      * Get user statistics - ENHANCED with better error handling

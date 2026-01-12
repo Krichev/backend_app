@@ -52,6 +52,16 @@ public class UserRelationship {
     @Builder.Default
     private RelationshipStatus status = RelationshipStatus.PENDING;
 
+    @Column(name = "nickname", length = 100)
+    private String nickname;
+
+    @Column(name = "notes", columnDefinition = "TEXT")
+    private String notes;
+
+    @Column(name = "is_favorite")
+    @Builder.Default
+    private Boolean isFavorite = false;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

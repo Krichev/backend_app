@@ -1,8 +1,9 @@
 // UserRelationshipController.java
 package com.my.challenger.web.controllers;
 
-import com.my.challenger.dto.quiz.CreateRelationshipRequest;
-import com.my.challenger.dto.quiz.UserRelationshipDTO;
+import com.my.challenger.dto.quiz.*;
+import com.my.challenger.entity.enums.RelationshipStatus;
+import com.my.challenger.entity.enums.RelationshipType;
 import com.my.challenger.security.UserPrincipal;
 import com.my.challenger.service.impl.UserRelationshipService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -10,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -20,7 +22,7 @@ import java.util.List;
 
 @Slf4j
 @RestController
-@RequestMapping("/challenger/api/relationships")
+@RequestMapping("/api/relationships")
 @RequiredArgsConstructor
 @Tag(name = "User Relationships", description = "Manage user relationships (friends/family)")
 public class UserRelationshipController {
@@ -39,13 +41,61 @@ public class UserRelationshipController {
     }
 
     @GetMapping
-    @Operation(summary = "Get all relationships for current user")
-    public ResponseEntity<List<UserRelationshipDTO>> getMyRelationships(
+    @Operation(summary = "Get relationships for current user with filtering, sorting and pagination")
+    public ResponseEntity<Page<UserRelationshipDTO>> getRelationships(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(required = false) Long relatedUserId,
+            @RequestParam(required = false) RelationshipType type,
+            @RequestParam(required = false, defaultValue = "ACCEPTED") RelationshipStatus status,
+            @RequestParam(required = false) String sort,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        
+        Long userId = ((UserPrincipal) userDetails).getId();
+        Page<UserRelationshipDTO> relationships = relationshipService.getRelationshipsFiltered(userId, relatedUserId, type, status, sort, page, size);
+        return ResponseEntity.ok(relationships);
+    }
+
+    @PutMapping("/{relationshipId}")
+    @Operation(summary = "Update relationship details (nickname, notes, type, favorite)")
+    public ResponseEntity<UserRelationshipDTO> updateRelationship(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long relationshipId,
+            @RequestBody UpdateRelationshipRequest request) {
+        
+        Long userId = ((UserPrincipal) userDetails).getId();
+        UserRelationshipDTO relationship = relationshipService.updateRelationship(userId, relationshipId, request);
+        return ResponseEntity.ok(relationship);
+    }
+
+    @PutMapping("/{relationshipId}/favorite")
+    @Operation(summary = "Toggle favorite status")
+    public ResponseEntity<UserRelationshipDTO> toggleFavorite(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long relationshipId) {
+        
+        Long userId = ((UserPrincipal) userDetails).getId();
+        UserRelationshipDTO relationship = relationshipService.toggleFavorite(userId, relationshipId);
+        return ResponseEntity.ok(relationship);
+    }
+
+    @GetMapping("/suggestions")
+    @Operation(summary = "Get suggested connections based on mutual friends")
+    public ResponseEntity<List<UserSuggestionDTO>> getSuggestions(
             @AuthenticationPrincipal UserDetails userDetails) {
         
-         Long userId = ((UserPrincipal) userDetails).getId();
-        List<UserRelationshipDTO> relationships = relationshipService.getUserRelationships(userId);
-        return ResponseEntity.ok(relationships);
+        Long userId = ((UserPrincipal) userDetails).getId();
+        return ResponseEntity.ok(relationshipService.getSuggestions(userId));
+    }
+
+    @GetMapping("/mutual/{otherUserId}")
+    @Operation(summary = "Get mutual connections with another user")
+    public ResponseEntity<List<MutualConnectionDTO>> getMutualConnections(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long otherUserId) {
+        
+        Long userId = ((UserPrincipal) userDetails).getId();
+        return ResponseEntity.ok(relationshipService.getMutualConnections(userId, otherUserId));
     }
 
     @GetMapping("/pending")

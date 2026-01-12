@@ -1,6 +1,8 @@
 package com.my.challenger.repository;
 
 import com.my.challenger.entity.User;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -41,6 +43,22 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * Find users by email containing the search term (case insensitive)
      */
     List<User> findByEmailContainingIgnoreCase(String searchTerm);
+
+    /**
+     * Enhanced search for users with filters and pagination
+     */
+    @Query("SELECT u FROM User u WHERE " +
+           "(LOWER(u.username) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
+           " LOWER(u.email) LIKE LOWER(CONCAT('%', :q, '%'))) " +
+           "AND (:excludeUserId IS NULL OR u.id != :excludeUserId) " +
+           "AND (:excludeConnected = false OR u.id NOT IN (" +
+           "  SELECT CASE WHEN ur.user.id = :excludeUserId THEN ur.relatedUser.id ELSE ur.user.id END " +
+           "  FROM UserRelationship ur WHERE (ur.user.id = :excludeUserId OR ur.relatedUser.id = :excludeUserId) AND ur.status = 'ACCEPTED'" +
+           "))")
+    Page<User> searchUsers(@Param("q") String q, 
+                           @Param("excludeUserId") Long excludeUserId, 
+                           @Param("excludeConnected") boolean excludeConnected, 
+                           Pageable pageable);
 
     /**
      * Get users with pagination and sorting
