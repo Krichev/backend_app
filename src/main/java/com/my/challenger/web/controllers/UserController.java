@@ -6,6 +6,7 @@ import com.my.challenger.dto.quiz.UserSearchResultDTO;
 import com.my.challenger.dto.user.UpdateUserProfileRequest;
 import com.my.challenger.dto.user.UpdateUserProfileResponse;
 import com.my.challenger.dto.user.UserProfileResponse;
+import com.my.challenger.dto.user.UserSearchPageResponse;
 import com.my.challenger.dto.user.UserStatsResponse;
 import com.my.challenger.entity.User;
 import com.my.challenger.repository.UserRepository;
@@ -102,20 +103,24 @@ public class UserController {
     }
 
 
-    @Operation(summary = "Search users with enhanced filters")
+    @Operation(summary = "Search users with connection status")
     @GetMapping("/search")
-    public ResponseEntity<Page<UserSearchResultDTO>> searchUsers(
+    public ResponseEntity<UserSearchPageResponse> searchUsers(
             @RequestParam String q,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int limit,
             @RequestParam(defaultValue = "false") boolean excludeConnected,
             @CurrentUser UserPrincipal currentUser) {
 
+        log.info("User search: query='{}', page={}, limit={}, currentUser={}",
+                q, page, limit, currentUser.getId());
+
         try {
-            Long currentUserId = currentUser != null ? currentUser.getId() : null;
-            return ResponseEntity.ok(userService.searchUsersEnhanced(q, currentUserId, excludeConnected, page, limit));
+            UserSearchPageResponse results = userService.searchUsersWithConnectionStatus(
+                    q, currentUser.getId(), page, limit, excludeConnected);
+            return ResponseEntity.ok(results);
         } catch (Exception e) {
-            log.error("Error searching users with query: {}", q, e);
+            log.error("Error searching users: {}", e.getMessage(), e);
             throw e;
         }
     }

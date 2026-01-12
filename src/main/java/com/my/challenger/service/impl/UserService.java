@@ -3,6 +3,8 @@ package com.my.challenger.service.impl;
 import com.my.challenger.dto.quiz.UserSearchResultDTO;
 import com.my.challenger.dto.user.UpdateUserProfileRequest;
 import com.my.challenger.dto.user.UserProfileResponse;
+import com.my.challenger.dto.user.UserSearchPageResponse;
+import com.my.challenger.dto.user.UserSearchResponse;
 import com.my.challenger.dto.user.UserStatsResponse;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.UserRelationship;
@@ -22,7 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -35,6 +39,92 @@ public class UserService {
     private final ChallengeRepository challengeRepository;
     private final ChallengeProgressRepository challengeProgressRepository;
     private final UserRelationshipRepository relationshipRepository;
+
+    @Transactional(readOnly = true)
+    public UserSearchPageResponse searchUsersWithConnectionStatus(
+            String searchTerm,
+            Long currentUserId,
+            int page,
+            int limit,
+            boolean excludeConnected) {
+
+        log.debug("Searching users: term={}, currentUser={}, page={}, limit={}",
+                searchTerm, currentUserId, page, limit);
+
+        if (!StringUtils.hasText(searchTerm) || searchTerm.length() < 2) {
+            return UserSearchPageResponse.builder()
+                    .content(List.of())
+                    .totalElements(0)
+                    .page(page)
+                    .size(limit)
+                    .build();
+        }
+
+        // Get all matching users
+        List<User> allUsers = userRepository.findByUsernameContainingIgnoreCase(searchTerm);
+
+        // Filter out current user
+        allUsers = allUsers.stream()
+                .filter(u -> !u.getId().equals(currentUserId))
+                .collect(Collectors.toList());
+
+        // Get connected user IDs for current user
+        Set<Long> connectedIds = new HashSet<>(
+                relationshipRepository.findConnectedUserIds(currentUserId));
+
+        // Get pending request IDs (both sent and received)
+        Set<Long> pendingIds = new HashSet<>();
+        relationshipRepository.findPendingRequestsForUser(currentUserId)
+                .forEach(r -> pendingIds.add(r.getUser().getId()));
+        // Also check outgoing pending requests
+        relationshipRepository.findAllForUser(currentUserId).stream()
+                .filter(r -> r.getStatus().name().equals("PENDING"))
+                .forEach(r -> pendingIds.add(r.getRelatedUser().getId()));
+
+        // Filter if excludeConnected
+        if (excludeConnected) {
+            allUsers = allUsers.stream()
+                    .filter(u -> !connectedIds.contains(u.getId()))
+                    .collect(Collectors.toList());
+        }
+
+        long totalElements = allUsers.size();
+
+        // Paginate
+        int start = page * limit;
+        int end = Math.min(start + limit, allUsers.size());
+        List<User> pageUsers = start < allUsers.size()
+                ? allUsers.subList(start, end)
+                : List.of();
+
+        // Convert to DTOs with connection status
+        List<UserSearchResponse> content = pageUsers.stream()
+                .map(user -> {
+                    String status = "NONE";
+                    if (connectedIds.contains(user.getId())) {
+                        status = "ACCEPTED";
+                    } else if (pendingIds.contains(user.getId())) {
+                        status = "PENDING";
+                    }
+
+                    return UserSearchResponse.builder()
+                            .id(user.getId().toString())
+                            .username(user.getUsername())
+                            .avatar(user.getProfilePictureUrl())
+                            .bio(user.getBio())
+                            .connectionStatus(status)
+                            .mutualConnectionsCount(0) // Can enhance later
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        return UserSearchPageResponse.builder()
+                .content(content)
+                .totalElements(totalElements)
+                .page(page)
+                .size(limit)
+                .build();
+    }
 
     /**
      * Search users with enhanced filters and mutual connections count
