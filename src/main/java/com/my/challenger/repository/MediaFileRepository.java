@@ -4,6 +4,8 @@ import com.my.challenger.entity.MediaFile;
 import com.my.challenger.entity.enums.MediaCategory;
 import com.my.challenger.entity.enums.MediaType;
 import com.my.challenger.entity.enums.ProcessingStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -12,6 +14,7 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 public interface MediaFileRepository extends JpaRepository<MediaFile, Long> {
@@ -25,9 +28,22 @@ public interface MediaFileRepository extends JpaRepository<MediaFile, Long> {
 
     List<MediaFile> findByProcessingStatus(ProcessingStatus status);
 
+    @Deprecated(since = "2.0", forRemoval = true)
     Optional<MediaFile> findByFilename(String filename);
 
     Optional<MediaFile> findByS3Key(String s3Key);
+
+    // ADD: Primary lookup method
+    Optional<MediaFile> findByStorageKey(UUID storageKey);
+
+    // ADD: Content-based lookup for deduplication
+    Optional<MediaFile> findByContentHash(String contentHash);
+    List<MediaFile> findByContentHashAndUploadedBy(String contentHash, Long uploadedBy);
+    boolean existsByContentHashAndUploadedBy(String contentHash, Long uploadedBy);
+
+    // ADD: Paginated queries for enterprise scale
+    Page<MediaFile> findByUploadedBy(Long uploadedBy, Pageable pageable);
+    Page<MediaFile> findByEntityIdAndMediaCategory(Long entityId, MediaCategory category, Pageable pageable);
 
     void deleteByEntityIdAndMediaType(Long entityId, MediaType mediaType);
 

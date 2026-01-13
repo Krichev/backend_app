@@ -53,8 +53,25 @@ public class MediaFile {
 
     @NotBlank(message = "Filename cannot be blank")
     @Size(max = 255, message = "Filename cannot exceed 255 characters")
-    @Column(name = "filename", nullable = false, unique = true)
+    @Column(name = "filename", nullable = false)
     private String filename;
+
+    // ADD: New storage key field
+    @Column(name = "storage_key", nullable = false, unique = true, updatable = false)
+    private UUID storageKey;
+
+    // ADD: Content hash for deduplication
+    @Size(max = 64)
+    @Column(name = "content_hash", length = 64)
+    private String contentHash;
+
+    // ADD: Auto-generate storage key
+    @PrePersist
+    public void generateStorageKey() {
+        if (this.storageKey == null) {
+            this.storageKey = UUID.randomUUID();
+        }
+    }
 
     @NotBlank(message = "Content type cannot be blank")
     @Size(max = 100, message = "Content type cannot exceed 100 characters")

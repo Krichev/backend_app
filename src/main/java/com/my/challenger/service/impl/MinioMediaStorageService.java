@@ -26,9 +26,12 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -79,6 +82,23 @@ public class MinioMediaStorageService {
     public MediaFile storeMedia(MultipartFile file, Long entityId, MediaCategory category, Long uploadedBy) {
         try {
             validateFile(file);
+            
+            byte[] fileContent = file.getBytes();
+            
+            // Calculate content hash for deduplication and integrity
+            String contentHash = calculateContentHash(fileContent);
+            
+            // Optional: Check for duplicate content from same user
+            if (contentHash != null) {
+                Optional<MediaFile> existing = mediaFileRepository
+                    .findByContentHashAndUploadedBy(contentHash, uploadedBy)
+                    .stream().findFirst();
+                if (existing.isPresent()) {
+                    log.info("Duplicate file detected for user {}, returning existing media {}", 
+                        uploadedBy, existing.get().getId());
+                    return existing.get();
+                }
+            }
 
             // Determine MediaType from content type
             MediaType mediaType = determineMediaType(file.getContentType());
@@ -87,10 +107,10 @@ public class MinioMediaStorageService {
             String s3Key = generateS3Key(category, file.getOriginalFilename());
 
             // Upload to MinIO
-            uploadToMinio(s3Key, file.getBytes(), file.getContentType());
+            uploadToMinio(s3Key, fileContent, file.getContentType());
 
             // Create and save media file entity
-            MediaFile mediaFile = createMediaFileEntity(file, s3Key, entityId, category, mediaType, uploadedBy);
+            MediaFile mediaFile = createMediaFileEntity(file, s3Key, entityId, category, mediaType, uploadedBy, contentHash);
             mediaFile = mediaFileRepository.save(mediaFile);
 
             // Generate thumbnail if applicable
@@ -262,6 +282,22 @@ public class MinioMediaStorageService {
     }
 
     /**
+     * Get media file by storage key
+     */
+    public Optional<MediaFile> getMediaFileByStorageKey(UUID storageKey) {
+        return mediaFileRepository.findByStorageKey(storageKey);
+    }
+
+    /**
+     * Get public URL for media file by storage key
+     */
+    public String getMediaUrlByStorageKey(UUID storageKey) {
+        return mediaFileRepository.findByStorageKey(storageKey)
+            .map(mf -> generatePresignedUrl(mf.getS3Key()))
+            .orElse(null);
+    }
+
+    /**
      * Get media URL by media ID
      */
     public String getMediaUrl(Long mediaId) {
@@ -280,11 +316,15 @@ public class MinioMediaStorageService {
 
     /**
      * Get media URL by filename
+     * @deprecated use getMediaUrlByStorageKey(UUID) instead
      */
+    @Deprecated
     public String getMediaUrl(String filename) {
         if (filename == null || filename.trim().isEmpty()) {
             return null;
         }
+        
+        log.warn("getMediaUrl(filename) is deprecated, use getMediaUrlByStorageKey(UUID)");
 
         Optional<MediaFile> mediaFile = mediaFileRepository.findByFilename(filename);
         if (mediaFile.isPresent()) {
@@ -507,11 +547,34 @@ public class MinioMediaStorageService {
         return (lastDotIndex == -1) ? "" : filename.substring(lastDotIndex + 1).toLowerCase();
     }
 
+    private String calculateContentHash(byte[] content) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hashBytes = digest.digest(content);
+            return HexFormat.of().formatHex(hashBytes);
+        } catch (NoSuchAlgorithmException e) {
+            log.warn("SHA-256 not available, skipping content hash");
+            return null;
+        }
+    }
+
+    private String extractFilenameFromS3Key(String s3Key) {
+        int lastSlash = s3Key.lastIndexOf('/');
+        return lastSlash >= 0 ? s3Key.substring(lastSlash + 1) : s3Key;
+    }
+
     private MediaFile createMediaFileEntity(MultipartFile file, String s3Key, Long entityId,
-                                            MediaCategory category, MediaType mediaType, Long uploadedBy) throws IOException {
+                                            MediaCategory category, MediaType mediaType, 
+                                            Long uploadedBy, String contentHash) throws IOException {
         MediaFile mediaFile = new MediaFile();
-        mediaFile.setFilename(file.getOriginalFilename());
+        
+        // Store UUID-based filename (extracted from s3Key), not original
+        String storageFilename = extractFilenameFromS3Key(s3Key);
+        mediaFile.setFilename(storageFilename);
+        
+        // Preserve original filename for display
         mediaFile.setOriginalFilename(file.getOriginalFilename());
+        
         mediaFile.setS3Key(s3Key);
         mediaFile.setFilePath(s3Key);
         mediaFile.setFileSize(file.getSize());
@@ -522,6 +585,9 @@ public class MinioMediaStorageService {
         mediaFile.setUploadedBy(uploadedBy);
         mediaFile.setUploadedAt(LocalDateTime.now());
         mediaFile.setProcessingStatus(ProcessingStatus.PENDING);
+        
+        // Set content hash for deduplication
+        mediaFile.setContentHash(contentHash);
 
         // Set image-specific metadata
         if (mediaType == MediaType.IMAGE) {
