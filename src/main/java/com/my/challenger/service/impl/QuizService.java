@@ -23,6 +23,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,16 +37,25 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class QuizService {
 
-    protected final QuizQuestionRepository quizQuestionRepository;
-    protected final QuizSessionRepository quizSessionRepository;
-    protected final QuizRoundRepository quizRoundRepository;
-    protected final ChallengeRepository challengeRepository;
-    protected final UserRepository userRepository;
-    protected final MediaFileRepository mediaFileRepository;
-    protected final QuestRepository questRepository;
-    protected final WWWGameService gameService;
-    protected final MinioMediaStorageService mediaStorageService;
-    private final TopicService topicService;
+    /**
+     * Get quiz session by ID
+     */
+    @Transactional(readOnly = true)
+    public QuizSessionDTO getQuizSession(Long sessionId, Long userId) {
+        log.debug("Getting quiz session: {} for user: {}", sessionId, userId);
+        
+        QuizSession session = quizSessionRepository.findById(sessionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Quiz session not found with id: " + sessionId));
+        
+        // Validate user has access to this session
+        if (!session.getHostUser().getId().equals(userId)) {
+            log.warn("User {} attempted to access session {} owned by user {}", 
+                    userId, sessionId, session.getHostUser().getId());
+            throw new AccessDeniedException("You don't have access to this quiz session");
+        }
+        
+        return convertSessionToDTO(session);
+    }
 
     // =============================================================================
     // QUESTION MANAGEMENT METHODS

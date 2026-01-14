@@ -188,6 +188,17 @@ public class QuizController {
         return ResponseEntity.ok(session);
     }
 
+    @GetMapping("/sessions/{sessionId}")
+    @Operation(summary = "Get quiz session by ID")
+    public ResponseEntity<QuizSessionDTO> getQuizSession(
+            @PathVariable Long sessionId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        User user = getUserFromUserDetails(userDetails);
+        QuizSessionDTO session = quizService.getQuizSession(sessionId, user.getId());
+        return ResponseEntity.ok(session);
+    }
+
 
     @PutMapping("/questions/{questionId}/visibility")
     @Operation(summary = "Update question visibility policy")
