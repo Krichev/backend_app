@@ -63,7 +63,7 @@ public class QuizChallengeController {
             }
 
             // Validate user exists
-            User user = userRepository.findByEmail(userDetails.getUsername())
+            User user = userRepository.findByUsername(userDetails.getUsername())
                     .orElseThrow(() -> new IllegalArgumentException("User not found: " + userDetails.getUsername()));
 
             // Validate basic fields
@@ -159,7 +159,7 @@ public class QuizChallengeController {
             log.info("Updating quiz config for challenge ID: {}", challengeId);
 
             // Validate user has permission to update
-            User user = userRepository.findByEmail(userDetails.getUsername())
+            User user = userRepository.findByUsername(userDetails.getUsername())
                     .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
             // Update logic would go here
