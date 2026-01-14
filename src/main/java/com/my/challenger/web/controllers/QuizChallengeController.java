@@ -21,7 +21,7 @@ import java.util.Map;
  * Handles creation and management of quiz-type challenges
  */
 @RestController
-@RequestMapping("/challenger/api/challenges")
+@RequestMapping("/api/challenges")
 @RequiredArgsConstructor
 @Slf4j
 public class QuizChallengeController {
