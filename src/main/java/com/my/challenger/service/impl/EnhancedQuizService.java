@@ -120,6 +120,16 @@ public class EnhancedQuizService extends QuizService {
             // Set status
             challenge.setStatus(ChallengeStatus.ACTIVE);
 
+            // Map and set difficulty from quiz config
+            if (request.getQuizConfig() != null && request.getQuizConfig().getDefaultDifficulty() != null) {
+                challenge.setDifficulty(mapQuizDifficultyToChallengeDifficulty(
+                        request.getQuizConfig().getDefaultDifficulty().name()));
+                log.info("Difficulty set to: {}", challenge.getDifficulty());
+            } else {
+                challenge.setDifficulty(ChallengeDifficulty.MEDIUM);
+                log.warn("No difficulty in quiz config, defaulting to MEDIUM");
+            }
+
             // 3. Save quiz configuration as JSON string
             if (request.getQuizConfig() != null) {
                 QuizChallengeConfig config = request.getQuizConfig();

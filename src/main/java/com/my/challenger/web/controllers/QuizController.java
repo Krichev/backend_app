@@ -30,6 +30,9 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Map;
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/quiz")
 @RequiredArgsConstructor
@@ -222,6 +225,16 @@ public class QuizController {
         User user = getUserFromUserDetails(userDetails);
         QuizRoundDTO round = quizService.getCurrentRound(sessionId, user.getId());
         return ResponseEntity.ok(round);
+    }
+
+    @GetMapping("/sessions/{sessionId}/rounds")
+    @Operation(summary = "Get all rounds for a quiz session")
+    public ResponseEntity<List<QuizRoundDTO>> getQuizRounds(
+            @PathVariable Long sessionId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        User user = getUserFromUserDetails(userDetails);
+        List<QuizRoundDTO> rounds = questionService.getQuizRounds(sessionId, user.getId());
+        return ResponseEntity.ok(rounds);
     }
 
     // =============================================================================

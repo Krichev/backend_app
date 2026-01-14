@@ -2,6 +2,7 @@ package com.my.challenger.entity.challenge;
 
 import com.my.challenger.entity.ChallengeProgress;
 import com.my.challenger.entity.Group;
+import com.my.challenger.entity.MediaFile;
 import com.my.challenger.entity.Task;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.enums.*;
@@ -141,6 +142,21 @@ public class Challenge {
 
     @Column(name = "enrollment_deadline")
     private LocalDateTime enrollmentDeadline;
+
+    // ========== AUDIO CONFIGURATION FIELDS ==========
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "audio_media_id")
+    private MediaFile audioMedia;
+
+    @Column(name = "audio_start_time")
+    private Double audioStartTime = 0.0;
+
+    @Column(name = "audio_end_time")
+    private Double audioEndTime;
+
+    @Column(name = "minimum_score_percentage")
+    private Integer minimumScorePercentage = 0;
 
     @PrePersist
     protected void onCreate() {

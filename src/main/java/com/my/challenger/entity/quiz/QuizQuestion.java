@@ -65,7 +65,7 @@ public class QuizQuestion {
     @Builder.Default
     private QuestionType questionType = QuestionType.TEXT;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn(name = "topic_id")
     private Topic topic;
 
