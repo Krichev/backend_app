@@ -19,9 +19,41 @@ import java.util.Map;
 /**
  * Global exception handler for the application
  */
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException ex, WebRequest request) {
+        
+        log.error("JSON parsing error: {}", ex.getMostSpecificCause().getMessage());
+        
+        String message = "Invalid request format";
+        Throwable cause = ex.getCause();
+        
+        if (cause instanceof InvalidFormatException ife) {
+            String fieldName = ife.getPath().isEmpty() ? "unknown" : 
+                ife.getPath().get(ife.getPath().size() - 1).getFieldName();
+            message = String.format("Invalid value for field '%s': %s", 
+                fieldName, ife.getValue());
+        } else if (cause != null) {
+            message = "JSON parsing error: " + cause.getMessage();
+        }
+        
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error("Bad Request")
+                .message(message)
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+        
+        return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+    }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleResourceNotFoundException(

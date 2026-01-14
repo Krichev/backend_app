@@ -88,17 +88,8 @@ public class QuizChallengeController {
 
             // Validate quiz config fields
             var quizConfig = request.getQuizConfig();
-            if (quizConfig.getTeamName() == null || quizConfig.getTeamName().trim().isEmpty()) {
-                log.error("Team name is missing");
-                return ResponseEntity.badRequest()
-                        .body(Map.of("error", "Team name is required"));
-            }
-
-            if (quizConfig.getTeamMembers() == null || quizConfig.getTeamMembers().isEmpty()) {
-                log.error("Team members list is empty");
-                return ResponseEntity.badRequest()
-                        .body(Map.of("error", "At least one team member is required"));
-            }
+            
+            // Team name and members validation removed - only needed for session start
 
             // Create the challenge
             log.info("Calling service to create quiz challenge...");
