@@ -9,6 +9,8 @@ public class SubmitRoundAnswerRequest {
     @NotNull(message = "Round number is required")
     private Integer roundNumber;
 
+    private Long roundId;
+
     @NotBlank(message = "Team answer is required")
     private String teamAnswer;
 
