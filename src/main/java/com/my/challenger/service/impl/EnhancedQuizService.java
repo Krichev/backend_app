@@ -29,9 +29,7 @@ import java.util.stream.Collectors;
 public class EnhancedQuizService extends QuizService {
 
 //    private final ObjectMapper objectMapper;
-    private final QuizRoundRepository quizRoundRepository;
     private final TaskRepository taskRepository;
-    private final TopicService topicService;
 
     public EnhancedQuizService(
             QuizQuestionRepository quizQuestionRepository,
@@ -51,9 +49,7 @@ public class EnhancedQuizService extends QuizService {
                 mediaStorageService, topicService);
 
 //        this.objectMapper = objectMapper;
-        this.quizRoundRepository = quizRoundRepository;
         this.taskRepository = taskRepository;
-        this.topicService = topicService;
     }
 
 

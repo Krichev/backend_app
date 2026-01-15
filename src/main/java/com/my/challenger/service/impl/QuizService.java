@@ -1,5 +1,6 @@
 package com.my.challenger.service.impl;
 
+import com.my.challenger.dto.quiz.HintResponseDTO;
 import com.my.challenger.dto.SessionStatsDTO;
 import com.my.challenger.dto.quiz.*;
 import com.my.challenger.entity.MediaFile;
@@ -17,7 +18,6 @@ import com.my.challenger.exception.ResourceNotFoundException;
 import com.my.challenger.mapper.QuizQuestionMapper;
 import com.my.challenger.repository.*;
 import com.my.challenger.service.WWWGameService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -34,8 +34,41 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class QuizService {
+
+    protected final QuizQuestionRepository quizQuestionRepository;
+    protected final QuizSessionRepository quizSessionRepository;
+    protected final QuizRoundRepository quizRoundRepository;
+    protected final ChallengeRepository challengeRepository;
+    protected final UserRepository userRepository;
+    protected final MediaFileRepository mediaFileRepository;
+    protected final QuestRepository questRepository;
+    protected final WWWGameService gameService;
+    protected final MinioMediaStorageService mediaStorageService;
+    protected final TopicService topicService;
+
+    public QuizService(
+            QuizQuestionRepository quizQuestionRepository,
+            QuizSessionRepository quizSessionRepository,
+            QuizRoundRepository quizRoundRepository,
+            ChallengeRepository challengeRepository,
+            UserRepository userRepository,
+            MediaFileRepository mediaFileRepository,
+            QuestRepository questRepository,
+            WWWGameService gameService,
+            MinioMediaStorageService mediaStorageService,
+            TopicService topicService) {
+        this.quizQuestionRepository = quizQuestionRepository;
+        this.quizSessionRepository = quizSessionRepository;
+        this.quizRoundRepository = quizRoundRepository;
+        this.challengeRepository = challengeRepository;
+        this.userRepository = userRepository;
+        this.mediaFileRepository = mediaFileRepository;
+        this.questRepository = questRepository;
+        this.gameService = gameService;
+        this.mediaStorageService = mediaStorageService;
+        this.topicService = topicService;
+    }
 
     /**
      * Get quiz session by ID
