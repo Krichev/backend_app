@@ -6,8 +6,10 @@ import com.my.challenger.entity.MediaFile;
 import com.my.challenger.entity.enums.MediaCategory;
 import com.my.challenger.exception.InvalidAudioSegmentException;
 import com.my.challenger.exception.ResourceNotFoundException;
+import com.my.challenger.security.UserPrincipal;
 import com.my.challenger.service.MediaService;
 import com.my.challenger.service.QuestAudioService;
+import com.my.challenger.service.QuestService;
 import com.my.challenger.service.impl.MinioMediaStorageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -19,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -31,12 +34,47 @@ import java.util.Map;
 @RequestMapping("/api/quests")
 @RequiredArgsConstructor
 @Slf4j
-@Tag(name = "Quest Audio Management", description = "Manage audio tracks and configuration for quests")
+@Tag(name = "Quest Management", description = "Manage quests including audio configuration and lifecycle")
 public class QuestController {
 
     private final QuestAudioService questAudioService;
+    private final QuestService questService;
     private final MediaService mediaService;
     private final MinioMediaStorageService storageService;
+
+    @DeleteMapping("/{questId}")
+    @Operation(summary = "Delete quest (soft delete)",
+            description = "Mark a quest as inactive. Only the creator can delete their quest.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Quest deleted successfully"),
+            @ApiResponse(responseCode = "403", description = "Forbidden - only creator can delete"),
+            @ApiResponse(responseCode = "404", description = "Quest not found"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResponseEntity<Void> deleteQuest(
+            @Parameter(description = "Quest ID", required = true)
+            @PathVariable Long questId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        try {
+            Long userId = ((UserPrincipal) userDetails).getId();
+            log.info("🗑️ Request to delete quest {} by user {}", questId, userId);
+
+            questService.deleteQuest(questId, userId);
+
+            return ResponseEntity.noContent().build();
+
+        } catch (ResourceNotFoundException e) {
+            log.error("❌ Quest not found: {}", e.getMessage());
+            throw e;
+        } catch (AccessDeniedException e) {
+            log.error("❌ Access denied: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("❌ Unexpected error deleting quest: {}", questId, e);
+            throw new RuntimeException("Failed to delete quest: " + e.getMessage());
+        }
+    }
 
     @PutMapping("/{questId}/audio-config")
     @Operation(summary = "Update quest audio configuration",

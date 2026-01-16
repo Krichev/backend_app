@@ -249,26 +249,17 @@ public class QuizController {
     }
 
     @PostMapping("/sessions/{sessionId}/rounds/{roundId}/submit")
-    @Operation(summary = "Submit answer for a round")
-    public ResponseEntity<QuizRoundResultDTO> submitRoundAnswer(
+    @Operation(summary = "Submit answer for a quiz round")
+    public ResponseEntity<QuizRoundDTO> submitRoundAnswerById(
             @PathVariable Long sessionId,
             @PathVariable Long roundId,
-            @Valid @RequestBody SubmitRoundAnswerRequest request,
+            @Valid @RequestBody SubmitRoundAnswerByIdRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
 
         User user = getUserFromUserDetails(userDetails);
-        
-        // Convert to service DTO
-        SubmitAnswerRequest serviceRequest = SubmitAnswerRequest.builder()
-                .roundId(roundId)
-                .answer(request.getTeamAnswer())
-                .playerWhoAnswered(request.getPlayerWhoAnswered())
-                .discussionNotes(request.getDiscussionNotes())
-                .hintUsed(request.getHintUsed())
-                .voiceRecordingUsed(request.getVoiceRecordingUsed())
-                .build();
-        
-        QuizRoundResultDTO result = quizService.submitAnswer(serviceRequest, user.getId());
+        log.info("User {} submitting answer for session {} round {}", user.getId(), sessionId, roundId);
+
+        QuizRoundDTO result = quizService.submitRoundAnswerById(sessionId, roundId, request, user.getId());
         return ResponseEntity.ok(result);
     }
 

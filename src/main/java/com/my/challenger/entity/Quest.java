@@ -67,6 +67,10 @@ public class Quest {
     @Column(name = "minimum_score_percentage")
     private Integer minimumScorePercentage = 0;
 
+    @Builder.Default
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = true;
+
     @ManyToOne
     @JoinColumn(name = "creator_id")
     private User creator;

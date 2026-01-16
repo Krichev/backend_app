@@ -312,6 +312,84 @@ public class QuizService {
     }
 
     @Transactional
+    public QuizRoundDTO submitRoundAnswerById(Long sessionId, Long roundId, SubmitRoundAnswerByIdRequest request, Long userId) {
+        log.info("Submitting answer for session {} round ID {} by user: {}", sessionId, roundId, userId);
+        
+        // Verify user has access to session
+        QuizSession session = findUserSession(sessionId, userId);
+        
+        if (session.getStatus() != QuizSessionStatus.IN_PROGRESS) {
+            throw new IllegalStateException("Session must be in progress to submit answers");
+        }
+        
+        // Find round by ID
+        QuizRound round = quizRoundRepository.findById(roundId)
+            .orElseThrow(() -> new IllegalArgumentException("Round not found with id: " + roundId));
+        
+        // Verify round belongs to this session
+        if (!round.getQuizSession().getId().equals(sessionId)) {
+            throw new IllegalArgumentException("Round " + roundId + " does not belong to session " + sessionId);
+        }
+        
+        // Check if already submitted
+        if (round.getAnswerSubmittedAt() != null) {
+            throw new IllegalStateException("Answer already submitted for this round");
+        }
+        
+        // Validate answer
+        boolean isCorrect = gameService.validateAnswer(
+            request.getTeamAnswer(),
+            round.getQuestion().getAnswer()
+        );
+        
+        // Update round
+        round.setTeamAnswer(request.getTeamAnswer());
+        round.setIsCorrect(isCorrect);
+        round.setPlayerWhoAnswered(request.getPlayerWhoAnswered() != null ? request.getPlayerWhoAnswered() : "Team");
+        round.setDiscussionNotes(request.getDiscussionNotes());
+        round.setHintUsed(request.getHintUsed() != null ? request.getHintUsed() : false);
+        round.setVoiceRecordingUsed(request.getVoiceRecordingUsed() != null ? request.getVoiceRecordingUsed() : false);
+        round.setAnswerSubmittedAt(LocalDateTime.now());
+        
+        // Generate AI feedback if enabled
+        if (session.getEnableAiHost() != null && session.getEnableAiHost()) {
+            String feedback = gameService.generateRoundFeedback(round, isCorrect);
+            round.setAiFeedback(feedback);
+        }
+        
+        QuizRound savedRound = quizRoundRepository.save(round);
+        
+        // Update session progress
+        updateSessionProgress(session);
+        
+        return convertRoundToDTO(savedRound);
+    }
+
+    private void updateSessionProgress(QuizSession session) {
+        // Find all rounds for this session
+        List<QuizRound> rounds = quizRoundRepository.findByQuizSessionIdOrderByRoundNumber(session.getId());
+        
+        // Count completed rounds and correct answers
+        long completedCount = rounds.stream()
+                .filter(r -> r.getAnswerSubmittedAt() != null)
+                .count();
+        
+        long correctCount = rounds.stream()
+                .filter(r -> Boolean.TRUE.equals(r.getIsCorrect()))
+                .count();
+        
+        session.setCompletedRounds((int) completedCount);
+        session.setCorrectAnswers((int) correctCount);
+        
+        // Check if all rounds are completed
+        if (completedCount >= session.getTotalRounds()) {
+            completeSession(session);
+        }
+        
+        quizSessionRepository.save(session);
+    }
+
+    @Transactional
     public QuizRoundResultDTO submitAnswer(SubmitAnswerRequest request, Long userId) {
         log.info("Submitting answer for round {} by user: {}", request.getRoundId(), userId);
 

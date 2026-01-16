@@ -36,6 +36,21 @@ public interface QuestRepository extends JpaRepository<Quest, Long> {
     List<Quest> findQuestsWithAudio();
 
     /**
+     * Find active quest by ID
+     */
+    Optional<Quest> findByIdAndIsActiveTrue(Long id);
+
+    /**
+     * Find active quests by creator
+     */
+    List<Quest> findByCreatorIdAndIsActiveTrue(Long creatorId);
+
+    /**
+     * Find all active quests
+     */
+    List<Quest> findAllByIsActiveTrue();
+
+    /**
      * Find quest by ID with audio media eagerly loaded
      */
     @Query("SELECT q FROM Quest q LEFT JOIN FETCH q.audioMedia WHERE q.id = :questId")
