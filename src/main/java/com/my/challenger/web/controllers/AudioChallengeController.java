@@ -27,7 +27,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/audio-challenges")
+@RequestMapping("/api/questions/audio")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Audio Challenges", description = "Audio challenge question management and scoring")
