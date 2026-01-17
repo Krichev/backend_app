@@ -332,6 +332,15 @@ public class ChallengeServiceImpl implements ChallengeService {
 
             List<Challenge> challenges;
 
+            ChallengeStatus excludeStatus = null;
+            if (filters.get("excludeStatus") != null) {
+                try {
+                    excludeStatus = ChallengeStatus.valueOf((String) filters.get("excludeStatus"));
+                } catch (IllegalArgumentException e) {
+                    log.warn("Invalid exclude status: {}", filters.get("excludeStatus"));
+                }
+            }
+
             // Handle participant_id filter
             if (filters.get("participant_id") != null) {
                 Long participantId = (Long) filters.get("participant_id");
@@ -373,10 +382,18 @@ public class ChallengeServiceImpl implements ChallengeService {
 
                 // Use Specification to build dynamic query (SOLVES POSTGRES ENUM ISSUE)
                 Specification<Challenge> spec = ChallengeSpecification.withFilters(
-                        type, visibility, status, targetGroup
+                        type, visibility, status, targetGroup, excludeStatus
                 );
 
                 challenges = challengeRepository.findAll(spec, pageable).getContent();
+            }
+
+            // Apply excludeStatus filter for repository methods that don't support it via Specification
+            if (excludeStatus != null) {
+                final ChallengeStatus finalExcludeStatus = excludeStatus;
+                challenges = challenges.stream()
+                        .filter(c -> !finalExcludeStatus.equals(c.getStatus()))
+                        .collect(Collectors.toList());
             }
 
             // Convert to DTOs

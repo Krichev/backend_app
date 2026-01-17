@@ -22,7 +22,8 @@ public class ChallengeSpecification {
             ChallengeType type,
             Boolean visibility,
             ChallengeStatus status,
-            String targetGroup
+            String targetGroup,
+            ChallengeStatus excludeStatus
     ) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -40,6 +41,11 @@ public class ChallengeSpecification {
             // Filter by status (only if not null)
             if (status != null) {
                 predicates.add(criteriaBuilder.equal(root.get("status"), status));
+            }
+
+            // NEW: Exclude specific status
+            if (excludeStatus != null) {
+                predicates.add(criteriaBuilder.notEqual(root.get("status"), excludeStatus));
             }
 
             // Filter by target group (only if not null)

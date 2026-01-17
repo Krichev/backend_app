@@ -121,16 +121,22 @@ public class ChallengeController {
             @RequestParam(required = false) Long creator_id,
             @RequestParam(required = false) String targetGroup,
             @RequestParam(required = false) Long participant_id,
+            @RequestParam(required = false, defaultValue = "true") Boolean excludeCancelled,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        log.info("Getting challenges with filters: page={}, limit={}, type={}, visibility={}, status={}, creator_id={}, targetGroup={}, participant_id={}",
-                page, limit, type, visibility, status, creator_id, targetGroup, participant_id);
+        log.info("Getting challenges with filters: page={}, limit={}, type={}, visibility={}, status={}, creator_id={}, targetGroup={}, participant_id={}, excludeCancelled={}",
+                page, limit, type, visibility, status, creator_id, targetGroup, participant_id, excludeCancelled);
         User user = getUserFromUserDetails(userDetails);
 
         Map<String, Object> filters = new HashMap<>();
         filters.put("requestUserId", user.getId());
         filters.put("page", page != null ? page : 0);
         filters.put("limit", limit != null ? limit : 20);
+
+        if (status == null && Boolean.TRUE.equals(excludeCancelled)) {
+            filters.put("excludeStatus", "CANCELLED");
+        }
+
         if (type != null) filters.put("type", type);
         if (visibility != null) filters.put("visibility", visibility);
         if (status != null) filters.put("status", status);
