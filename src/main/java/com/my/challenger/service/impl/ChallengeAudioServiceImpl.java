@@ -12,6 +12,7 @@ import com.my.challenger.repository.MediaFileRepository;
 import com.my.challenger.service.ChallengeAudioService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,13 +25,23 @@ public class ChallengeAudioServiceImpl implements ChallengeAudioService {
     private final MediaFileRepository mediaFileRepository;
     private final MinioMediaStorageService storageService;
 
+    private void validateOwnership(Challenge challenge, Long userId) {
+        if (!challenge.getCreator().getId().equals(userId)) {
+            log.warn("🚫 Authorization failed: User {} attempted to modify challenge {} owned by {}",
+                    userId, challenge.getId(), challenge.getCreator().getId());
+            throw new AccessDeniedException("User does not have permission to modify this challenge's audio configuration");
+        }
+    }
+
     @Override
     @Transactional
-    public ChallengeAudioResponseDTO updateAudioConfig(Long challengeId, ChallengeAudioConfigDTO config) {
-        log.info("🎵 Updating audio config for challenge ID: {}", challengeId);
+    public ChallengeAudioResponseDTO updateAudioConfig(Long challengeId, ChallengeAudioConfigDTO config, Long userId) {
+        log.info("🎵 Updating audio config for challenge ID: {}, requested by user: {}", challengeId, userId);
 
         Challenge challenge = challengeRepository.findById(challengeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Challenge not found with ID: " + challengeId));
+
+        validateOwnership(challenge, userId);
 
         MediaFile audioMedia = null;
         Double totalDuration = null;
@@ -94,11 +105,13 @@ public class ChallengeAudioServiceImpl implements ChallengeAudioService {
 
     @Override
     @Transactional
-    public void removeAudioConfig(Long challengeId) {
-        log.info("🗑️ Removing audio config for challenge ID: {}", challengeId);
+    public void removeAudioConfig(Long challengeId, Long userId) {
+        log.info("🗑️ Removing audio config for challenge ID: {}, requested by user: {}", challengeId, userId);
 
         Challenge challenge = challengeRepository.findById(challengeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Challenge not found with ID: " + challengeId));
+
+        validateOwnership(challenge, userId);
 
         challenge.setAudioMedia(null);
         challenge.setAudioStartTime(0.0);

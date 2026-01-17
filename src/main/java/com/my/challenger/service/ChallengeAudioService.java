@@ -12,7 +12,7 @@ public interface ChallengeAudioService {
     /**
      * Update audio configuration for a challenge
      */
-    ChallengeAudioResponseDTO updateAudioConfig(Long challengeId, ChallengeAudioConfigDTO config);
+    ChallengeAudioResponseDTO updateAudioConfig(Long challengeId, ChallengeAudioConfigDTO config, Long userId);
 
     /**
      * Get audio configuration for a challenge
@@ -22,5 +22,5 @@ public interface ChallengeAudioService {
     /**
      * Remove audio configuration from a challenge
      */
-    void removeAudioConfig(Long challengeId);
+    void removeAudioConfig(Long challengeId, Long userId);
 }
