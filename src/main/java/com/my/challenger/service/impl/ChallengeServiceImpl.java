@@ -114,6 +114,10 @@ public class ChallengeServiceImpl implements ChallengeService {
             grantAccessToUsers(savedChallenge, request.getInvitedUserIds(), creator);
         }
 
+        // Auto-enroll creator as participant with task and progress
+        createInitialTask(savedChallenge, creator);
+        createCreatorProgress(savedChallenge, creator);
+
         log.info("Created challenge ID: {} by user: {} with payment type: {}",
                 savedChallenge.getId(), creatorId, challenge.getPaymentType());
 
@@ -702,7 +706,7 @@ public class ChallengeServiceImpl implements ChallengeService {
         task.setType(challenge.getFrequency() != null ?
                 TaskType.valueOf(challenge.getFrequency().name()) :
                 TaskType.ONE_TIME);
-        task.setStatus(TaskStatus.NOT_STARTED);
+        task.setStatus(TaskStatus.IN_PROGRESS);
         task.setVerificationMethod(challenge.getVerificationMethod());
         task.setStartDate(challenge.getStartDate());
         task.setEndDate(challenge.getEndDate());
