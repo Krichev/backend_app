@@ -1,5 +1,6 @@
 package com.my.challenger.service.impl;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.my.challenger.dto.ChallengeDTO;
 import com.my.challenger.dto.quiz.*;
@@ -28,7 +29,7 @@ import java.util.stream.Collectors;
 @Service
 public class EnhancedQuizService extends QuizService {
 
-//    private final ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper;
     private final TaskRepository taskRepository;
 
     public EnhancedQuizService(
@@ -48,7 +49,7 @@ public class EnhancedQuizService extends QuizService {
                 challengeRepository, userRepository, mediaFileRepository, questRepository, gameService,
                 mediaStorageService, topicService);
 
-//        this.objectMapper = objectMapper;
+        this.objectMapper = objectMapper;
         this.taskRepository = taskRepository;
     }
 
@@ -145,18 +146,18 @@ public class EnhancedQuizService extends QuizService {
                 log.info("Team Based: {}", config.getTeamBased());
                 log.info("================================");
 
-//                try {
-//                    // Serialize the entire config object to JSON
-//                    String quizConfigJson = objectMapper.writeValueAsString(config);
-//                    challenge.setQuizConfig(quizConfigJson);
-//
-//                    log.info("Quiz config serialized successfully");
-//                    log.debug("Serialized JSON: {}", quizConfigJson);
-//
-//                } catch (JsonProcessingException e) {
-//                    log.error("Failed to serialize quiz configuration", e);
-//                    throw new RuntimeException("Invalid quiz configuration: " + e.getMessage(), e);
-//                }
+                try {
+                    // Serialize the entire config object to JSON
+                    String quizConfigJson = objectMapper.writeValueAsString(config);
+                    challenge.setQuizConfig(quizConfigJson);
+
+                    log.info("Quiz config serialized successfully");
+                    log.debug("Serialized JSON: {}", quizConfigJson);
+
+                } catch (JsonProcessingException e) {
+                    log.error("Failed to serialize quiz configuration", e);
+                    throw new RuntimeException("Invalid quiz configuration: " + e.getMessage(), e);
+                }
             } else {
                 log.warn("No quiz configuration provided!");
                 throw new IllegalArgumentException("Quiz configuration is required for quiz challenges");
@@ -578,7 +579,7 @@ public class EnhancedQuizService extends QuizService {
                 .startDate(challenge.getStartDate())
                 .endDate(challenge.getEndDate())
                 .frequency(challenge.getFrequency())
-//                .quizConfig(challenge.getQuizConfig()) // This contains the full JSON with all fields
+                .quizConfig(challenge.getQuizConfig()) // This contains the full JSON with all fields
                 .userIsCreator(true) // Set to true since we're the creator
                 .build();
     }

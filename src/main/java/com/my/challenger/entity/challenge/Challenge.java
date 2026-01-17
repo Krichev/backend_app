@@ -158,6 +158,9 @@ public class Challenge {
     @Column(name = "minimum_score_percentage")
     private Integer minimumScorePercentage = 0;
 
+    @Column(name = "quiz_config")
+    private String quizConfig;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
