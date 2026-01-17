@@ -1,10 +1,15 @@
 package com.my.challenger.web.controllers;
 
 import com.my.challenger.dto.*;
+import com.my.challenger.dto.challenge.ChallengeAudioConfigDTO;
+import com.my.challenger.dto.challenge.ChallengeAudioResponseDTO;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.challenge.Challenge;
 import com.my.challenger.repository.UserRepository;
+import com.my.challenger.service.ChallengeAudioService;
+import com.my.challenger.service.MediaService;
 import com.my.challenger.service.impl.ChallengeService;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.HashMap;
 import java.util.List;
@@ -31,6 +37,75 @@ public class ChallengeController {
 
     private final ChallengeService challengeService;
     private final UserRepository userRepository;
+    private final ChallengeAudioService challengeAudioService;
+    private final MediaService mediaService;
+
+    // ============================================================================
+    // AUDIO CONFIGURATION ENDPOINTS (Migrated from QuestController)
+    // ============================================================================
+
+    @PutMapping("/{challengeId}/audio-config")
+    @Operation(summary = "Update challenge audio configuration")
+    public ResponseEntity<ChallengeAudioResponseDTO> updateAudioConfig(
+            @PathVariable Long challengeId,
+            @Valid @RequestBody ChallengeAudioConfigDTO config,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        log.info("🎵 Update audio config for challenge {}", challengeId);
+        User user = getUserFromUserDetails(userDetails);
+        challengeService.validateChallengeOwnership(challengeId, user.getId());
+        ChallengeAudioResponseDTO response = challengeAudioService.updateAudioConfig(challengeId, config);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{challengeId}/audio-config")
+    @Operation(summary = "Get challenge audio configuration")
+    public ResponseEntity<ChallengeAudioResponseDTO> getAudioConfig(
+            @PathVariable Long challengeId) {
+        log.info("📖 Get audio config for challenge {}", challengeId);
+        ChallengeAudioResponseDTO response = challengeAudioService.getAudioConfig(challengeId);
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/{challengeId}/audio-config")
+    @Operation(summary = "Remove challenge audio configuration")
+    public ResponseEntity<Void> removeAudioConfig(
+            @PathVariable Long challengeId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        log.info("🗑️ Remove audio config for challenge {}", challengeId);
+        User user = getUserFromUserDetails(userDetails);
+        challengeService.validateChallengeOwnership(challengeId, user.getId());
+        challengeAudioService.removeAudioConfig(challengeId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{challengeId}/audio")
+    @Operation(summary = "Upload audio file for challenge")
+    public ResponseEntity<Map<String, Object>> uploadChallengeAudio(
+            @PathVariable Long challengeId,
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        log.info("📤 Upload audio for challenge {}", challengeId);
+        User user = getUserFromUserDetails(userDetails);
+        challengeService.validateChallengeOwnership(challengeId, user.getId());
+        // Implement audio upload logic similar to QuestController
+        // Assuming mediaService has uploadChallengeAudio or similar method. 
+        // If not, we might need to use the generic uploadQuizMedia or implement uploadChallengeAudio in MediaService.
+        // Based on doc.md Step 1.3, it says: Map<String, Object> response = mediaService.uploadChallengeAudio(challengeId, file, user.getId());
+        // I will assume mediaService has this method or I will need to check/add it.
+        // For now, I'll use uploadQuizMedia if that's what QuestController used, but tailored for Challenge.
+        // Wait, the doc says "Implement audio upload logic similar to QuestController".
+        // QuestController uses mediaService.uploadQuizMedia(file, userDetails.getUsername()).
+        // Let's use that for now and map the result.
+        
+        // Actually, Step 1.3 explicitly says: Map<String, Object> response = mediaService.uploadChallengeAudio(challengeId, file, user.getId());
+        // I should verify if mediaService has this method.
+        // If not, I'll stick to what QuestController does but adapted.
+        
+        // Let's check MediaService interface first? 
+        // No, I'll trust the doc instruction but if it fails I'll fix it.
+        // Actually, I'll check MediaService first to be safe.
+        return ResponseEntity.ok(mediaService.uploadChallengeAudio(challengeId, file, user.getId()));
+    }
 
     /**
      * Get accessible challenges for current user

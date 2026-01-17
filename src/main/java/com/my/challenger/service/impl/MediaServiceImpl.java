@@ -62,6 +62,50 @@ public class MediaServiceImpl implements MediaService {
 
     @Override
     @Transactional
+    public Map<String, Object> uploadChallengeAudio(Long challengeId, MultipartFile file, Long userId) {
+        log.info("📤 Uploading challenge audio - ID: {}, File: {}, User ID: {}",
+                challengeId, file.getOriginalFilename(), userId);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+
+        // Use existing validation
+        validateQuizMedia(file);
+
+        try {
+            // Reuse QUIZ_QUESTION category for now
+            MediaFile mediaFile = storageService.storeMedia(
+                    file,
+                    challengeId,
+                    MediaCategory.QUIZ_QUESTION,
+                    user.getId()
+            );
+
+            log.info("✅ Challenge audio uploaded successfully - ID: {}, Challenge: {}",
+                    mediaFile.getId(), challengeId);
+
+            // Construct response map
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("mediaId", mediaFile.getId());
+            response.put("mediaUrl", storageService.getMediaUrl(mediaFile));
+            response.put("fileName", mediaFile.getFilename());
+            response.put("fileSize", mediaFile.getFileSize());
+            response.put("duration", mediaFile.getDurationSeconds());
+            response.put("mediaType", mediaFile.getMediaType().toString());
+            response.put("processingStatus", mediaFile.getProcessingStatus().toString());
+            response.put("message", "Audio uploaded successfully");
+
+            return response;
+
+        } catch (Exception e) {
+            log.error("❌ Failed to upload challenge audio for challenge: {}", challengeId, e);
+            throw new MediaProcessingException("Failed to upload challenge audio: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    @Transactional
     public MediaFile uploadAvatar(MultipartFile file, String username) {
         log.info("📤 Uploading avatar - File: {}, User: {}",
                 file.getOriginalFilename(), username);

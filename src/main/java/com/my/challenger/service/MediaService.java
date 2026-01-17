@@ -30,6 +30,11 @@ public interface MediaService {
     Map<String, String> getMediaUrls(Long mediaId);
 
     /**
+     * Upload audio for a challenge
+     */
+    Map<String, Object> uploadChallengeAudio(Long challengeId, MultipartFile file, Long userId);
+
+    /**
      * Delete media file
      */
     void deleteMedia(Long mediaId, String username);
