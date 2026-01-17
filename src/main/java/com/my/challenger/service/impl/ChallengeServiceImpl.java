@@ -15,6 +15,7 @@ import com.my.challenger.entity.challenge.ChallengeAccess;
 import com.my.challenger.entity.enums.*;
 import com.my.challenger.repository.*;
 import com.my.challenger.repository.specification.ChallengeSpecification;
+import com.my.challenger.service.ChallengeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;

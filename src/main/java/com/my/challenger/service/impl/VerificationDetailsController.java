@@ -4,6 +4,7 @@ import com.my.challenger.dto.CreateVerificationDetailsRequest;
 import com.my.challenger.dto.verification.VerificationDetailsDto;
 import com.my.challenger.entity.challenge.Challenge;
 import com.my.challenger.entity.challenge.VerificationDetails;
+import com.my.challenger.service.ChallengeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
