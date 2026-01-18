@@ -300,6 +300,10 @@ public class ChallengeServiceImpl implements ChallengeService {
         dto.setCreatorUsername(challenge.getCreator().getUsername());
         dto.setIsPublic(challenge.isPublic());
         dto.setRequiresApproval(challenge.isRequiresApproval());
+        dto.setStartDate(challenge.getStartDate());
+        dto.setEndDate(challenge.getEndDate());
+        dto.setFrequency(challenge.getFrequency());
+        dto.setQuizConfig(challenge.getQuizConfig());
 
         // Payment info
         dto.setPaymentType(challenge.getPaymentType());
