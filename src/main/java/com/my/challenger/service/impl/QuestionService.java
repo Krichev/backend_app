@@ -702,22 +702,30 @@ public class QuestionService {
     }
 
     private void createQuizRounds(QuizSession session, StartQuizSessionRequest request) {
-        log.info("Creating quiz rounds for session: {}", session.getId());
+        log.info("Creating quiz rounds for session: {} using source: {}", session.getId(), request.getQuestionSource());
 
         List<QuizQuestion> questions;
 
-        if ("user".equals(request.getQuestionSource()) && request.getCustomQuestionIds() != null && !request.getCustomQuestionIds().isEmpty()) {
-            // Use user-specified questions
+        if (QuestionSource.user.equals(request.getQuestionSource()) && request.getCustomQuestionIds() != null && !request.getCustomQuestionIds().isEmpty()) {
+            log.info("Using {} custom questions for session {}", request.getCustomQuestionIds().size(), session.getId());
             questions = quizQuestionRepository.findAllById(request.getCustomQuestionIds());
             if (questions.size() < request.getTotalRounds()) {
+                log.error("Insufficient custom questions: provided {}, required {}", questions.size(), request.getTotalRounds());
                 throw new IllegalArgumentException("Not enough custom questions selected. Selected: " + questions.size() + ", Required: " + request.getTotalRounds());
             }
         } else {
-            // Use random questions by difficulty
+            log.info("Fetching {} random questions by difficulty: {} for session {}", 
+                    request.getTotalRounds(), request.getDifficulty(), session.getId());
+            
+            PageRequest pageRequest = PageRequest.of(0, request.getTotalRounds());
             questions = quizQuestionRepository.findByDifficultyOrderByUsageCountAsc(
-                    request.getDifficulty(), PageRequest.of(0, request.getTotalRounds()));
+                    request.getDifficulty(), pageRequest);
+            
             if (questions.size() < request.getTotalRounds()) {
-                throw new IllegalStateException("Not enough questions available for difficulty: " + request.getDifficulty() + ". Available: " + questions.size() + ", Required: " + request.getTotalRounds());
+                log.error("Insufficient questions available for difficulty {}: found {}, required {}", 
+                        request.getDifficulty(), questions.size(), request.getTotalRounds());
+                throw new IllegalArgumentException("Not enough questions available for the selected difficulty (" +
+                        request.getDifficulty() + "). Required: " + request.getTotalRounds() + ", found: " + questions.size());
             }
         }
 
@@ -731,7 +739,13 @@ public class QuestionService {
                     .voiceRecordingUsed(false)
                     .build();
             quizRoundRepository.save(round);
+
+            // Increment usage count for the question
+            QuizQuestion question = questions.get(i);
+            question.setUsageCount(question.getUsageCount() + 1);
+            quizQuestionRepository.save(question);
         }
+        log.info("Successfully created {} rounds for session {}", request.getTotalRounds(), session.getId());
     }
 
     private void updateSessionProgress(QuizSession session) {
