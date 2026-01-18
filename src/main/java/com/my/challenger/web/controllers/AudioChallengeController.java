@@ -6,6 +6,8 @@ import com.my.challenger.dto.audio.CreateAudioQuestionRequest;
 import com.my.challenger.dto.audio.QuestionResponseDTO;
 import com.my.challenger.entity.enums.AudioChallengeType;
 import com.my.challenger.service.AudioChallengeService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -34,6 +36,7 @@ import java.util.stream.Collectors;
 public class AudioChallengeController {
 
     private final AudioChallengeService audioChallengeService;
+    private final ObjectMapper objectMapper;
 
     @GetMapping("/types")
     @Operation(summary = "Get available audio challenge types",
@@ -66,9 +69,18 @@ public class AudioChallengeController {
             @ApiResponse(responseCode = "413", description = "Audio file too large")
     })
     public ResponseEntity<QuestionResponseDTO> createAudioQuestion(
-            @RequestPart("request") @Valid CreateAudioQuestionRequest request,
+            @RequestPart("request") String requestJson,
             @RequestPart(value = "referenceAudio", required = false) MultipartFile referenceAudio,
             @AuthenticationPrincipal UserDetails userDetails) {
+
+        // Manually deserialize JSON (React Native FormData doesn't set Content-Type for JSON parts)
+        CreateAudioQuestionRequest request;
+        try {
+            request = objectMapper.readValue(requestJson, CreateAudioQuestionRequest.class);
+        } catch (JsonProcessingException e) {
+            log.error("❌ Failed to parse audio question request JSON: {}", e.getMessage());
+            throw new IllegalArgumentException("Invalid request JSON: " + e.getMessage());
+        }
 
         log.info("📝 Creating audio question: type={}, user={}",
                 request.getAudioChallengeType(), userDetails.getUsername());
