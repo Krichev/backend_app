@@ -258,22 +258,21 @@ public class QuizService {
 
         List<QuizQuestion> questions;
 
-//        if ("user".equals(request.getQuestionSource()) && request.getCustomQuestionIds() != null) {
+        if ("user".equals(request.getQuestionSource()) && request.getCustomQuestionIds() != null && !request.getCustomQuestionIds().isEmpty()) {
             // Use user-specified questions
             questions = quizQuestionRepository.findAllById(request.getCustomQuestionIds());
             if (questions.size() < request.getTotalRounds()) {
-                throw new IllegalArgumentException("Not enough custom questions selected");
+                throw new IllegalArgumentException("Not enough custom questions selected. Selected: " + questions.size() + ", Required: " + request.getTotalRounds());
             }
-//        }
-        /*else {
+        } else {
             // Use random questions by difficulty
             PageRequest pageRequest = PageRequest.of(0, request.getTotalRounds());
             questions = quizQuestionRepository.findByDifficultyOrderByUsageCountAsc(
                     request.getDifficulty(), pageRequest);
             if (questions.size() < request.getTotalRounds()) {
-                throw new IllegalStateException("Not enough questions available for the selected difficulty");
-            }*/
-//        }
+                throw new IllegalStateException("Not enough questions available for difficulty: " + request.getDifficulty() + ". Available: " + questions.size() + ", Required: " + request.getTotalRounds());
+            }
+        }
 
         // Create rounds
         for (int i = 0; i < request.getTotalRounds(); i++) {
