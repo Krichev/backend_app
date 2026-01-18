@@ -5,6 +5,7 @@ import com.my.challenger.dto.audio.AudioChallengeSubmissionDTO;
 import com.my.challenger.dto.audio.CreateAudioQuestionRequest;
 import com.my.challenger.dto.audio.QuestionResponseDTO;
 import com.my.challenger.entity.enums.AudioChallengeType;
+import com.my.challenger.security.UserPrincipal;
 import com.my.challenger.service.AudioChallengeService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -170,6 +171,6 @@ public class AudioChallengeController {
     private Long extractUserId(UserDetails userDetails) {
         // Implement based on your UserDetails implementation
         // This is a placeholder - adapt to your auth setup
-        return Long.parseLong(userDetails.getUsername());
+        return ((UserPrincipal) userDetails).getId();
     }
 }
