@@ -47,11 +47,13 @@ public class QuizQuestionDTO {
 
     // Audio challenge fields
     private AudioChallengeType audioChallengeType;
+    private Long audioReferenceMediaId;
     private Double audioSegmentStart;
     private Double audioSegmentEnd;
     private Integer minimumScorePercentage;
     private Integer rhythmBpm;
     private String rhythmTimeSignature;
+    private String audioChallengeConfig;
 
     // User creation tracking
     private Boolean isUserCreated;

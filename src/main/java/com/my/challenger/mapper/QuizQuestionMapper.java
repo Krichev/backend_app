@@ -21,6 +21,7 @@ public interface QuizQuestionMapper {
     @Mapping(source = "creator.id", target = "creatorId")
     @Mapping(source = "creator.username", target = "creatorUsername")
     @Mapping(source = "topic.name", target = "topic")
+    @Mapping(source = "audioReferenceMedia.id", target = "audioReferenceMediaId")
     QuizQuestionDTO toDTO(QuizQuestion entity);
 
     /**
@@ -35,6 +36,7 @@ public interface QuizQuestionMapper {
     @Mapping(target = "creator", ignore = true)
 //    @Mapping(target = "tournamentQuestions", ignore = true)
     @Mapping(source = "topic", target = "topic.name")
+    @Mapping(target = "audioReferenceMedia", ignore = true)
     QuizQuestion toEntity(QuizQuestionDTO dto);
 
 
