@@ -2,7 +2,7 @@
 spring:
   # Database Configuration - PostgreSQL for Development
   datasource:
-    url: jdbc:postgresql://45.129.186.166:5432/challenger_db?currentSchema=challenger&sslmode=disable&socketTimeout=0&tcpKeepAlive=true
+    url: jdbc:postgresql://localhost:5432/challenger_db?currentSchema=challenger&sslmode=disable&socketTimeout=0&tcpKeepAlive=true
     username: challenger_user
     password: challenger_password_secure_123
     driver-class-name: org.postgresql.Driver
@@ -118,7 +118,7 @@ app:
       access-key: challenger_minio
       secret-key: challenger_minio_secure_password_123
       region: us-east-1
-      endpoint: http://45.129.186.166:9000  # Points to your MinIO instance
+      endpoint: http://localhost:9000  # Points to your MinIO instance
       bucket-name: challenger-app
       cloudfront-domain: ""  # Leave empty for direct MinIO access
 

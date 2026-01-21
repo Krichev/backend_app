@@ -4,6 +4,7 @@ import com.my.challenger.entity.enums.MediaType;
 import com.my.challenger.entity.enums.QuestionVisibility;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.enums.QuestionType;
+import com.my.challenger.entity.enums.AudioChallengeType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -43,6 +44,14 @@ public class QuizQuestionDTO {
     private Long questionMediaId;
     private MediaType questionMediaType;
     private String questionThumbnailUrl;
+
+    // Audio challenge fields
+    private AudioChallengeType audioChallengeType;
+    private Double audioSegmentStart;
+    private Double audioSegmentEnd;
+    private Integer minimumScorePercentage;
+    private Integer rhythmBpm;
+    private String rhythmTimeSignature;
 
     // User creation tracking
     private Boolean isUserCreated;
