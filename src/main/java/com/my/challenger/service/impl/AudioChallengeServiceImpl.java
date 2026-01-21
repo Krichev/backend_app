@@ -83,10 +83,16 @@ public class AudioChallengeServiceImpl implements AudioChallengeService {
             topic = topicService.getOrCreateTopic(request.getTopic());
         }
 
+        // Generate default answer for audio challenges if not provided
+        String answer = request.getAnswer();
+        if (answer == null || answer.isBlank()) {
+            answer = generateDefaultAudioAnswer(challengeType, request);
+        }
+
         // 5. Build question entity
         QuizQuestion question = QuizQuestion.builder()
                 .question(request.getQuestion())
-                .answer(request.getAnswer())
+                .answer(answer)
                 .questionType(QuestionType.AUDIO)
                 .audioChallengeType(challengeType)
                 .audioReferenceMedia(audioMedia)
@@ -327,6 +333,37 @@ public class AudioChallengeServiceImpl implements AudioChallengeService {
     }
 
     // ===== HELPER METHODS =====
+
+    /**
+     * Generate a contextual default answer description for audio challenges
+     * Audio challenges don't have traditional text answers - the audio IS the answer
+     */
+    private String generateDefaultAudioAnswer(AudioChallengeType challengeType, CreateAudioQuestionRequest request) {
+        return switch (challengeType) {
+            case RHYTHM_REPEAT -> buildRhythmAnswer(request);
+            case KARAOKE_SING -> "[Audio vocal performance required]";
+            case PITCH_MATCH -> "[Match the pitch pattern in the audio]";
+            case MELODY_RECOGNITION -> "[Identify the melody]";
+            case RHYTHM_RECOGNITION -> "[Identify the rhythm pattern]";
+            default -> "[Audio response required]";
+        };
+    }
+
+    private String buildRhythmAnswer(CreateAudioQuestionRequest request) {
+        StringBuilder sb = new StringBuilder("[Rhythm pattern: ");
+        if (request.getRhythmTimeSignature() != null) {
+            sb.append(request.getRhythmTimeSignature());
+        }
+        if (request.getRhythmBpm() != null) {
+            if (request.getRhythmTimeSignature() != null) sb.append(" at ");
+            sb.append(request.getRhythmBpm()).append(" BPM");
+        }
+        if (sb.length() == "[Rhythm pattern: ".length()) {
+            sb.append("repeat the pattern");
+        }
+        sb.append("]");
+        return sb.toString();
+    }
 
     private void validateAudioFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
