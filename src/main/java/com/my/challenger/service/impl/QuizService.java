@@ -270,16 +270,20 @@ public class QuizService {
             questions = quizQuestionRepository.findByDifficultyOrderByUsageCountAsc(
                     request.getDifficulty(), pageRequest);
             
+            if (questions.isEmpty()) {
+                log.error("No questions found in database for difficulty {}", request.getDifficulty());
+                throw new IllegalArgumentException("No questions available for the selected difficulty (" + request.getDifficulty() + ")");
+            }
+
             if (questions.size() < request.getTotalRounds()) {
-                log.error("Insufficient questions in database for difficulty {}: found {}, required {}", 
+                log.warn("Insufficient questions in database for difficulty {}: found {}, required {}. Proceeding with available questions.",
                         request.getDifficulty(), questions.size(), request.getTotalRounds());
-                throw new IllegalArgumentException("Not enough questions available for the selected difficulty (" + 
-                        request.getDifficulty() + "). Required: " + request.getTotalRounds() + ", found: " + questions.size());
             }
         }
 
         // Create rounds
-        for (int i = 0; i < request.getTotalRounds(); i++) {
+        int roundsToCreate = Math.min(request.getTotalRounds(), questions.size());
+        for (int i = 0; i < roundsToCreate; i++) {
             QuizRound round = QuizRound.builder()
                     .quizSession(session)
                     .question(questions.get(i))
@@ -295,7 +299,7 @@ public class QuizService {
             question.setUsageCount(question.getUsageCount() + 1);
             quizQuestionRepository.save(question);
         }
-        log.info("Successfully created {} rounds for session {}", request.getTotalRounds(), session.getId());
+        log.info("Successfully created {} rounds for session {}", roundsToCreate, session.getId());
     }
 
     @Transactional
