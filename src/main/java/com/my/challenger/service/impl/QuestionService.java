@@ -775,21 +775,9 @@ public class QuestionService {
     // =============================================================================
 
     protected QuizQuestionDTO convertQuestionToDTO(QuizQuestion question) {
-        return QuizQuestionDTO.builder()
-                .id(question.getId())
-                .question(question.getQuestion())
-                .answer(question.getAnswer())
-                .difficulty(question.getDifficulty())
-                .topic(question.getTopic()!=null ? question.getTopic().getName(): "")
-                .source(question.getSource())
-                .additionalInfo(question.getAdditionalInfo())
-                .isUserCreated(question.getIsUserCreated())
-                .creatorId(question.getCreator() != null ? question.getCreator().getId() : null)
-                .externalId(question.getExternalId())
-                .usageCount(question.getUsageCount())
-                .createdAt(question.getCreatedAt())
-//                .lastUsed(question.getLastUsed())
-                .build();
+        log.debug("Converting question {} - questionType={}, audioChallengeType={}",
+                question.getId(), question.getQuestionType(), question.getAudioChallengeType());
+        return QuizQuestionMapper.INSTANCE.toDTO(question);
     }
 
     QuizSessionDTO convertSessionToDTO(QuizSession session) {
