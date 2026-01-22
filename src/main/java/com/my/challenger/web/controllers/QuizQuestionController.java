@@ -12,6 +12,7 @@ import com.my.challenger.mapper.QuizQuestionMapper;
 import com.my.challenger.service.impl.QuizQuestionSearchService;
 import com.my.challenger.service.impl.QuizQuestionDTOEnricher;
 import com.my.challenger.service.impl.TopicService;
+import com.my.challenger.security.UserPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import lombok.AllArgsConstructor;
@@ -21,6 +22,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
@@ -39,7 +42,23 @@ public class QuizQuestionController {
     private final QuizQuestionDTOEnricher dtoEnricher;
     private final TopicService topicService;
 
-    @GetMapping(name = "/topics")
+    @GetMapping("/user/my-questions")
+    @Operation(summary = "Get current user's questions")
+    public ResponseEntity<List<QuizQuestionDTO>> getUserQuestions(
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        Long userId = ((UserPrincipal) userDetails).getId();
+        log.info("Getting questions for user {}", userId);
+
+        Page<QuizQuestion> entityPage = searchService.searchUserQuestions(userId, null, 0, 1000);
+        List<QuizQuestionDTO> dtos = entityPage.getContent().stream()
+                .map(QuizQuestionMapper.INSTANCE::toDTO)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(dtoEnricher.enrichWithUrls(dtos));
+    }
+
+    @GetMapping("/topics")
     @Operation(summary = "Get all topics", description = "Retrieve all active topics with pagination")
     public ResponseEntity<Page<TopicResponse>> getAllTopics(
             @Parameter(description = "Page number (0-indexed)") @RequestParam(defaultValue = "0") int page,
