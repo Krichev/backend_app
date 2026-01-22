@@ -341,10 +341,8 @@ public class AudioChallengeServiceImpl implements AudioChallengeService {
     private String generateDefaultAudioAnswer(AudioChallengeType challengeType, CreateAudioQuestionRequest request) {
         return switch (challengeType) {
             case RHYTHM_REPEAT -> buildRhythmAnswer(request);
-            case KARAOKE_SING -> "[Audio vocal performance required]";
-            case PITCH_MATCH -> "[Match the pitch pattern in the audio]";
-            case MELODY_RECOGNITION -> "[Identify the melody]";
-            case RHYTHM_RECOGNITION -> "[Identify the rhythm pattern]";
+            case SINGING -> "[Audio vocal performance required]";
+            case SOUND_MATCH -> "[Match the pitch pattern in the audio]";
             default -> "[Audio response required]";
         };
     }
