@@ -4,7 +4,12 @@ import com.my.challenger.dto.audio.AudioChallengeConfigDTO;
 import com.my.challenger.dto.audio.AudioChallengeSubmissionDTO;
 import com.my.challenger.dto.audio.CreateAudioQuestionRequest;
 import com.my.challenger.dto.audio.QuestionResponseDTO;
+import com.my.challenger.entity.AudioChallengeSubmission;
 import com.my.challenger.entity.enums.AudioChallengeType;
+import com.my.challenger.exception.ResourceNotFoundException;
+import com.my.challenger.repository.AudioChallengeSubmissionRepository;
+import com.my.challenger.repository.MediaFileRepository;
+import com.my.challenger.service.impl.MinioMediaStorageService;
 import com.my.challenger.security.UserPrincipal;
 import com.my.challenger.service.AudioChallengeService;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -25,6 +30,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -38,6 +44,52 @@ public class AudioChallengeController {
 
     private final AudioChallengeService audioChallengeService;
     private final ObjectMapper objectMapper;
+    private final AudioChallengeSubmissionRepository submissionRepository;
+    private final MediaFileRepository mediaFileRepository;
+    private final MinioMediaStorageService mediaStorageService;
+
+    @GetMapping("/debug/submission/{submissionId}")
+    @Operation(summary = "Debug: Get submission storage details")
+    public ResponseEntity<Map<String, Object>> debugSubmission(
+            @PathVariable Long submissionId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        AudioChallengeSubmission submission = submissionRepository.findById(submissionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Submission not found"));
+
+        Map<String, Object> debug = new LinkedHashMap<>();
+        debug.put("submissionId", submission.getId());
+        debug.put("audioPath", submission.getSubmissionAudioPath());
+        debug.put("mediaId", submission.getSubmissionMediaId());
+        debug.put("processingStatus", submission.getProcessingStatus());
+
+        // Check if file exists in MinIO
+        if (submission.getSubmissionAudioPath() != null) {
+            try {
+                boolean exists = mediaStorageService.fileExists(submission.getSubmissionAudioPath());
+                debug.put("fileExistsInMinIO", exists);
+                
+                if (exists) {
+                    String presignedUrl = mediaStorageService.generatePresignedUrlFromKey(submission.getSubmissionAudioPath());
+                    debug.put("presignedUrl", presignedUrl);
+                }
+            } catch (Exception e) {
+                debug.put("minioError", e.getMessage());
+            }
+        }
+
+        // Check MediaFile record
+        if (submission.getSubmissionMediaId() != null) {
+            mediaFileRepository.findById(submission.getSubmissionMediaId())
+                    .ifPresent(mf -> {
+                        debug.put("mediaFileS3Key", mf.getS3Key());
+                        debug.put("mediaFileContentType", mf.getContentType());
+                        debug.put("mediaFileSize", mf.getFileSize());
+                    });
+        }
+
+        return ResponseEntity.ok(debug);
+    }
 
     @GetMapping("/types")
     @Operation(summary = "Get available audio challenge types",

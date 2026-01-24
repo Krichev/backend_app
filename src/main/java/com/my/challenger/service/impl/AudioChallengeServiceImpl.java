@@ -176,6 +176,12 @@ public class AudioChallengeServiceImpl implements AudioChallengeService {
         return mapToResponseDTO(saved);
     }
 
+    private static final java.util.Set<String> AUDIO_CONTENT_TYPES = java.util.Set.of(
+        "audio/wav", "audio/mp3", "audio/ogg", "audio/m4a",
+        "audio/aac", "audio/mpeg", "audio/x-wav", "audio/webm",
+        "audio/x-m4a", "audio/mp4"
+    );
+
     @Override
     @Transactional
     public AudioChallengeSubmissionDTO submitRecording(
@@ -183,9 +189,15 @@ public class AudioChallengeServiceImpl implements AudioChallengeService {
             Long userId,
             MultipartFile audioFile) {
 
-        log.info("🎤 Receiving audio submission: question={}, user={}", questionId, userId);
+        log.info("🎤 === AUDIO SUBMISSION START ===");
+        log.info("🎤 Question ID: {}, User ID: {}", questionId, userId);
+        log.info("🎤 Audio file details:");
+        log.info("   - Original filename: {}", audioFile != null ? audioFile.getOriginalFilename() : "NULL");
+        log.info("   - Content type: {}", audioFile != null ? audioFile.getContentType() : "NULL");
+        log.info("   - Size: {} bytes", audioFile != null ? audioFile.getSize() : 0);
+        log.info("   - Is empty: {}", audioFile != null ? audioFile.isEmpty() : "NULL");
 
-        // 1. Validate question
+        // Validate question
         QuizQuestion question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Question not found: " + questionId));
 
@@ -193,27 +205,88 @@ public class AudioChallengeServiceImpl implements AudioChallengeService {
             throw new IllegalArgumentException("Question is not an audio challenge");
         }
 
-        // 2. Validate and store submission audio
-        validateAudioFile(audioFile);
+        // Validate audio file with content-type fallback
+        String effectiveContentType = validateAndNormalizeAudioFile(audioFile);
+        log.info("🎤 Effective content type after normalization: {}", effectiveContentType);
+
+        // Store submission audio
+        log.info("🎤 Storing audio to MinIO...");
         MediaFile submissionMedia = mediaStorageService.storeMedia(
                 audioFile, null, MediaCategory.CHALLENGE_PROOF, userId);
+        
+        log.info("🎤 Media stored successfully:");
+        log.info("   - MediaFile ID: {}", submissionMedia.getId());
+        log.info("   - S3 Key: {}", submissionMedia.getS3Key());
+        log.info("   - File Path: {}", submissionMedia.getFilePath());
 
-        // 3. Create submission record
+        // Create submission record - USE S3_KEY not filePath
+        String audioPath = submissionMedia.getS3Key();
+        log.info("🎤 Creating submission with audio path: {}", audioPath);
+
         AudioChallengeSubmission submission = AudioChallengeSubmission.builder()
                 .question(question)
                 .userId(userId)
-                .submissionAudioPath(submissionMedia.getFilePath())
+                .submissionAudioPath(audioPath) // Use S3 key
+                .submissionMediaId(submissionMedia.getId()) // Store media file reference
                 .processingStatus("PENDING")
                 .processingProgress(0)
                 .build();
 
         submission = submissionRepository.save(submission);
-        log.info("✅ Submission created: id={}", submission.getId());
+        log.info("🎤 Submission saved: id={}", submission.getId());
+        log.info("🎤 === AUDIO SUBMISSION END ===");
 
-        // 4. Trigger async processing
+        // Trigger async processing
         processSubmissionAsync(submission.getId());
 
         return mapToSubmissionDTO(submission);
+    }
+
+    private String validateAndNormalizeAudioFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Audio file is required");
+        }
+
+        String contentType = file.getContentType();
+        String filename = file.getOriginalFilename();
+        
+        log.debug("Validating audio - contentType: {}, filename: {}", contentType, filename);
+
+        // If content type is missing or generic, try to determine from filename
+        if (contentType == null || 
+            contentType.equals("application/octet-stream") ||
+            !contentType.startsWith("audio/")) {
+            
+            log.warn("Content type '{}' is not audio, attempting to determine from filename", contentType);
+            
+            if (filename != null) {
+                String extension = filename.substring(filename.lastIndexOf('.') + 1).toLowerCase();
+                contentType = switch (extension) {
+                    case "mp3" -> "audio/mpeg";
+                    case "wav" -> "audio/wav";
+                    case "m4a" -> "audio/m4a";
+                    case "aac" -> "audio/aac";
+                    case "ogg" -> "audio/ogg";
+                    case "webm" -> "audio/webm";
+                    default -> contentType; // Keep original if can't determine
+                };
+                log.info("Determined content type from extension '{}': {}", extension, contentType);
+            }
+        }
+
+        // Final validation
+        if (contentType == null || !contentType.startsWith("audio/")) {
+            throw new IllegalArgumentException(
+                "Invalid file type. Expected audio file, got: " + contentType + 
+                " (filename: " + filename + ")");
+        }
+
+        // Check size (max 100MB)
+        if (file.getSize() > 100 * 1024 * 1024) {
+            throw new IllegalArgumentException("Audio file too large. Maximum size is 100MB");
+        }
+
+        return contentType;
     }
 
     @Async

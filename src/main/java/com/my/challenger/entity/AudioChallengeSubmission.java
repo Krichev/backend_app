@@ -33,6 +33,9 @@ public class AudioChallengeSubmission {
     @Column(name = "submission_audio_path", nullable = false)
     private String submissionAudioPath;
 
+    @Column(name = "submission_media_id")
+    private Long submissionMediaId;
+
     @Column(name = "processing_status", nullable = false)
     private String processingStatus = "PENDING";
 

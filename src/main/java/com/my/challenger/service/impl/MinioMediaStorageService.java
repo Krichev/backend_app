@@ -67,7 +67,8 @@ public class MinioMediaStorageService {
     private static final Set<String> VIDEO_TYPES = Set.of("video/mp4", "video/avi", "video/mov", "video/wmv", "video/flv", "video/webm");
     private static final Set<String> AUDIO_TYPES = Set.of(
             "audio/wav", "audio/mp3", "audio/ogg", "audio/m4a",
-            "audio/aac", "audio/mpeg", "audio/x-wav", "audio/webm"
+            "audio/aac", "audio/mpeg", "audio/x-wav", "audio/webm",
+            "audio/x-m4a", "audio/mp4", "audio/3gpp", "audio/amr"
     );
     private static final Set<String> DOCUMENT_TYPES = Set.of("application/pdf", "application/msword", "text/plain",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
@@ -81,6 +82,13 @@ public class MinioMediaStorageService {
     @Transactional
     public MediaFile storeMedia(MultipartFile file, Long entityId, MediaCategory category, Long uploadedBy) {
         try {
+            // Log incoming file details
+            log.info("📦 storeMedia called:");
+            log.info("   - Filename: {}", file.getOriginalFilename());
+            log.info("   - Content-Type: {}", file.getContentType());
+            log.info("   - Size: {} bytes", file.getSize());
+            log.info("   - Category: {}", category);
+
             validateFile(file);
             
             byte[] fileContent = file.getBytes();
@@ -100,18 +108,23 @@ public class MinioMediaStorageService {
                 }
             }
 
-            // Determine MediaType from content type
-            MediaType mediaType = determineMediaType(file.getContentType());
+            // Determine MediaType from content type with fallback
+            String contentType = file.getContentType();
+            MediaType mediaType = determineMediaTypeWithFallback(contentType, file.getOriginalFilename());
+            log.info("   - Determined MediaType: {}", mediaType);
 
             // Generate unique S3 key
             String s3Key = generateS3Key(category, file.getOriginalFilename());
+            log.info("   - Generated S3 Key: {}", s3Key);
 
             // Upload to MinIO
-            uploadToMinio(s3Key, fileContent, file.getContentType());
+            uploadToMinio(s3Key, fileContent, contentType);
+            log.info("   - Upload to MinIO: SUCCESS");
 
             // Create and save media file entity
             MediaFile mediaFile = createMediaFileEntity(file, s3Key, entityId, category, mediaType, uploadedBy, contentHash);
             mediaFile = mediaFileRepository.save(mediaFile);
+            log.info("   - MediaFile saved with ID: {}", mediaFile.getId());
 
             // Generate thumbnail if applicable
             if (mediaType.supportsThumbnails()) {
@@ -122,8 +135,51 @@ public class MinioMediaStorageService {
             return mediaFile;
 
         } catch (IOException e) {
-            log.error("Failed to store media file: {}", file.getOriginalFilename(), e);
+            log.error("❌ Failed to store media file: {}", file.getOriginalFilename(), e);
             throw new MediaProcessingException("Failed to store media file", e);
+        }
+    }
+
+    private MediaType determineMediaTypeWithFallback(String contentType, String filename) {
+        // First try by content type
+        if (contentType != null) {
+            if (IMAGE_TYPES.contains(contentType)) return MediaType.IMAGE;
+            if (VIDEO_TYPES.contains(contentType)) return MediaType.VIDEO;
+            if (AUDIO_TYPES.contains(contentType)) return MediaType.AUDIO;
+            if (DOCUMENT_TYPES.contains(contentType)) return MediaType.DOCUMENT;
+            if (contentType.startsWith("audio/")) return MediaType.AUDIO;
+            if (contentType.startsWith("video/")) return MediaType.VIDEO;
+            if (contentType.startsWith("image/")) return MediaType.IMAGE;
+        }
+        
+        // Fallback to filename extension
+        if (filename != null) {
+            String ext = filename.substring(filename.lastIndexOf('.') + 1).toLowerCase();
+            return switch (ext) {
+                case "mp3", "wav", "m4a", "aac", "ogg", "webm", "amr", "3gp" -> MediaType.AUDIO;
+                case "mp4", "mov", "avi", "mkv" -> MediaType.VIDEO;
+                case "jpg", "jpeg", "png", "gif", "webp" -> MediaType.IMAGE;
+                case "pdf", "doc", "docx" -> MediaType.DOCUMENT;
+                default -> throw new IllegalArgumentException("Cannot determine media type for: " + filename);
+            };
+        }
+        
+        throw new IllegalArgumentException("Cannot determine media type: contentType=" + contentType + ", filename=" + filename);
+    }
+
+    public boolean fileExists(String s3Key) {
+        try {
+            HeadObjectRequest headRequest = HeadObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(s3Key)
+                    .build();
+            s3Client.headObject(headRequest);
+            return true;
+        } catch (NoSuchKeyException e) {
+            return false;
+        } catch (Exception e) {
+            log.error("Error checking file existence: {}", s3Key, e);
+            return false;
         }
     }
 
