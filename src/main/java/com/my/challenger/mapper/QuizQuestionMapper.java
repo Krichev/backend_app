@@ -19,7 +19,7 @@ public interface QuizQuestionMapper {
      * All fields are mapped automatically except creator mappings
      */
     @Mapping(source = "creator.id", target = "creatorId")
-    @Mapping(source = "creator.username", target = "creatorUsername")
+    @Mapping(target = "creatorUsername", expression = "java(entity.getCreator() != null ? entity.getCreator().getUsername() : null)")
     @Mapping(source = "topic.name", target = "topic")
     @Mapping(source = "audioReferenceMedia.id", target = "audioReferenceMediaId")
     QuizQuestionDTO toDTO(QuizQuestion entity);

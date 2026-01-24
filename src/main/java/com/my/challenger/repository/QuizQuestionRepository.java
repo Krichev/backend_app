@@ -9,6 +9,7 @@ import jakarta.validation.constraints.NotNull;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -37,11 +38,13 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
     /**
      * Find questions by creator with pagination
      */
+    @EntityGraph(attributePaths = {"creator", "topic"})
     Page<QuizQuestion> findByCreator_IdAndIsUserCreatedTrue(Long creatorId, Pageable pageable);
 
     /**
      * Find questions accessible by a user based on visibility
      */
+    @EntityGraph(attributePaths = {"creator", "topic"})
     @Query("SELECT q FROM QuizQuestion q WHERE " +
             "q.isUserCreated = true AND q.isActive = true AND " +
             "(q.visibility = 'PUBLIC' OR " +
@@ -56,6 +59,7 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
     /**
      * Search user questions with filters
      */
+    @EntityGraph(attributePaths = {"creator", "topic"})
     @Query("SELECT q FROM QuizQuestion q WHERE " +
             "q.isUserCreated = true AND q.isActive = true AND " +
             "q.creator.id = :userId AND " +
@@ -181,6 +185,7 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
      * Search questions by keyword across multiple fields
      * This is the FIXED method that replaces the problematic searchByKeyword
      */
+    @EntityGraph(attributePaths = {"creator", "topic"})
     @Query("SELECT q FROM QuizQuestion q WHERE " +
             "LOWER(q.question) LIKE %:keyword% OR " +
             "LOWER(q.answer) LIKE %:keyword% OR " +
@@ -193,6 +198,7 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
     /**
      * BEST SOLUTION #2: Advanced search with clean syntax
      */
+    @EntityGraph(attributePaths = {"creator", "topic"})
     @Query("SELECT q FROM QuizQuestion q " +
             "LEFT JOIN q.topic t " +
             "WHERE " +
@@ -245,6 +251,7 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
     /**
      * Get questions by creator with pagination
      */
+    @EntityGraph(attributePaths = {"creator", "topic"})
     @Query("SELECT q FROM QuizQuestion q WHERE q.creator.id = :creatorId ORDER BY q.createdAt DESC")
     Page<QuizQuestion> findByCreatorId(@Param("creatorId") Long creatorId, Pageable pageable);
 
