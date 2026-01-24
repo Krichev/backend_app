@@ -59,6 +59,17 @@ public class QuizQuestionController {
     }
 
     /**
+     * Get all available topics
+     * GET /api/quiz-questions/topics
+     */
+    @GetMapping("/topics")
+    public ResponseEntity<List<String>> getAvailableTopics() {
+        log.info("Fetching available topics");
+        List<String> topics = searchService.getAllTopics();
+        return ResponseEntity.ok(topics);
+    }
+
+    /**
      * Get question by ID
      * GET /api/quiz-questions/{id}
      */

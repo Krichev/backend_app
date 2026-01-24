@@ -128,7 +128,7 @@ public class QuizQuestionSearchService {
     public Page<QuizQuestion> advancedSearch(String keyword,
                                            QuizDifficulty difficulty, 
                                            String topic, 
-                                           boolean isUserCreated,
+                                           Boolean isUserCreated,
                                            int page, 
                                            int size) {
         log.debug("Advanced search - keyword: '{}', difficulty: {}, topic: '{}', userCreated: {}", 
