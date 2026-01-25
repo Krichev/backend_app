@@ -184,11 +184,21 @@ public class ChallengeServiceImpl implements ChallengeService {
         }
 
         // Create progress record
-        // ... your existing join logic
+        if (!challengeProgressRepository.existsByChallengeIdAndUserId(challengeId, userId)) {
+            ChallengeProgress progress = ChallengeProgress.builder()
+                    .challenge(challenge)
+                    .user(user)
+                    .status(ProgressStatus.IN_PROGRESS)
+                    .completionPercentage(0.0)
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .build();
+            challengeProgressRepository.save(progress);
+            log.info("Created progress record for user {} joining challenge {}", userId, challengeId);
+        }
 
-        log.info("User {} joined challenge {} with payment type {}",
-                userId, challengeId, challenge.getPaymentType());
-    }
+        // Create user task
+        createUserTask(challenge, user);
 
     /**
      * Grant access to specific users for private challenges
@@ -771,8 +781,13 @@ public class ChallengeServiceImpl implements ChallengeService {
      * Helper method to update challenge progress
      */
     private void updateChallengeProgress(Challenge challenge, User user) {
+        // Get existing progress or create new one (defensive for quiz challenges)
         ChallengeProgress progress = challengeProgressRepository.findByChallengeIdAndUserId(challenge.getId(), user.getId())
-                .orElseThrow(() -> new IllegalStateException("User has not joined this challenge"));
+                .orElseGet(() -> {
+                    log.info("Auto-creating progress record for user {} on challenge {} (implicit join via quiz)",
+                            user.getId(), challenge.getId());
+                    return createProgressRecord(challenge, user);
+                });
 
         // Count total and completed tasks
         long totalTasks = taskRepository.countByChallengeIdAndAssignedTo(challenge.getId(), user.getId());
@@ -794,6 +809,18 @@ public class ChallengeServiceImpl implements ChallengeService {
 
         log.debug("Updated progress for user {} on challenge {}: {}%",
                 user.getId(), challenge.getId(), completionPercentage);
+    }
+
+    private ChallengeProgress createProgressRecord(Challenge challenge, User user) {
+        ChallengeProgress progress = ChallengeProgress.builder()
+                .challenge(challenge)
+                .user(user)
+                .status(ProgressStatus.IN_PROGRESS)
+                .completionPercentage(0.0)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+        return challengeProgressRepository.save(progress);
     }
 
 }
