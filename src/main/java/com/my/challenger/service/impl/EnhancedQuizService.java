@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.my.challenger.entity.ChallengeProgress;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -31,6 +32,7 @@ public class EnhancedQuizService extends QuizService {
 
     private final ObjectMapper objectMapper;
     private final TaskRepository taskRepository;
+    private final ChallengeProgressRepository challengeProgressRepository;
 
     public EnhancedQuizService(
             QuizQuestionRepository quizQuestionRepository,
@@ -43,7 +45,9 @@ public class EnhancedQuizService extends QuizService {
             WWWGameService gameService,
             MinioMediaStorageService mediaStorageService,
             ObjectMapper objectMapper,
-            TaskRepository taskRepository, TopicService topicService) {
+            TaskRepository taskRepository,
+            TopicService topicService,
+            ChallengeProgressRepository challengeProgressRepository) {
 
         super(quizQuestionRepository, quizSessionRepository, quizRoundRepository,
                 challengeRepository, userRepository, mediaFileRepository, questRepository, gameService,
@@ -51,6 +55,7 @@ public class EnhancedQuizService extends QuizService {
 
         this.objectMapper = objectMapper;
         this.taskRepository = taskRepository;
+        this.challengeProgressRepository = challengeProgressRepository;
     }
 
 
@@ -182,6 +187,9 @@ public class EnhancedQuizService extends QuizService {
 
             // 6. Create initial task for the challenge
             createQuizTask(savedChallenge, creator);
+
+            // 6b. Create progress record for creator (required for challenge completion)
+            createCreatorProgress(savedChallenge, creator);
 
             // 7. Convert to DTO and return
             ChallengeDTO challengeDTO = convertChallengeToDTO(savedChallenge);
@@ -605,5 +613,22 @@ public class EnhancedQuizService extends QuizService {
                 .voiceRecordingUsed(round.getVoiceRecordingUsed())
                 .aiFeedback(round.getAiFeedback())
                 .build();
+    }
+
+    private void createCreatorProgress(Challenge challenge, User creator) {
+        log.info("Creating progress record for challenge ID: {} and creator: {}",
+                challenge.getId(), creator.getUsername());
+
+        ChallengeProgress progress = new ChallengeProgress();
+        progress.setChallenge(challenge);
+        progress.setUser(creator);
+        progress.setStatus(ProgressStatus.IN_PROGRESS);
+        progress.setCompletionPercentage(0.0);
+        progress.setCreatedAt(LocalDateTime.now());
+        progress.setUpdatedAt(LocalDateTime.now());
+
+        challengeProgressRepository.save(progress);
+
+        log.info("Progress record created successfully for challenge {}", challenge.getId());
     }
 }
