@@ -200,6 +200,9 @@ public class ChallengeServiceImpl implements ChallengeService {
         // Create user task
         createUserTask(challenge, user);
 
+        log.info("User {} successfully joined challenge {}", userId, challengeId);
+    }
+
     /**
      * Grant access to specific users for private challenges
      */
@@ -445,14 +448,29 @@ public class ChallengeServiceImpl implements ChallengeService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<Challenge> getChallengeById(Long id) {
-        Challenge challenge = findChallengeById(id);
-        if(challenge == null) {
-            return Optional.empty();
-        }
-        return Optional.of(challenge);
+        return challengeRepository.findById(id);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<ChallengeDTO> searchChallenges(String query, Long requestUserId) {
+        if (query == null || query.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        try {
+            List<Challenge> challenges = challengeRepository.searchByKeyword(query.trim());
+            return challenges.stream()
+                    .filter(c -> canUserAccessChallenge(c, requestUserId))
+                    .map(challenge -> convertToDTO(challenge, requestUserId))
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Error searching challenges with query: {}", query, e);
+            return Collections.emptyList();
+        }
+    }
 
     @Override
     @Transactional
@@ -592,23 +610,6 @@ public class ChallengeServiceImpl implements ChallengeService {
             log.info("Challenge completion approved for user {} on challenge {}", userId, challengeId);
         } else {
             log.info("Challenge completion rejected for user {} on challenge {}", userId, challengeId);
-        }
-    }
-
-    @Override
-    public List<ChallengeDTO> searchChallenges(String query, Long requestUserId) {
-        if (query == null || query.trim().isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        try {
-            List<Challenge> challenges = challengeRepository.searchByKeyword(query.trim());
-            return challenges.stream()
-                    .map(challenge -> convertToDTO(challenge, requestUserId))
-                    .collect(Collectors.toList());
-        } catch (Exception e) {
-            log.error("Error searching challenges with query: {}", query, e);
-            return Collections.emptyList();
         }
     }
 
