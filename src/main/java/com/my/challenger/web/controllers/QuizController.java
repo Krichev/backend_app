@@ -199,6 +199,18 @@ public class QuizController {
         return ResponseEntity.ok(session);
     }
 
+    @PostMapping("/sessions/{sessionId}/complete")
+    @Operation(summary = "Complete a quiz session")
+    public ResponseEntity<QuizSessionDTO> completeQuizSession(
+            @PathVariable Long sessionId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        User user = getUserFromUserDetails(userDetails);
+        log.info("User {} completing quiz session: {}", user.getId(), sessionId);
+        QuizSessionDTO session = questionService.completeQuizSession(sessionId, user.getId());
+        return ResponseEntity.ok(session);
+    }
+
 
     @PutMapping("/questions/{questionId}/visibility")
     @Operation(summary = "Update question visibility policy")
