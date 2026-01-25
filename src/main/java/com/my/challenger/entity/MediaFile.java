@@ -114,6 +114,9 @@ public class MediaFile {
     private String thumbnailPath;
 
     // Cloud storage fields
+    @Column(name = "bucket_name")
+    private String bucketName;
+
     @Column(name = "s3_key")
     private String s3Key;
 

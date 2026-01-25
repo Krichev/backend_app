@@ -10,9 +10,12 @@ import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * MinIO startup configuration
- * Ensures bucket is created on application startup
+ * Ensures buckets are created on application startup
  */
 @Configuration
 @ConditionalOnProperty(name = "app.storage.type", havingValue = "s3")
@@ -21,9 +24,7 @@ import software.amazon.awssdk.services.s3.model.*;
 public class MinioStartupConfig {
 
     private final S3Client s3Client;
-
-    @Value("${app.storage.s3.bucket-name}")
-    private String bucketName;
+    private final StorageProperties storageProperties;
 
     @Value("${app.storage.minio.public-bucket:false}")
     private boolean publicBucket;
@@ -32,8 +33,28 @@ public class MinioStartupConfig {
     public ApplicationRunner initializeMinio() {
         return args -> {
             try {
-                log.info("Initializing MinIO bucket: {}", bucketName);
-                createBucketIfNotExists();
+                log.info("Initializing MinIO buckets...");
+                
+                List<String> bucketsToCreate = new ArrayList<>();
+                StorageProperties.S3.Buckets buckets = storageProperties.getS3().getBuckets();
+                
+                if (buckets != null) {
+                    if (buckets.getImages() != null) bucketsToCreate.add(buckets.getImages());
+                    if (buckets.getAudio() != null) bucketsToCreate.add(buckets.getAudio());
+                    if (buckets.getVideos() != null) bucketsToCreate.add(buckets.getVideos());
+                    if (buckets.getDocuments() != null) bucketsToCreate.add(buckets.getDocuments());
+                }
+                
+                // Add legacy bucket if configured
+                String legacyBucket = storageProperties.getS3().getBucketName();
+                if (legacyBucket != null && !legacyBucket.isEmpty() && !bucketsToCreate.contains(legacyBucket)) {
+                    bucketsToCreate.add(legacyBucket);
+                }
+
+                for (String bucketName : bucketsToCreate) {
+                    createBucketIfNotExists(bucketName);
+                }
+                
                 log.info("MinIO initialization completed successfully");
             } catch (Exception e) {
                 log.warn("MinIO initialization failed, but application will continue: {}", e.getMessage());
@@ -41,7 +62,7 @@ public class MinioStartupConfig {
         };
     }
 
-    private void createBucketIfNotExists() {
+    private void createBucketIfNotExists(String bucketName) {
         try {
             // Check if bucket exists
             HeadBucketRequest headBucketRequest = HeadBucketRequest.builder()
@@ -54,19 +75,19 @@ public class MinioStartupConfig {
             } catch (Exception e) {
                 // Bucket doesn't exist, create it
                 log.info("Bucket '{}' doesn't exist, creating...", bucketName);
-                createBucket();
+                createBucket(bucketName);
             }
 
             // Set bucket policy to allow public read access
-            setBucketPolicy();
+            setBucketPolicy(bucketName);
 
         } catch (Exception e) {
-            log.error("Failed to initialize MinIO bucket", e);
-            throw new RuntimeException("Failed to initialize MinIO bucket", e);
+            log.error("Failed to initialize MinIO bucket: {}", bucketName, e);
+            // Don't throw exception to allow other buckets to proceed
         }
     }
 
-    private void createBucket() {
+    private void createBucket(String bucketName) {
         CreateBucketRequest createBucketRequest = CreateBucketRequest.builder()
                 .bucket(bucketName)
                 .build();
@@ -75,7 +96,7 @@ public class MinioStartupConfig {
         log.info("Created bucket: {}", bucketName);
     }
 
-    private void setBucketPolicy() {
+    private void setBucketPolicy(String bucketName) {
         if (!publicBucket) {
             log.info("Bucket '{}' is PRIVATE - presigned URLs required", bucketName);
             return; // Don't set public policy
@@ -109,7 +130,7 @@ public class MinioStartupConfig {
             log.info("Set public bucket policy for: {}", bucketName);
 
         } catch (Exception e) {
-            log.warn("Failed to set bucket policy (this is optional): {}", e.getMessage());
+            log.warn("Failed to set bucket policy for '{}' (this is optional): {}", bucketName, e.getMessage());
         }
     }
 }

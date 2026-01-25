@@ -1,11 +1,14 @@
 package com.my.challenger.service.impl;
 
+import com.my.challenger.config.StorageProperties;
 import com.my.challenger.entity.MediaFile;
 import com.my.challenger.entity.enums.MediaCategory;
 import com.my.challenger.entity.enums.MediaType;
 import com.my.challenger.entity.enums.ProcessingStatus;
 import com.my.challenger.exception.MediaProcessingException;
 import com.my.challenger.repository.MediaFileRepository;
+import com.my.challenger.service.BucketResolver;
+import com.my.challenger.util.S3KeyGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -42,7 +45,6 @@ import java.util.UUID;
  * Replaces file-based storage with object storage
  */
 @Service
-//@ConditionalOnProperty(name = "app.storage.type", havingValue = "minio")
 @RequiredArgsConstructor
 @Slf4j
 public class MinioMediaStorageService {
@@ -50,9 +52,15 @@ public class MinioMediaStorageService {
     private final S3Client s3Client;
     private final S3Presigner s3Presigner;
     private final MediaFileRepository mediaFileRepository;
+    
+    // NEW DEPENDENCIES
+    private final S3KeyGenerator s3KeyGenerator;
+    private final BucketResolver bucketResolver;
+    private final StorageProperties storageProperties;
 
+    // Legacy bucket name for backward compatibility
     @Value("${app.storage.s3.bucket-name}")
-    private String bucketName;
+    private String legacyBucketName;
 
     @Value("${app.base.url:http://localhost:8080}")
     private String baseUrl;
@@ -77,10 +85,20 @@ public class MinioMediaStorageService {
     private static final int THUMBNAIL_HEIGHT = 300;
 
     /**
-     * Store media file with explicit category specification
+     * Store media file with explicit category specification - REFACTORED
      */
     @Transactional
     public MediaFile storeMedia(MultipartFile file, Long entityId, MediaCategory category, Long uploadedBy) {
+        // Delegate to new method signature with explicit quiz/question IDs (null for general use)
+        return storeMedia(file, null, null, category, uploadedBy);
+    }
+
+    /**
+     * Store media file with full context - NEW METHOD
+     */
+    @Transactional
+    public MediaFile storeMedia(MultipartFile file, Long quizId, Long questionId, 
+                                MediaCategory category, Long uploadedBy) {
         try {
             // Log incoming file details
             log.info("📦 storeMedia called:");
@@ -113,16 +131,31 @@ public class MinioMediaStorageService {
             MediaType mediaType = determineMediaTypeWithFallback(contentType, file.getOriginalFilename());
             log.info("   - Determined MediaType: {}", mediaType);
 
-            // Generate unique S3 key
-            String s3Key = generateS3Key(category, file.getOriginalFilename());
+            // Resolve bucket
+            String bucket = bucketResolver.getBucket(mediaType);
+            log.info("   - Resolved Bucket: {}", bucket);
+
+            // Generate unique S3 key using new hierarchical schema
+            String s3Key = s3KeyGenerator.generateKey(
+                storageProperties.getEnvironment(),
+                uploadedBy,
+                "user", // Default owner type
+                quizId,
+                questionId,
+                mediaType,
+                getFileExtension(file.getOriginalFilename())
+            );
             log.info("   - Generated S3 Key: {}", s3Key);
 
             // Upload to MinIO
-            uploadToMinio(s3Key, fileContent, contentType);
+            uploadToMinio(bucket, s3Key, fileContent, contentType);
             log.info("   - Upload to MinIO: SUCCESS");
 
             // Create and save media file entity
-            MediaFile mediaFile = createMediaFileEntity(file, s3Key, entityId, category, mediaType, uploadedBy, contentHash);
+            // Use entityId (questionId) if available, otherwise 0 or appropriate mapping
+            Long entityRefId = (questionId != null) ? questionId : (quizId != null ? quizId : 0L);
+            
+            MediaFile mediaFile = createMediaFileEntity(file, bucket, s3Key, entityRefId, category, mediaType, uploadedBy, contentHash);
             mediaFile = mediaFileRepository.save(mediaFile);
             log.info("   - MediaFile saved with ID: {}", mediaFile.getId());
 
@@ -131,7 +164,7 @@ public class MinioMediaStorageService {
                 generateThumbnailAsync(mediaFile);
             }
 
-            log.info("Media file stored successfully in MinIO: {} with ID: {}", s3Key, mediaFile.getId());
+            log.info("Media file stored successfully in bucket {}: {} with ID: {}", bucket, s3Key, mediaFile.getId());
             return mediaFile;
 
         } catch (IOException e) {
@@ -168,17 +201,35 @@ public class MinioMediaStorageService {
     }
 
     public boolean fileExists(String s3Key) {
+        // This is tricky without knowing the bucket.
+        // We'll try all buckets or assume legacy if we don't have the media record.
+        // Ideally, this method should take a MediaFile or bucket name.
+        // For backward compatibility, we check legacy bucket first.
+        if (fileExistsInBucket(legacyBucketName, s3Key)) return true;
+        
+        // Check other buckets if configured
+        if (storageProperties.getS3().getBuckets() != null) {
+             if (fileExistsInBucket(storageProperties.getS3().getBuckets().getImages(), s3Key)) return true;
+             if (fileExistsInBucket(storageProperties.getS3().getBuckets().getAudio(), s3Key)) return true;
+             if (fileExistsInBucket(storageProperties.getS3().getBuckets().getVideos(), s3Key)) return true;
+        }
+        
+        return false;
+    }
+    
+    private boolean fileExistsInBucket(String bucket, String key) {
+        if (bucket == null) return false;
         try {
             HeadObjectRequest headRequest = HeadObjectRequest.builder()
-                    .bucket(bucketName)
-                    .key(s3Key)
+                    .bucket(bucket)
+                    .key(key)
                     .build();
             s3Client.headObject(headRequest);
             return true;
         } catch (NoSuchKeyException e) {
             return false;
         } catch (Exception e) {
-            log.error("Error checking file existence: {}", s3Key, e);
+            // log.debug("Error checking file existence in {}: {}", bucket, e.getMessage());
             return false;
         }
     }
@@ -204,19 +255,19 @@ public class MinioMediaStorageService {
     /**
      * Upload file to MinIO
      */
-    private void uploadToMinio(String s3Key, byte[] content, String contentType) {
+    private void uploadToMinio(String bucket, String s3Key, byte[] content, String contentType) {
         try {
             PutObjectRequest putRequest = PutObjectRequest.builder()
-                    .bucket(bucketName)
+                    .bucket(bucket)
                     .key(s3Key)
                     .contentType(contentType)
                     .build();
 
             s3Client.putObject(putRequest, RequestBody.fromBytes(content));
-            log.debug("Uploaded file to MinIO: {}", s3Key);
+            log.debug("Uploaded file to MinIO bucket {}: {}", bucket, s3Key);
 
         } catch (Exception e) {
-            log.error("Failed to upload to MinIO: {}", s3Key, e);
+            log.error("Failed to upload to MinIO: {}/{}", bucket, s3Key, e);
             throw new MediaProcessingException("Failed to upload to MinIO", e);
         }
     }
@@ -233,9 +284,34 @@ public class MinioMediaStorageService {
      * Download file from MinIO
      */
     public byte[] downloadFromMinio(String s3Key) {
+        // We need to find the media file to know the bucket
+        // If we only have the key, we have to guess or search. 
+        // NOTE: This method signature assumes we don't have the MediaFile object.
+        // IMPORTANT: We should update callers to use downloadFromMinio(MediaFile) instead.
+        
+        // Strategy: Try legacy bucket first, then guess based on key path (if hierarchical)
+        // or search all buckets.
+        
+        // For now, let's try to look up the MediaFile by S3 Key
+        Optional<MediaFile> mediaFileOpt = mediaFileRepository.findByS3Key(s3Key);
+        String bucket = legacyBucketName;
+        
+        if (mediaFileOpt.isPresent() && mediaFileOpt.get().getBucketName() != null) {
+            bucket = mediaFileOpt.get().getBucketName();
+        }
+        
+        return downloadFromMinio(bucket, s3Key);
+    }
+    
+    public byte[] downloadFromMinio(MediaFile mediaFile) {
+        String bucket = mediaFile.getBucketName() != null ? mediaFile.getBucketName() : legacyBucketName;
+        return downloadFromMinio(bucket, mediaFile.getS3Key());
+    }
+
+    public byte[] downloadFromMinio(String bucket, String s3Key) {
         try {
             GetObjectRequest getRequest = GetObjectRequest.builder()
-                    .bucket(bucketName)
+                    .bucket(bucket)
                     .key(s3Key)
                     .build();
 
@@ -243,7 +319,7 @@ public class MinioMediaStorageService {
             return inputStream.readAllBytes();
 
         } catch (Exception e) {
-            log.error("Failed to download from MinIO: {}", s3Key, e);
+            log.error("Failed to download from MinIO: {}/{}", bucket, s3Key, e);
             throw new MediaProcessingException("Failed to download from MinIO", e);
         }
     }
@@ -260,61 +336,54 @@ public class MinioMediaStorageService {
             throw new IllegalStateException("You are not authorized to delete this media file");
         }
 
-        // Delete from MinIO
-        try {
-            deleteFromMinio(mediaFile.getS3Key());
-
-            if (mediaFile.getThumbnailPath() != null) {
-                deleteFromMinio(mediaFile.getThumbnailPath());
-            }
-        } catch (Exception e) {
-            log.error("Error deleting files from MinIO for media {}", mediaId, e);
-            // Continue with database deletion even if MinIO deletion fails
-        }
-
-        // Delete database record
-        mediaFileRepository.delete(mediaFile);
+        performDelete(mediaFile);
         log.info("Media file {} deleted by user {}", mediaId, userId);
     }
-
-    /**
-     * Delete file from MinIO
-     */
-    private void deleteFromMinio(String s3Key) {
-        try {
-            DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
-                    .bucket(bucketName)
-                    .key(s3Key)
-                    .build();
-
-            s3Client.deleteObject(deleteRequest);
-            log.debug("Deleted file from MinIO: {}", s3Key);
-
-        } catch (Exception e) {
-            log.error("Failed to delete from MinIO: {}", s3Key, e);
-            throw new MediaProcessingException("Failed to delete from MinIO", e);
-        }
-    }
-
+    
     /**
      * Delete media file without authorization check (for system operations)
      */
     @Transactional
     public void deleteMedia(Long mediaId) {
         MediaFile mediaFile = getMediaFileById(mediaId);
+        performDelete(mediaFile);
+        log.info("Media file {} deleted by system", mediaId);
+    }
 
+    private void performDelete(MediaFile mediaFile) {
+        String bucket = mediaFile.getBucketName() != null ? mediaFile.getBucketName() : legacyBucketName;
+        
         try {
-            deleteFromMinio(mediaFile.getS3Key());
+            deleteFromMinio(bucket, mediaFile.getS3Key());
 
             if (mediaFile.getThumbnailPath() != null) {
-                deleteFromMinio(mediaFile.getThumbnailPath());
+                deleteFromMinio(bucket, mediaFile.getThumbnailPath());
             }
         } catch (Exception e) {
-            log.error("Error deleting files from MinIO for media {}", mediaId, e);
+            log.error("Error deleting files from MinIO for media {}", mediaFile.getId(), e);
+            // Continue with database deletion even if MinIO deletion fails
         }
 
         mediaFileRepository.delete(mediaFile);
-        log.info("Media file {} deleted by system", mediaId);
+    }
+
+    /**
+     * Delete file from MinIO
+     */
+    private void deleteFromMinio(String bucket, String s3Key) {
+        try {
+            DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(s3Key)
+                    .build();
+
+            s3Client.deleteObject(deleteRequest);
+            log.debug("Deleted file from MinIO: {}/{}", bucket, s3Key);
+
+        } catch (Exception e) {
+            log.error("Failed to delete from MinIO: {}/{}", bucket, s3Key, e);
+            throw new MediaProcessingException("Failed to delete from MinIO", e);
+        }
     }
 
     /**
@@ -324,7 +393,8 @@ public class MinioMediaStorageService {
         if (mediaFile == null) {
             return null;
         }
-        return generatePresignedUrl(mediaFile.getS3Key());
+        String bucket = mediaFile.getBucketName() != null ? mediaFile.getBucketName() : legacyBucketName;
+        return generatePresignedUrl(bucket, mediaFile.getS3Key());
     }
 
     /**
@@ -334,7 +404,8 @@ public class MinioMediaStorageService {
         if (mediaFile == null || mediaFile.getThumbnailPath() == null) {
             return null;
         }
-        return generatePresignedUrl(mediaFile.getThumbnailPath());
+        String bucket = mediaFile.getBucketName() != null ? mediaFile.getBucketName() : legacyBucketName;
+        return generatePresignedUrl(bucket, mediaFile.getThumbnailPath());
     }
 
     /**
@@ -349,7 +420,10 @@ public class MinioMediaStorageService {
      */
     public String getMediaUrlByStorageKey(UUID storageKey) {
         return mediaFileRepository.findByStorageKey(storageKey)
-            .map(mf -> generatePresignedUrl(mf.getS3Key()))
+            .map(mf -> {
+                String bucket = mf.getBucketName() != null ? mf.getBucketName() : legacyBucketName;
+                return generatePresignedUrl(bucket, mf.getS3Key());
+            })
             .orElse(null);
     }
 
@@ -363,7 +437,7 @@ public class MinioMediaStorageService {
 
         Optional<MediaFile> mediaFile = mediaFileRepository.findById(mediaId);
         if (mediaFile.isPresent()) {
-            return generatePresignedUrl(mediaFile.get().getS3Key());
+            return getMediaUrl(mediaFile.get());
         }
 
         log.warn("Media file not found for ID: {}", mediaId);
@@ -384,7 +458,7 @@ public class MinioMediaStorageService {
 
         Optional<MediaFile> mediaFile = mediaFileRepository.findByFilename(filename);
         if (mediaFile.isPresent()) {
-            return generatePresignedUrl(mediaFile.get().getS3Key());
+            return getMediaUrl(mediaFile.get());
         }
 
         log.warn("Media file not found for filename: {}", filename);
@@ -394,10 +468,10 @@ public class MinioMediaStorageService {
     /**
      * Generate presigned URL for temporary access
      */
-    private String generatePresignedUrl(String s3Key) {
+    public String generatePresignedUrl(String bucket, String s3Key) {
         try {
             GetObjectRequest getRequest = GetObjectRequest.builder()
-                    .bucket(bucketName)
+                    .bucket(bucket)
                     .key(s3Key)
                     .build();
 
@@ -409,7 +483,7 @@ public class MinioMediaStorageService {
             return s3Presigner.presignGetObject(presignRequest).url().toString();
 
         } catch (Exception e) {
-            log.error("Failed to generate presigned URL for: {}", s3Key, e);
+            log.error("Failed to generate presigned URL for: {}/{}", bucket, s3Key, e);
             return null;
         }
     }
@@ -417,6 +491,7 @@ public class MinioMediaStorageService {
     /**
      * Generate presigned URL from S3 key
      * This is used when the entity stores only the S3 key (not full URL)
+     * Assumes legacy bucket if we don't have context.
      */
     public String generatePresignedUrlFromKey(String s3Key) {
         if (s3Key == null || s3Key.trim().isEmpty()) {
@@ -432,7 +507,10 @@ public class MinioMediaStorageService {
             }
         }
 
-        return generatePresignedUrl(s3Key);
+        // We assume legacy bucket here since we don't have the media object to tell us otherwise.
+        // If the key structure is new (has bucket info implied?), we still need the bucket name.
+        // Ideally, callers should use the method taking MediaFile.
+        return generatePresignedUrl(legacyBucketName, s3Key);
     }
 
     /**
@@ -446,8 +524,10 @@ public class MinioMediaStorageService {
             String path = parsedUrl.getPath(); // /bucket/key
 
             // Remove leading slash and bucket name
-            if (path.startsWith("/" + bucketName + "/")) {
-                return path.substring(bucketName.length() + 2); // +2 for both slashes
+            // For this to work robustly with multiple buckets, we'd need to check all known bucket names.
+            // For now, checking legacy bucket is a safe default for legacy URLs.
+            if (path.startsWith("/" + legacyBucketName + "/")) {
+                return path.substring(legacyBucketName.length() + 2); // +2 for both slashes
             }
 
             // Fallback: just remove leading slash
@@ -478,6 +558,8 @@ public class MinioMediaStorageService {
     @Transactional
     public MediaFile storeMedia(MultipartFile file, Long entityId, Long uploadedBy) {
         MediaCategory category = determineMediaCategoryFromContext(entityId, uploadedBy);
+        // We pass entityId as quizId/questionId depending on context, or null if ambiguous
+        // For general usage, we just use the simple storeMedia which maps to defaults
         return storeMedia(file, entityId, category, uploadedBy);
     }
 
@@ -486,7 +568,7 @@ public class MinioMediaStorageService {
      */
     @Transactional
     public MediaFile storeTemporaryMedia(MultipartFile file, Long uploadedBy) {
-        return storeMedia(file, null, MediaCategory.TEMPORARY, uploadedBy);
+        return storeMedia(file, null, null, MediaCategory.TEMPORARY, uploadedBy);
     }
 
     /**
@@ -494,7 +576,7 @@ public class MinioMediaStorageService {
      */
     @Transactional
     public MediaFile storeAvatarMedia(MultipartFile file, Long userId) {
-        return storeMedia(file, userId, MediaCategory.AVATAR, userId);
+        return storeMedia(file, null, null, MediaCategory.AVATAR, userId);
     }
 
     /**
@@ -502,7 +584,8 @@ public class MinioMediaStorageService {
      */
     @Transactional
     public MediaFile storeChallengeProofMedia(MultipartFile file, Long challengeId, Long uploadedBy) {
-        return storeMedia(file, challengeId, MediaCategory.CHALLENGE_PROOF, uploadedBy);
+        // Mapping challengeId as quizId context for now, or just generic entity
+        return storeMedia(file, challengeId, null, MediaCategory.CHALLENGE_PROOF, uploadedBy);
     }
 
     /**
@@ -510,7 +593,7 @@ public class MinioMediaStorageService {
      */
     @Transactional
     public MediaFile storeQuizQuestionMedia(MultipartFile file, Long questionId, Long uploadedBy) {
-        return storeMedia(file, questionId, MediaCategory.QUIZ_QUESTION, uploadedBy);
+        return storeMedia(file, null, questionId, MediaCategory.QUIZ_QUESTION, uploadedBy);
     }
 
     /**
@@ -518,7 +601,7 @@ public class MinioMediaStorageService {
      */
     @Transactional
     public MediaFile storeSystemMedia(MultipartFile file, Long uploadedBy) {
-        return storeMedia(file, null, MediaCategory.SYSTEM, uploadedBy);
+        return storeMedia(file, null, null, MediaCategory.SYSTEM, uploadedBy);
     }
 
     /**
@@ -583,13 +666,6 @@ public class MinioMediaStorageService {
                 DOCUMENT_TYPES.contains(contentType);
     }
 
-    private String generateS3Key(MediaCategory category, String originalFilename) {
-        String filename = generateUniqueFilename(originalFilename);
-        return category.getS3Prefix() +
-                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy/MM/dd/")) +
-                filename;
-    }
-
     private String generateUniqueFilename(String originalFilename) {
         String extension = getFileExtension(originalFilename);
         return UUID.randomUUID().toString() + (extension.isEmpty() ? "" : "." + extension);
@@ -619,7 +695,7 @@ public class MinioMediaStorageService {
         return lastSlash >= 0 ? s3Key.substring(lastSlash + 1) : s3Key;
     }
 
-    private MediaFile createMediaFileEntity(MultipartFile file, String s3Key, Long entityId,
+    private MediaFile createMediaFileEntity(MultipartFile file, String bucketName, String s3Key, Long entityId,
                                             MediaCategory category, MediaType mediaType, 
                                             Long uploadedBy, String contentHash) throws IOException {
         MediaFile mediaFile = new MediaFile();
@@ -631,6 +707,7 @@ public class MinioMediaStorageService {
         // Preserve original filename for display
         mediaFile.setOriginalFilename(file.getOriginalFilename());
         
+        mediaFile.setBucketName(bucketName);
         mediaFile.setS3Key(s3Key);
         mediaFile.setFilePath(s3Key);
         mediaFile.setFileSize(file.getSize());
@@ -686,7 +763,7 @@ public class MinioMediaStorageService {
     private void generateImageThumbnail(MediaFile mediaFile) {
         try {
             // Download original image from MinIO
-            byte[] originalImage = downloadFromMinio(mediaFile.getS3Key());
+            byte[] originalImage = downloadFromMinio(mediaFile);
 
             // Create thumbnail
             BufferedImage image = ImageIO.read(new ByteArrayInputStream(originalImage));
@@ -702,11 +779,13 @@ public class MinioMediaStorageService {
             ImageIO.write(thumbnail, "jpg", baos);
             byte[] thumbnailBytes = baos.toByteArray();
 
-            // Generate thumbnail S3 key
+            // Generate thumbnail S3 key (keep in same bucket and path, just prefixed)
+            // For hierarchical keys, we might want: .../image/thumb_uuid.jpg
             String thumbnailKey = generateThumbnailKey(mediaFile.getS3Key());
+            String bucket = mediaFile.getBucketName() != null ? mediaFile.getBucketName() : legacyBucketName;
 
             // Upload thumbnail to MinIO
-            uploadToMinio(thumbnailKey, thumbnailBytes, "image/jpeg");
+            uploadToMinio(bucket, thumbnailKey, thumbnailBytes, "image/jpeg");
 
             // Update media file record
             mediaFile.setThumbnailPath(thumbnailKey);
