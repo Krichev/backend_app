@@ -502,7 +502,8 @@ public class QuestionService {
         QuizSession session = findUserSession(sessionId, userId);
 
         if (session.getStatus() == QuizSessionStatus.COMPLETED) {
-            throw new IllegalStateException("Session is already completed");
+            log.info("Session {} is already completed, returning existing session", sessionId);
+            return convertSessionToDTO(session);
         }
 
         session.setStatus(QuizSessionStatus.COMPLETED);
