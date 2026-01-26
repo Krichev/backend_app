@@ -119,7 +119,7 @@ app:
       region: ${S3_REGION:us-east-1}
       access-key: ${S3_ACCESS_KEY:challenger_minio}
       secret-key: ${S3_SECRET_KEY:challenger_secret_123}
-      endpoint: ${S3_ENDPOINT:http://localhost:9000}
+      endpoint: ${S3_ENDPOINT:http://45.129.186.166:9000}
       buckets:
         images: ${S3_BUCKET_IMAGES:quiz-media-images}
         audio: ${S3_BUCKET_AUDIO:quiz-media-audio}

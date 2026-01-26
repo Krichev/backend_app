@@ -180,7 +180,7 @@ public class ChallengeController {
     /**
      * Update an existing challenge
      */
-    @PatchMapping("/{id}")
+    @RequestMapping(value = "/{id}", method = {RequestMethod.PUT, RequestMethod.PATCH})
     public ResponseEntity<ChallengeDTO> updateChallenge(
             @PathVariable Long id,
             @Valid @RequestBody UpdateChallengeRequest request,
