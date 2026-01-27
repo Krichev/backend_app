@@ -1,6 +1,7 @@
 package com.my.challenger.dto.quiz;
 
 import com.my.challenger.entity.enums.MediaType;
+import com.my.challenger.entity.enums.MediaSourceType;
 import com.my.challenger.entity.enums.QuestionVisibility;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.enums.QuestionType;
@@ -44,6 +45,18 @@ public class QuizQuestionDTO {
     private Long questionMediaId;
     private MediaType questionMediaType;
     private String questionThumbnailUrl;
+
+    // External Media Support
+    private MediaSourceType mediaSourceType;
+    private String externalMediaUrl;
+    private String externalMediaId;
+    private Double questionVideoStartTime;
+    private Double questionVideoEndTime;
+    private String answerMediaUrl;
+    private String answerExternalMediaId;
+    private Double answerVideoStartTime;
+    private Double answerVideoEndTime;
+    private String answerTextVerification;
 
     // Audio challenge fields
     private AudioChallengeType audioChallengeType;

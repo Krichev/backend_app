@@ -13,7 +13,9 @@ import com.my.challenger.exception.BadRequestException;
 import com.my.challenger.exception.ResourceNotFoundException;
 import com.my.challenger.mapper.QuizQuestionMapper;
 import com.my.challenger.repository.*;
+import com.my.challenger.service.ExternalMediaValidator;
 import com.my.challenger.service.WWWGameService;
+import com.my.challenger.util.YouTubeUrlParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -48,6 +50,7 @@ public class QuestionService {
     private final UserRelationshipService relationshipService;
     private final MinioMediaStorageService mediaStorageService;
     private final QuizQuestionDTOEnricher dtoEnricher;
+    private final ExternalMediaValidator externalMediaValidator;
 
     @Transactional
     public QuizQuestionDTO createQuestionWithMedia(
@@ -63,6 +66,9 @@ public class QuestionService {
         // 1. Get user
         User creator = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Creator not found"));
+
+        // Validate external media if present
+        externalMediaValidator.validate(request);
 
         // 2. Handle media upload
         Long mediaFileId = null;
@@ -102,9 +108,16 @@ public class QuestionService {
         QuestionType questionType = request.getQuestionType();
         log.info("📄 Request questionType: {}, mediaType: {}", questionType, mediaType);
 
-        if ((questionType == null || questionType ==QuestionType.TEXT) && mediaType != null) {
+        if ((questionType == null || questionType == QuestionType.TEXT) && mediaType != null) {
             questionType = mapMediaTypeToQuestionType(mediaType);
             log.info("🔄 Auto-detected questionType from media: {}", questionType);
+        } else if (request.getMediaSourceType() != null && request.getMediaSourceType() != MediaSourceType.UPLOADED) {
+            // Auto-detect for external media if not set
+             if (questionType == null || questionType == QuestionType.TEXT) {
+                 // Default to VIDEO for YouTube/Vimeo, AUDIO for SoundCloud?
+                 // For now, let's assume VIDEO if external URL is present
+                 questionType = QuestionType.VIDEO; 
+             }
         }
 
         // 5. Build and save question
@@ -113,7 +126,7 @@ public class QuestionService {
                 .answer(request.getAnswer())
                 .difficulty(request.getDifficulty() != null ? request.getDifficulty() : QuizDifficulty.MEDIUM)
                 .topic(topic)
-                .questionType(questionType != null ? questionType :QuestionType.TEXT)
+                .questionType(questionType != null ? questionType : QuestionType.TEXT)
                 .questionMediaUrl(mediaS3Key)
                 .questionMediaId(mediaFileId != null ? mediaFileId : null)
                 .questionMediaType(mediaType)
@@ -123,6 +136,17 @@ public class QuestionService {
                 .creator(creator)
                 .isActive(true)
                 .usageCount(0)
+                // External Media Fields
+                .mediaSourceType(request.getMediaSourceType() != null ? request.getMediaSourceType() : MediaSourceType.UPLOADED)
+                .externalMediaUrl(request.getExternalMediaUrl())
+                .externalMediaId(extractExternalId(request))
+                .questionVideoStartTime(request.getQuestionVideoStartTime())
+                .questionVideoEndTime(request.getQuestionVideoEndTime())
+                .answerMediaUrl(request.getAnswerMediaUrl())
+                .answerExternalMediaId(extractAnswerExternalId(request))
+                .answerVideoStartTime(request.getAnswerVideoStartTime())
+                .answerVideoEndTime(request.getAnswerVideoEndTime())
+                .answerTextVerification(request.getAnswerTextVerification())
                 .build();
 
         QuizQuestion saved = quizQuestionRepository.save(question);
@@ -176,6 +200,9 @@ public class QuestionService {
         User creator = userRepository.findById(creatorId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + creatorId));
 
+        // Validate external media
+        externalMediaValidator.validate(request);
+
         // Validate QUIZ_ONLY visibility
         if (request.getVisibility() == QuestionVisibility.QUIZ_ONLY && request.getOriginalQuizId() == null) {
             throw new BadRequestException("Original quiz ID is required for QUIZ_ONLY visibility");
@@ -197,6 +224,17 @@ public class QuestionService {
                 .creator(creator)
                 .visibility(request.getVisibility())
                 .isActive(true)
+                // External Media Fields
+                .mediaSourceType(request.getMediaSourceType() != null ? request.getMediaSourceType() : MediaSourceType.UPLOADED)
+                .externalMediaUrl(request.getExternalMediaUrl())
+                .externalMediaId(extractExternalId(request))
+                .questionVideoStartTime(request.getQuestionVideoStartTime())
+                .questionVideoEndTime(request.getQuestionVideoEndTime())
+                .answerMediaUrl(request.getAnswerMediaUrl())
+                .answerExternalMediaId(extractAnswerExternalId(request))
+                .answerVideoStartTime(request.getAnswerVideoStartTime())
+                .answerVideoEndTime(request.getAnswerVideoEndTime())
+                .answerTextVerification(request.getAnswerTextVerification())
                 .build();
 
         // Set original quiz if QUIZ_ONLY
@@ -834,5 +872,17 @@ public class QuestionService {
             return 0.0;
         }
         return (double) session.getCorrectAnswers() / session.getTotalRounds() * 100;
+    private String extractExternalId(CreateQuizQuestionRequest request) {
+        if (request.getMediaSourceType() == MediaSourceType.YOUTUBE && request.getExternalMediaUrl() != null) {
+            return YouTubeUrlParser.extractVideoId(request.getExternalMediaUrl()).orElse(null);
+        }
+        return null;
+    }
+
+    private String extractAnswerExternalId(CreateQuizQuestionRequest request) {
+        if (request.getAnswerMediaUrl() != null && YouTubeUrlParser.isYouTubeUrl(request.getAnswerMediaUrl())) {
+            return YouTubeUrlParser.extractVideoId(request.getAnswerMediaUrl()).orElse(null);
+        }
+        return null;
     }
 }

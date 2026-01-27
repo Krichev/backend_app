@@ -1,6 +1,8 @@
 package com.my.challenger.service.impl;
 
 import com.my.challenger.dto.quiz.QuizQuestionDTO;
+import com.my.challenger.entity.enums.MediaSourceType;
+import com.my.challenger.util.YouTubeUrlParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -34,11 +36,28 @@ public class QuizQuestionDTOEnricher {
             return null;
         }
 
-        // Generate proxy URL for main media
-        if (dto.getQuestionMediaUrl() != null && !dto.getQuestionMediaUrl().isEmpty()) {
-            String proxyUrl = buildMediaProxyUrl(dto.getId());
-            dto.setQuestionMediaUrl(proxyUrl);
-            log.debug("Enriched question {} with media proxy URL: {}", dto.getId(), proxyUrl);
+        // Handle External Media
+        if (dto.getMediaSourceType() == MediaSourceType.YOUTUBE) {
+            String embedUrl = YouTubeUrlParser.buildEmbedUrl(
+                    dto.getExternalMediaId(),
+                    dto.getQuestionVideoStartTime(),
+                    dto.getQuestionVideoEndTime()
+            );
+            // Set the playable URL to the embed URL
+            // We keep externalMediaUrl as the original link
+            dto.setQuestionMediaUrl(embedUrl);
+        } else if (dto.getMediaSourceType() == MediaSourceType.EXTERNAL_URL || 
+                   dto.getMediaSourceType() == MediaSourceType.VIMEO || 
+                   dto.getMediaSourceType() == MediaSourceType.SOUNDCLOUD) {
+            // For other external types, use the external URL as the main media URL
+            dto.setQuestionMediaUrl(dto.getExternalMediaUrl());
+        } else {
+            // Generate proxy URL for main media (UPLOADED)
+            if (dto.getQuestionMediaUrl() != null && !dto.getQuestionMediaUrl().isEmpty()) {
+                String proxyUrl = buildMediaProxyUrl(dto.getId());
+                dto.setQuestionMediaUrl(proxyUrl);
+                log.debug("Enriched question {} with media proxy URL: {}", dto.getId(), proxyUrl);
+            }
         }
 
         // Generate proxy URL for thumbnail

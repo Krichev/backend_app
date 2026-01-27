@@ -4,6 +4,7 @@ import com.my.challenger.entity.MediaFile;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.challenge.Challenge;
 import com.my.challenger.entity.enums.AudioChallengeType;
+import com.my.challenger.entity.enums.MediaSourceType;
 import com.my.challenger.entity.enums.MediaType;
 import com.my.challenger.entity.enums.QuestionType;
 import com.my.challenger.entity.enums.QuestionVisibility;
@@ -102,6 +103,40 @@ public class QuizQuestion {
 
     @Column(name = "question_thumbnail_url", length = 500)
     private String questionThumbnailUrl;
+
+    // ===== EXTERNAL MEDIA FIELDS =====
+    @Enumerated(EnumType.STRING)
+    @Column(name = "media_source_type", columnDefinition = "media_source_type")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Builder.Default
+    private MediaSourceType mediaSourceType = MediaSourceType.UPLOADED;
+
+    @Column(name = "external_media_url", length = 1000)
+    private String externalMediaUrl;
+
+    @Column(name = "external_media_id", length = 100)
+    private String externalMediaId;
+
+    @Column(name = "question_video_start_time")
+    private Double questionVideoStartTime;
+
+    @Column(name = "question_video_end_time")
+    private Double questionVideoEndTime;
+
+    @Column(name = "answer_media_url", length = 1000)
+    private String answerMediaUrl;
+
+    @Column(name = "answer_external_media_id", length = 100)
+    private String answerExternalMediaId;
+
+    @Column(name = "answer_video_start_time")
+    private Double answerVideoStartTime;
+
+    @Column(name = "answer_video_end_time")
+    private Double answerVideoEndTime;
+
+    @Column(name = "answer_text_verification", columnDefinition = "TEXT")
+    private String answerTextVerification;
 
     // ===== AUDIO CHALLENGE FIELDS =====
 
@@ -235,6 +270,21 @@ public class QuizQuestion {
 
     public boolean isMultimediaQuestion() {
         return questionType == QuestionType.MULTIMEDIA;
+    }
+
+    public boolean hasExternalMedia() {
+        return mediaSourceType != null && mediaSourceType != MediaSourceType.UPLOADED;
+    }
+
+    public boolean hasAnswerMedia() {
+        return answerMediaUrl != null && !answerMediaUrl.trim().isEmpty();
+    }
+
+    public String getEffectiveQuestionMediaUrl() {
+        if (hasExternalMedia()) {
+            return externalMediaUrl;
+        }
+        return questionMediaUrl;
     }
 
     // Validation helper

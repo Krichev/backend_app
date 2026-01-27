@@ -2,6 +2,7 @@
 package com.my.challenger.dto.quiz;
 
 import com.my.challenger.entity.enums.MediaType;
+import com.my.challenger.entity.enums.MediaSourceType;
 import com.my.challenger.entity.enums.QuestionType;
 import com.my.challenger.entity.enums.QuestionVisibility;
 import com.my.challenger.entity.enums.QuizDifficulty;
@@ -32,6 +33,16 @@ public class CreateQuizQuestionRequest {
     private String questionMediaUrl;
     private Long questionMediaId;
     private MediaType questionMediaType;
+
+    // External Media Support
+    private MediaSourceType mediaSourceType;
+    private String externalMediaUrl;
+    private Double questionVideoStartTime;
+    private Double questionVideoEndTime;
+    private String answerMediaUrl;
+    private Double answerVideoStartTime;
+    private Double answerVideoEndTime;
+    private String answerTextVerification;
 
     @Builder.Default
     private QuestionType questionType = QuestionType.TEXT;
