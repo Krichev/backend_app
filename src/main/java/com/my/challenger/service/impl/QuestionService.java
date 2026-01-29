@@ -39,13 +39,13 @@ import com.my.challenger.entity.enums.QuestionType;
 @RequiredArgsConstructor
 public class QuestionService {
 
-    protected final QuizQuestionRepository quizQuestionRepository;
-    protected final QuizSessionRepository quizSessionRepository;
-    protected final QuizRoundRepository quizRoundRepository;
-    protected final ChallengeRepository challengeRepository;
-    protected final UserRepository userRepository;
-    protected final WWWGameService gameService;
-    protected final TopicService topicService;
+    private final QuizQuestionRepository quizQuestionRepository;
+    private final QuizSessionRepository quizSessionRepository;
+    private final QuizRoundRepository quizRoundRepository;
+    private final ChallengeRepository challengeRepository;
+    private final UserRepository userRepository;
+    private final WWWGameService gameService;
+    private final TopicService topicService;
     private final QuestionAccessService accessService;
     private final UserRelationshipService relationshipService;
     private final MinioMediaStorageService mediaStorageService;
@@ -247,7 +247,7 @@ public class QuestionService {
         question = quizQuestionRepository.save(question);
         log.info("Created user question with ID: {}", question.getId());
 
-        return toDTO(question, creatorId);
+        return dtoEnricher.enrichWithUrls(convertQuestionToDTO(question));
     }
 
     /**
@@ -256,7 +256,7 @@ public class QuestionService {
     @Transactional(readOnly = true)
     public Page<QuizQuestionDTO> getUserQuestions(Long userId, Pageable pageable) {
         Page<QuizQuestion> questions = quizQuestionRepository.findByCreator_IdAndIsUserCreatedTrue(userId, pageable);
-        return questions.map(q -> toDTO(q, userId));
+        return questions.map(q -> dtoEnricher.enrichWithUrls(convertQuestionToDTO(q)));
     }
 
     /**
@@ -273,7 +273,7 @@ public class QuestionService {
                 request.getPageable()
         );
 
-        return questions.map(q -> toDTO(q, userId));
+        return questions.map(q -> dtoEnricher.enrichWithUrls(convertQuestionToDTO(q)));
     }
 
     /**
@@ -305,67 +305,7 @@ public class QuestionService {
         }
 
         question = quizQuestionRepository.save(question);
-        return toDTO(question, userId);
-    }
-
-    /**
-     * Convert QuizQuestion to DTO with access information
-     */
-    private QuizQuestionDTO toDTO(QuizQuestion question, Long currentUserId) {
-        boolean isCreator = question.getCreator() != null &&
-                question.getCreator().getId().equals(currentUserId);
-
-        return QuizQuestionDTO.builder()
-                // Basic identifiers
-                .id(question.getId())
-                .externalId(question.getExternalId())
-                .legacyQuestionId(question.getLegacyQuestionId())
-
-                // Core question content
-                .question(question.getQuestion())
-                .answer(question.getAnswer())
-
-                // Classification
-                .difficulty(question.getDifficulty())
-                .questionType(question.getQuestionType())
-                .topic(question.getTopic() != null ? question.getTopic().getName() : null)
-                .source(question.getSource())
-
-                // Enhanced metadata
-                .authors(question.getAuthors())
-                .comments(question.getComments())
-                .passCriteria(question.getPassCriteria())
-                .additionalInfo(question.getAdditionalInfo())
-
-                // Media properties
-                .questionMediaUrl(question.getQuestionMediaUrl())
-                .questionMediaId(question.getQuestionMediaId())
-                .questionMediaType(question.getQuestionMediaType())
-                .questionThumbnailUrl(question.getQuestionThumbnailUrl())
-
-                // User creation tracking
-                .isUserCreated(question.getIsUserCreated())
-                .creatorId(question.getCreator() != null ? question.getCreator().getId() : null)
-                .creatorUsername(question.getCreator() != null ? question.getCreator().getUsername() : null)
-
-                // Access control
-                .visibility(question.getVisibility())
-                .originalQuizId(question.getOriginalQuiz() != null ? question.getOriginalQuiz().getId() : null)
-                .originalQuizTitle(question.getOriginalQuiz() != null ? question.getOriginalQuiz().getTitle() : null)
-
-                // Access information for current user
-                .canEdit(isCreator)
-                .canDelete(isCreator)
-                .canUseInQuiz(accessService.canAccessQuestion(question, currentUserId))
-
-                // Status and usage
-                .isActive(question.getIsActive())
-                .usageCount(question.getUsageCount())
-
-                // Timestamps
-                .createdAt(question.getCreatedAt())
-                .updatedAt(question.getUpdatedAt())
-                .build();
+        return dtoEnricher.enrichWithUrls(convertQuestionToDTO(question));
     }
 
     // =============================================================================
@@ -872,6 +812,8 @@ public class QuestionService {
             return 0.0;
         }
         return (double) session.getCorrectAnswers() / session.getTotalRounds() * 100;
+    }
+   
     private String extractExternalId(CreateQuizQuestionRequest request) {
         if (request.getMediaSourceType() == MediaSourceType.YOUTUBE && request.getExternalMediaUrl() != null) {
             return YouTubeUrlParser.extractVideoId(request.getExternalMediaUrl()).orElse(null);
