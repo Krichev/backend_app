@@ -36,4 +36,11 @@ public class QuizSessionDTO {
     private LocalDateTime completedAt;
     private Integer totalDurationSeconds;
     private LocalDateTime createdAt;
+    
+    // Pause metadata
+    private LocalDateTime pausedAt;
+    private Integer pausedAtRound;
+    private Integer remainingTimeSeconds;
+    private String pausedAnswer;
+    private String pausedNotes;
 }

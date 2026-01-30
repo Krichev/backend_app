@@ -211,6 +211,40 @@ public class QuizController {
         return ResponseEntity.ok(session);
     }
 
+    @PutMapping("/sessions/{sessionId}/pause")
+    @Operation(summary = "Pause a quiz session")
+    public ResponseEntity<QuizSessionDTO> pauseQuizSession(
+            @PathVariable Long sessionId,
+            @Valid @RequestBody PauseQuizSessionRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        User user = getUserFromUserDetails(userDetails);
+        QuizSessionDTO session = quizService.pauseSession(sessionId, request, user.getId());
+        return ResponseEntity.ok(session);
+    }
+
+    @PutMapping("/sessions/{sessionId}/resume")
+    @Operation(summary = "Resume a paused quiz session")
+    public ResponseEntity<QuizSessionDTO> resumeQuizSession(
+            @PathVariable Long sessionId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        User user = getUserFromUserDetails(userDetails);
+        QuizSessionDTO session = quizService.resumeSession(sessionId, user.getId());
+        return ResponseEntity.ok(session);
+    }
+
+    @PostMapping("/sessions/{sessionId}/abandon")
+    @Operation(summary = "Abandon a quiz session")
+    public ResponseEntity<Void> abandonQuizSession(
+            @PathVariable Long sessionId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        User user = getUserFromUserDetails(userDetails);
+        quizService.abandonSession(sessionId, user.getId());
+        return ResponseEntity.ok().build();
+    }
+
 
     @PutMapping("/questions/{questionId}/visibility")
     @Operation(summary = "Update question visibility policy")

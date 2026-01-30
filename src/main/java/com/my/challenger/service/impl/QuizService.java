@@ -636,6 +636,46 @@ public class QuizService {
     }
 
     @Transactional
+    public QuizSessionDTO pauseSession(Long sessionId, PauseQuizSessionRequest request, Long userId) {
+        log.info("Pausing session {} for user: {}", sessionId, userId);
+
+        QuizSession session = findUserSession(sessionId, userId);
+
+        if (session.getStatus() != QuizSessionStatus.IN_PROGRESS) {
+            throw new IllegalStateException("Only IN_PROGRESS sessions can be paused. Current status: " + session.getStatus());
+        }
+
+        session.setStatus(QuizSessionStatus.PAUSED);
+        session.setPausedAt(LocalDateTime.now());
+        session.setPausedAtRound(request.getPausedAtRound());
+        session.setRemainingTimeSeconds(request.getRemainingTimeSeconds());
+        session.setPausedAnswer(request.getCurrentAnswer());
+        session.setPausedNotes(request.getDiscussionNotes());
+
+        QuizSession saved = quizSessionRepository.save(session);
+        log.info("Session {} paused successfully", sessionId);
+        return convertSessionToDTO(saved);
+    }
+
+    @Transactional
+    public QuizSessionDTO resumeSession(Long sessionId, Long userId) {
+        log.info("Resuming session {} for user: {}", sessionId, userId);
+
+        QuizSession session = findUserSession(sessionId, userId);
+
+        if (session.getStatus() != QuizSessionStatus.PAUSED) {
+            throw new IllegalStateException("Only PAUSED sessions can be resumed. Current status: " + session.getStatus());
+        }
+
+        session.setStatus(QuizSessionStatus.IN_PROGRESS);
+        session.setPausedAt(null); // Clear paused timestamp
+        
+        QuizSession saved = quizSessionRepository.save(session);
+        log.info("Session {} resumed successfully", sessionId);
+        return convertSessionToDTO(saved);
+    }
+
+    @Transactional
     public void abandonSession(Long sessionId, Long userId) {
         log.info("Abandoning session {} for user: {}", sessionId, userId);
 
@@ -690,6 +730,11 @@ public class QuizService {
                 .completedAt(session.getCompletedAt())
                 .totalDurationSeconds(session.getTotalDurationSeconds())
                 .createdAt(session.getCreatedAt())
+                .pausedAt(session.getPausedAt())
+                .pausedAtRound(session.getPausedAtRound())
+                .remainingTimeSeconds(session.getRemainingTimeSeconds())
+                .pausedAnswer(session.getPausedAnswer())
+                .pausedNotes(session.getPausedNotes())
                 .build();
 
         if (session.getChallenge() != null) {

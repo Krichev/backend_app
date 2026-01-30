@@ -94,6 +94,21 @@ public class QuizSession {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "paused_at")
+    private LocalDateTime pausedAt;
+
+    @Column(name = "paused_at_round")
+    private Integer pausedAtRound;
+
+    @Column(name = "remaining_time_seconds")
+    private Integer remainingTimeSeconds;
+
+    @Column(name = "paused_answer")
+    private String pausedAnswer;
+
+    @Column(name = "paused_notes")
+    private String pausedNotes;
+
     // Bi-directional relationship with quiz rounds
     @OneToMany(mappedBy = "quizSession", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<QuizRound> rounds = new ArrayList<>();
