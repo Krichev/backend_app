@@ -38,31 +38,35 @@ public class TopicController {
 
     @GetMapping("/roots")
     @Operation(summary = "Get root topics", description = "Get all root-level topics (no parent)")
-    public ResponseEntity<List<TopicResponse>> getRootTopics() {
-        List<TopicResponse> response = topicService.getRootTopics();
+    public ResponseEntity<List<TopicResponse>> getRootTopics(
+            @RequestHeader(value = "Accept-Language", defaultValue = "en") String languageCode) {
+        List<TopicResponse> response = topicService.getRootTopics(languageCode);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/selectable")
     @Operation(summary = "Get selectable topics", description = "Get topics user can select (approved + own pending) with full hierarchical paths")
-    public ResponseEntity<List<SelectableTopicResponse>> getSelectableTopics() {
-        List<SelectableTopicResponse> response = topicService.getSelectableTopics();
+    public ResponseEntity<List<SelectableTopicResponse>> getSelectableTopics(
+            @RequestHeader(value = "Accept-Language", defaultValue = "en") String languageCode) {
+        List<SelectableTopicResponse> response = topicService.getSelectableTopics(languageCode);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get topic by ID", description = "Retrieve a specific topic by its ID")
     public ResponseEntity<TopicResponse> getTopicById(
-            @Parameter(description = "Topic ID") @PathVariable Long id) {
-        TopicResponse response = topicService.getTopicById(id);
+            @Parameter(description = "Topic ID") @PathVariable Long id,
+            @RequestHeader(value = "Accept-Language", defaultValue = "en") String languageCode) {
+        TopicResponse response = topicService.getTopicById(id, languageCode);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}/children")
     @Operation(summary = "Get topic children", description = "Get direct children of a topic")
     public ResponseEntity<List<TopicResponse>> getTopicChildren(
-            @Parameter(description = "Parent topic ID") @PathVariable Long id) {
-        List<TopicResponse> response = topicService.getTopicChildren(id);
+            @Parameter(description = "Parent topic ID") @PathVariable Long id,
+            @RequestHeader(value = "Accept-Language", defaultValue = "en") String languageCode) {
+        List<TopicResponse> response = topicService.getTopicChildren(id, languageCode);
         return ResponseEntity.ok(response);
     }
 
@@ -78,8 +82,9 @@ public class TopicController {
     @GetMapping("/name/{name}")
     @Operation(summary = "Get topic by name", description = "Retrieve a topic by its name")
     public ResponseEntity<TopicResponse> getTopicByName(
-            @Parameter(description = "Topic name") @PathVariable String name) {
-        TopicResponse response = topicService.getTopicByName(name);
+            @Parameter(description = "Topic name") @PathVariable String name,
+            @RequestHeader(value = "Accept-Language", defaultValue = "en") String languageCode) {
+        TopicResponse response = topicService.getTopicByName(name, languageCode);
         return ResponseEntity.ok(response);
     }
 
@@ -101,16 +106,18 @@ public class TopicController {
 
     @GetMapping("/tree")
     @Operation(summary = "Get all topics (no pagination)", description = "Retrieve all active topics without pagination")
-    public ResponseEntity<List<TopicResponse>> getAllTopicsNoPagination() {
-        List<TopicResponse> response = topicService.getAllTopics();
+    public ResponseEntity<List<TopicResponse>> getAllTopicsNoPagination(
+            @RequestHeader(value = "Accept-Language", defaultValue = "en") String languageCode) {
+        List<TopicResponse> response = topicService.getAllTopics(languageCode);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/category/{category}")
     @Operation(summary = "Get topics by category", description = "Retrieve all topics in a specific category")
     public ResponseEntity<List<TopicResponse>> getTopicsByCategory(
-            @Parameter(description = "Category name") @PathVariable String category) {
-        List<TopicResponse> response = topicService.getTopicsByCategory(category);
+            @Parameter(description = "Category name") @PathVariable String category,
+            @RequestHeader(value = "Accept-Language", defaultValue = "en") String languageCode) {
+        List<TopicResponse> response = topicService.getTopicsByCategory(category, languageCode);
         return ResponseEntity.ok(response);
     }
 
@@ -124,16 +131,18 @@ public class TopicController {
     @GetMapping("/search")
     @Operation(summary = "Search topics", description = "Search topics by name")
     public ResponseEntity<List<TopicResponse>> searchTopics(
-            @Parameter(description = "Search term") @RequestParam String q) {
-        List<TopicResponse> response = topicService.searchTopics(q);
+            @Parameter(description = "Search term") @RequestParam String q,
+            @RequestHeader(value = "Accept-Language", defaultValue = "en") String languageCode) {
+        List<TopicResponse> response = topicService.searchTopics(q, languageCode);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/popular")
     @Operation(summary = "Get popular topics", description = "Get topics with the most questions")
     public ResponseEntity<List<TopicResponse>> getPopularTopics(
-            @Parameter(description = "Number of topics to return") @RequestParam(defaultValue = "10") int limit) {
-        List<TopicResponse> response = topicService.getPopularTopics(limit);
+            @Parameter(description = "Number of topics to return") @RequestParam(defaultValue = "10") int limit,
+            @RequestHeader(value = "Accept-Language", defaultValue = "en") String languageCode) {
+        List<TopicResponse> response = topicService.getPopularTopics(limit, languageCode);
         return ResponseEntity.ok(response);
     }
 

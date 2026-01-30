@@ -8,6 +8,7 @@ import com.my.challenger.dto.quiz.ValidateTopicRequest;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.enums.ValidationStatus;
 import com.my.challenger.entity.quiz.Topic;
+import com.my.challenger.entity.quiz.TopicTranslation;
 import com.my.challenger.exception.ResourceNotFoundException;
 import com.my.challenger.repository.TopicRepository;
 import com.my.challenger.repository.UserRepository;
@@ -19,7 +20,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,6 +32,7 @@ public class TopicService {
 
     private final TopicRepository topicRepository;
     private final UserRepository userRepository;
+    private final TopicTranslationService topicTranslationService;
 
     /**
      * Create a new topic
@@ -60,27 +64,27 @@ public class TopicService {
         Topic savedTopic = topicRepository.save(topic);
         log.info("Topic created successfully with ID: {}", savedTopic.getId());
 
-        return mapToResponse(savedTopic);
+        return mapToResponse(savedTopic, null);
     }
 
     /**
      * Get topic by ID
      */
     @Transactional(readOnly = true)
-    public TopicResponse getTopicById(Long id) {
+    public TopicResponse getTopicById(Long id, String languageCode) {
         Topic topic = topicRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Topic not found with id: " + id));
-        return mapToResponse(topic);
+        return mapToResponse(topic, languageCode);
     }
 
     /**
      * Get topic by name
      */
     @Transactional(readOnly = true)
-    public TopicResponse getTopicByName(String name) {
+    public TopicResponse getTopicByName(String name, String languageCode) {
         Topic topic = topicRepository.findByNameIgnoreCase(name)
                 .orElseThrow(() -> new ResourceNotFoundException("Topic not found with name: " + name));
-        return mapToResponse(topic);
+        return mapToResponse(topic, languageCode);
     }
 
     /**
@@ -104,39 +108,37 @@ public class TopicService {
      * Get all active topics
      */
     @Transactional(readOnly = true)
-    public List<TopicResponse> getAllTopics() {
-        return topicRepository.findByIsActiveTrue().stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+    public List<TopicResponse> getAllTopics(String languageCode) {
+        return mapTopicsToResponses(topicRepository.findByIsActiveTrue(), languageCode);
     }
 
     /**
      * Get topics with pagination
      */
     @Transactional(readOnly = true)
-    public Page<TopicResponse> getTopics(Pageable pageable) {
-        return topicRepository.findByIsActiveTrue(pageable)
-                .map(this::mapToResponse);
+    public Page<TopicResponse> getTopics(Pageable pageable, String languageCode) {
+        Page<Topic> topicsPage = topicRepository.findByIsActiveTrue(pageable);
+        // We need to fetch translations for the content of the page
+        List<Topic> topics = topicsPage.getContent();
+        Map<Long, TopicTranslation> translations = getTranslationsMap(topics, languageCode);
+        
+        return topicsPage.map(topic -> mapToResponseWithTranslation(topic, translations.get(topic.getId())));
     }
 
     /**
      * Get topics by category
      */
     @Transactional(readOnly = true)
-    public List<TopicResponse> getTopicsByCategory(String category) {
-        return topicRepository.findByCategoryAndIsActiveTrue(category).stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+    public List<TopicResponse> getTopicsByCategory(String category, String languageCode) {
+        return mapTopicsToResponses(topicRepository.findByCategoryAndIsActiveTrue(category), languageCode);
     }
 
     /**
      * Search topics by name
      */
     @Transactional(readOnly = true)
-    public List<TopicResponse> searchTopics(String searchTerm) {
-        return topicRepository.searchByNameContaining(searchTerm).stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+    public List<TopicResponse> searchTopics(String searchTerm, String languageCode) {
+        return mapTopicsToResponses(topicRepository.searchByNameContaining(searchTerm), languageCode);
     }
 
     /**
@@ -151,11 +153,9 @@ public class TopicService {
      * Get popular topics (most questions)
      */
     @Transactional(readOnly = true)
-    public List<TopicResponse> getPopularTopics(int limit) {
+    public List<TopicResponse> getPopularTopics(int limit, String languageCode) {
         Pageable pageable = Pageable.ofSize(limit);
-        return topicRepository.findTopTopicsByQuestionCount(pageable).stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+        return mapTopicsToResponses(topicRepository.findTopTopicsByQuestionCount(pageable), languageCode);
     }
 
     /**
@@ -189,7 +189,7 @@ public class TopicService {
         Topic updatedTopic = topicRepository.save(topic);
         log.info("Topic updated successfully: {}", updatedTopic.getId());
 
-        return mapToResponse(updatedTopic);
+        return mapToResponse(updatedTopic, null);
     }
 
     /**
@@ -228,17 +228,39 @@ public class TopicService {
     }
 
     // Helper method to map entity to response
-    private TopicResponse mapToResponse(Topic topic) {
+    private TopicResponse mapToResponse(Topic topic, String languageCode) {
+        TopicTranslation translation = null;
+        if (languageCode != null && !"en".equalsIgnoreCase(languageCode)) {
+            translation = topicTranslationService.getTranslation(topic.getId(), languageCode).orElse(null);
+        }
+        return mapToResponseWithTranslation(topic, translation);
+    }
+
+    private TopicResponse mapToResponseWithTranslation(Topic topic, TopicTranslation translation) {
+        String name = topic.getName();
+        String description = topic.getDescription();
+        String originalName = null;
+        String originalDescription = null;
+
+        if (translation != null) {
+            name = translation.getName();
+            description = translation.getDescription();
+            originalName = topic.getName();
+            originalDescription = topic.getDescription();
+        }
+
         return TopicResponse.builder()
                 .id(topic.getId())
-                .name(topic.getName())
+                .name(name)
                 .category(topic.getCategory())
-                .description(topic.getDescription())
+                .description(description)
+                .originalName(originalName)
+                .originalDescription(originalDescription)
                 .questionCount(topic.getQuestionCount())
                 .isActive(topic.getIsActive())
                 .creatorId(topic.getCreator() != null ? topic.getCreator().getId() : null)
                 .parentId(topic.getParent() != null ? topic.getParent().getId() : null)
-                .parentName(topic.getParent() != null ? topic.getParent().getName() : null)
+                .parentName(topic.getParent() != null ? topic.getParent().getName() : null) // Note: parentName is not translated here to avoid extra queries, or we could fetch parent translation
                 .path(topic.getPath())
                 .depth(topic.getDepth())
                 .isSystemTopic(topic.getIsSystemTopic())
@@ -255,29 +277,27 @@ public class TopicService {
      * Helper method to map entity to response with accurate childCount from database
      * Used for tree navigation where we need to know if a node is expandable
      */
-    private TopicResponse mapToResponseWithChildCount(Topic topic) {
+    private TopicResponse mapToResponseWithChildCount(Topic topic, TopicTranslation translation) {
+        TopicResponse response = mapToResponseWithTranslation(topic, translation);
         int childCount = topicRepository.countByParentIdAndIsActiveTrue(topic.getId());
+        response.setChildCount(childCount);
+        return response;
+    }
 
-        return TopicResponse.builder()
-                .id(topic.getId())
-                .name(topic.getName())
-                .category(topic.getCategory())
-                .description(topic.getDescription())
-                .questionCount(topic.getQuestionCount())
-                .isActive(topic.getIsActive())
-                .creatorId(topic.getCreator() != null ? topic.getCreator().getId() : null)
-                .parentId(topic.getParent() != null ? topic.getParent().getId() : null)
-                .parentName(topic.getParent() != null ? topic.getParent().getName() : null)
-                .path(topic.getPath())
-                .depth(topic.getDepth())
-                .slug(topic.getSlug())
-                .isSystemTopic(topic.getIsSystemTopic())
-                .validationStatus(topic.getValidationStatus())
-                .childCount(childCount)
-                .createdAt(topic.getCreatedAt())
-                .updatedAt(topic.getUpdatedAt())
-                .validatedAt(topic.getValidatedAt())
-                .build();
+    // Bulk mapping helpers
+    private Map<Long, TopicTranslation> getTranslationsMap(List<Topic> topics, String languageCode) {
+        if (topics == null || topics.isEmpty() || languageCode == null || "en".equalsIgnoreCase(languageCode)) {
+            return Collections.emptyMap();
+        }
+        List<Long> topicIds = topics.stream().map(Topic::getId).collect(Collectors.toList());
+        return topicTranslationService.getTranslationsForTopics(topicIds, languageCode);
+    }
+
+    private List<TopicResponse> mapTopicsToResponses(List<Topic> topics, String languageCode) {
+        Map<Long, TopicTranslation> translations = getTranslationsMap(topics, languageCode);
+        return topics.stream()
+                .map(topic -> mapToResponseWithTranslation(topic, translations.get(topic.getId())))
+                .collect(Collectors.toList());
     }
 
     public Topic findOrCreateTopic(String topic, User creator) {
@@ -288,7 +308,7 @@ public class TopicService {
      * Get direct children of a topic
      */
     @Transactional(readOnly = true)
-    public List<TopicResponse> getTopicChildren(Long parentId) {
+    public List<TopicResponse> getTopicChildren(Long parentId, String languageCode) {
         log.info("Fetching children for topic: {}", parentId);
 
         // Verify parent topic exists
@@ -296,9 +316,14 @@ public class TopicService {
             throw new ResourceNotFoundException("Topic not found with id: " + parentId);
         }
 
-        return topicRepository.findByParentIdAndIsActiveTrue(parentId).stream()
+        List<Topic> children = topicRepository.findByParentIdAndIsActiveTrue(parentId).stream()
                 .sorted((t1, t2) -> t1.getName().compareToIgnoreCase(t2.getName()))
-                .map(this::mapToResponseWithChildCount)
+                .collect(Collectors.toList());
+        
+        Map<Long, TopicTranslation> translations = getTranslationsMap(children, languageCode);
+
+        return children.stream()
+                .map(topic -> mapToResponseWithChildCount(topic, translations.get(topic.getId())))
                 .collect(Collectors.toList());
     }
 
@@ -306,12 +331,17 @@ public class TopicService {
      * Get root topics (no parent)
      */
     @Transactional(readOnly = true)
-    public List<TopicResponse> getRootTopics() {
+    public List<TopicResponse> getRootTopics(String languageCode) {
         log.info("Fetching root topics");
 
-        return topicRepository.findByParentIsNullAndIsActiveTrue().stream()
+        List<Topic> roots = topicRepository.findByParentIsNullAndIsActiveTrue().stream()
                 .sorted((t1, t2) -> t1.getName().compareToIgnoreCase(t2.getName()))
-                .map(this::mapToResponseWithChildCount)
+                .collect(Collectors.toList());
+        
+        Map<Long, TopicTranslation> translations = getTranslationsMap(roots, languageCode);
+
+        return roots.stream()
+                .map(topic -> mapToResponseWithChildCount(topic, translations.get(topic.getId())))
                 .collect(Collectors.toList());
     }
 
@@ -320,7 +350,7 @@ public class TopicService {
      * Returns APPROVED topics + user's own PENDING topics with full hierarchical paths
      */
     @Transactional(readOnly = true)
-    public List<com.my.challenger.dto.quiz.SelectableTopicResponse> getSelectableTopics() {
+    public List<com.my.challenger.dto.quiz.SelectableTopicResponse> getSelectableTopics(String languageCode) {
         log.debug("Getting selectable topics for current user");
 
         // Get current user ID
@@ -332,10 +362,24 @@ public class TopicService {
 
         // Get selectable topics using repository method
         List<Topic> topics = topicRepository.findSelectableTopicsForUser(currentUserId);
+        
+        // Note: For selectable topics, we construct the full path name (e.g. "Geography > Geology").
+        // Doing this with translation efficiently is tricky because we need translations for parents too.
+        // For simplicity in this implementation, we will fetch translations for the *leaf* topics
+        // and leave parents in English, OR we could fetch all system topic translations.
+        // A better approach for enterprise would be to fetch all potentially needed translations.
+        // Given the prompt's constraints, I'll translate the topic's own name, but for the path,
+        // I might leave it or attempt a best effort if time permits.
+        // To be safe and efficient, I'll just map the topic name itself. Path construction uses recursive parents.
+        // I will skipping translating the full path for now to avoid massive N+1 queries or complex logic,
+        // unless I preload all system translations.
+        
+        // Actually, let's try to translate at least the topic name.
+        Map<Long, TopicTranslation> translations = getTranslationsMap(topics, languageCode);
 
         // Map to SelectableTopicResponse with full path
         return topics.stream()
-                .map(topic -> mapToSelectableResponse(topic, currentUserId))
+                .map(topic -> mapToSelectableResponse(topic, currentUserId, translations.get(topic.getId())))
                 .sorted((t1, t2) -> t1.getFullPath().compareToIgnoreCase(t2.getFullPath()))
                 .collect(Collectors.toList());
     }
@@ -382,17 +426,23 @@ public class TopicService {
 
         log.info("Topic {} moved from parent {} to parent {}", topicId, oldParentId, newParentId);
 
-        return mapToResponse(updatedTopic);
+        return mapToResponse(updatedTopic, null);
     }
 
     /**
      * Map Topic entity to SelectableTopicResponse with full path
      */
-    private com.my.challenger.dto.quiz.SelectableTopicResponse mapToSelectableResponse(Topic topic, Long currentUserId) {
+    private com.my.challenger.dto.quiz.SelectableTopicResponse mapToSelectableResponse(Topic topic, Long currentUserId, TopicTranslation translation) {
+        String name = topic.getName();
+        if (translation != null) {
+            name = translation.getName();
+        }
+        
+        // Note: buildFullPath still uses English names for parents currently
         return com.my.challenger.dto.quiz.SelectableTopicResponse.builder()
                 .id(topic.getId())
-                .name(topic.getName())
-                .fullPath(buildFullPath(topic))
+                .name(name)
+                .fullPath(buildFullPath(topic)) // This might need refactoring for full localized path
                 .depth(topic.getDepth())
                 .validationStatus(topic.getValidationStatus())
                 .isOwn(topic.getCreator() != null && topic.getCreator().getId().equals(currentUserId))

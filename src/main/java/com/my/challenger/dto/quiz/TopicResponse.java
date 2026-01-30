@@ -31,6 +31,12 @@ public class TopicResponse {
     @Schema(description = "Topic description")
     private String description;
 
+    @Schema(description = "Original name (if translated)")
+    private String originalName;
+
+    @Schema(description = "Original description (if translated)")
+    private String originalDescription;
+
     @Schema(description = "Number of questions in this topic", example = "25")
     private Integer questionCount;
 
