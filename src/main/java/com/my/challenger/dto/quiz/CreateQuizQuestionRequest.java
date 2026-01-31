@@ -1,6 +1,7 @@
 // UpdatedCreateQuizQuestionRequest.java
 package com.my.challenger.dto.quiz;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.my.challenger.entity.enums.MediaType;
 import com.my.challenger.entity.enums.MediaSourceType;
 import com.my.challenger.entity.enums.QuestionType;
@@ -17,6 +18,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class CreateQuizQuestionRequest {
     @NotBlank(message = "Question text is required")
     private String question;

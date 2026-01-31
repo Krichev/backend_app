@@ -49,7 +49,7 @@ public class QuizController {
 
     @PostMapping(value = "/questions/with-media", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Create question with optional media (unified endpoint)")
-    public ResponseEntity<QuizQuestionDTO> createQuestionWithMedia(
+    public ResponseEntity<?> createQuestionWithMedia(
             @RequestPart("questionData") String questionDataJson,
             @RequestPart(value = "mediaFile", required = false) MultipartFile mediaFile,
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -99,7 +99,11 @@ public class QuizController {
 
         } catch (JsonProcessingException e) {
             log.error("Failed to parse questionData JSON: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest()
+                    .body(Map.of(
+                            "error", "Invalid JSON data",
+                            "message", e.getMessage()
+                    ));
         } catch (Exception e) {
             log.error("Unexpected error creating question: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError().build();
