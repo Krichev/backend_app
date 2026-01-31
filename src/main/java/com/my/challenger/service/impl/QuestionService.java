@@ -756,7 +756,7 @@ public class QuestionService {
     protected QuizQuestionDTO convertQuestionToDTO(QuizQuestion question) {
         log.debug("Converting question {} - questionType={}, audioChallengeType={}",
                 question.getId(), question.getQuestionType(), question.getAudioChallengeType());
-        return QuizQuestionMapper.INSTANCE.toDTO(question);
+        return dtoEnricher.enrichWithUrls(QuizQuestionMapper.INSTANCE.toDTO(question));
     }
 
     QuizSessionDTO convertSessionToDTO(QuizSession session) {

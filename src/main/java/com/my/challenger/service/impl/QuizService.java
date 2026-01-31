@@ -43,6 +43,7 @@ public class QuizService {
     protected final WWWGameService gameService;
     protected final MinioMediaStorageService mediaStorageService;
     protected final TopicService topicService;
+    protected final QuizQuestionDTOEnricher dtoEnricher;
 
     public QuizService(
             QuizQuestionRepository quizQuestionRepository,
@@ -54,7 +55,8 @@ public class QuizService {
             QuestRepository questRepository,
             WWWGameService gameService,
             MinioMediaStorageService mediaStorageService,
-            TopicService topicService) {
+            TopicService topicService,
+            QuizQuestionDTOEnricher dtoEnricher) {
         this.quizQuestionRepository = quizQuestionRepository;
         this.quizSessionRepository = quizSessionRepository;
         this.quizRoundRepository = quizRoundRepository;
@@ -65,6 +67,7 @@ public class QuizService {
         this.gameService = gameService;
         this.mediaStorageService = mediaStorageService;
         this.topicService = topicService;
+        this.dtoEnricher = dtoEnricher;
     }
 
     /**
@@ -749,7 +752,7 @@ public class QuizService {
         QuizRoundDTO dto = QuizRoundDTO.builder()
                 .id(round.getId())
                 .quizSessionId(round.getQuizSession().getId())
-                .question(QuizQuestionMapper.INSTANCE.toDTO(round.getQuestion()))
+                .question(dtoEnricher.enrichWithUrls(QuizQuestionMapper.INSTANCE.toDTO(round.getQuestion())))
                 .roundNumber(round.getRoundNumber())
                 .teamAnswer(round.getTeamAnswer())
                 .isCorrect(round.getIsCorrect())

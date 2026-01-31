@@ -47,11 +47,12 @@ public class EnhancedQuizService extends QuizService {
             ObjectMapper objectMapper,
             TaskRepository taskRepository,
             TopicService topicService,
-            ChallengeProgressRepository challengeProgressRepository) {
+            ChallengeProgressRepository challengeProgressRepository,
+            QuizQuestionDTOEnricher dtoEnricher) {
 
         super(quizQuestionRepository, quizSessionRepository, quizRoundRepository,
                 challengeRepository, userRepository, mediaFileRepository, questRepository, gameService,
-                mediaStorageService, topicService);
+                mediaStorageService, topicService, dtoEnricher);
 
         this.objectMapper = objectMapper;
         this.taskRepository = taskRepository;
@@ -616,7 +617,7 @@ public class EnhancedQuizService extends QuizService {
         return QuizRoundDTO.builder()
                 .id(round.getId())
                 .quizSessionId(round.getQuizSession().getId())  // FIXED: was .sessionId()
-                .question(QuizQuestionMapper.INSTANCE.toDTO(round.getQuestion()))  // FIXED: was .questionId() and .question()
+                .question(dtoEnricher.enrichWithUrls(QuizQuestionMapper.INSTANCE.toDTO(round.getQuestion())))  // FIXED: was .questionId() and .question()
                 .roundNumber(round.getRoundNumber())
                 .teamAnswer(round.getTeamAnswer())
                 .isCorrect(round.getIsCorrect())
