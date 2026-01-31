@@ -16,6 +16,9 @@ public class WWWGameServiceImpl implements WWWGameService {
         if (teamAnswer == null || correctAnswer == null) {
             return false;
         }
+        if (teamAnswer.isBlank() || correctAnswer.isBlank()) {
+            return false;
+        }
 
         // Normalize answers for comparison
         String normalizedTeamAnswer = normalizeAnswer(teamAnswer);
