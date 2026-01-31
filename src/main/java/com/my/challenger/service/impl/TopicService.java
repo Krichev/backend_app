@@ -155,7 +155,8 @@ public class TopicService {
     @Transactional(readOnly = true)
     public List<TopicResponse> getPopularTopics(int limit, String languageCode) {
         Pageable pageable = Pageable.ofSize(limit);
-        return mapTopicsToResponses(topicRepository.findTopTopicsByQuestionCount(pageable), languageCode);
+        List<Topic> topics = topicRepository.findTopTopicsByQuestionCount(pageable).getContent();
+        return mapTopicsToResponses(topics, languageCode);
     }
 
     /**
