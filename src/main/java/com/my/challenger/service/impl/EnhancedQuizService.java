@@ -295,8 +295,25 @@ public class EnhancedQuizService extends QuizService {
                         .creator(creator)
                         .usageCount(0)
                         .source("USER_CREATED_FOR_CHALLENGE_" + challengeId)
-                        .questionType(QuestionType.TEXT)
+                        .questionType(questionRequest.getQuestionType() != null ? questionRequest.getQuestionType() : QuestionType.TEXT)
+                        .questionMediaUrl(questionRequest.getQuestionMediaUrl())
+                        .questionMediaId(questionRequest.getQuestionMediaId())
+                        .questionMediaType(questionRequest.getQuestionMediaType())
+                        .mediaSourceType(questionRequest.getMediaSourceType())
+                        .externalMediaUrl(questionRequest.getExternalMediaUrl())
+                        .questionVideoStartTime(questionRequest.getQuestionVideoStartTime())
+                        .questionVideoEndTime(questionRequest.getQuestionVideoEndTime())
+                        .answerMediaUrl(questionRequest.getAnswerMediaUrl())
+                        .answerVideoStartTime(questionRequest.getAnswerVideoStartTime())
+                        .answerVideoEndTime(questionRequest.getAnswerVideoEndTime())
+                        .answerTextVerification(questionRequest.getAnswerTextVerification())
                         .build();
+
+                log.info("Saving question: text='{}', type={}, hasExternalMedia={}, hasMediaId={}",
+                        questionRequest.getQuestion().substring(0, Math.min(50, questionRequest.getQuestion().length())),
+                        questionRequest.getQuestionType(),
+                        questionRequest.getExternalMediaUrl() != null,
+                        questionRequest.getQuestionMediaId() != null);
 
                 QuizQuestion savedQuestion = quizQuestionRepository.save(question);
                 log.debug("Saved question ID: {} - {}", savedQuestion.getId(),

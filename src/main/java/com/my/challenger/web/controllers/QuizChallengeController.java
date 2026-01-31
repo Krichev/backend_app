@@ -49,6 +49,12 @@ public class QuizChallengeController {
             log.info("User: {}", userDetails.getUsername());
             log.info("Title: {}", request.getTitle());
 
+            log.info("Received request body - title: '{}', description length: {}, quizConfig: {}, customQuestions: {}",
+                    request.getTitle(),
+                    request.getDescription() != null ? request.getDescription().length() : 0,
+                    request.getQuizConfig() != null ? "present" : "null",
+                    request.getCustomQuestions() != null ? request.getCustomQuestions().size() : 0);
+
             // Log the quiz config details
             if (request.getQuizConfig() != null) {
                 log.info("Quiz Config Details:");
