@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
@@ -76,29 +77,20 @@ public class QuizRound {
     @Column(name = "ai_explanation", length = 500)
     private String aiExplanation;
 
-    @CreationTimestamp
     @Column(name = "voice_recording_used")
+    @Builder.Default
     private Boolean voiceRecordingUsed = false;
 
     @Column(name = "ai_feedback", length = 1000)
     private String aiFeedback;
 
-    @Column(name = "created_at")
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
-    }
-
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
 
     // Helper methods
     public void startRound() {

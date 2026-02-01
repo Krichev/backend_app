@@ -24,9 +24,11 @@ public class RefreshTokenService {
     @Value("${app.jwt.refresh-expiration:604800000}") // 7 days default
     private Long refreshTokenDurationMs;
 
+    @Transactional
     public RefreshToken createRefreshToken(User user) {
-        // Delete any existing refresh token for this user
-        refreshTokenRepository.findByUser(user).ifPresent(refreshTokenRepository::delete);
+        // Atomically delete any existing refresh token for this user
+        refreshTokenRepository.deleteByUser(user);
+        refreshTokenRepository.flush();
 
         RefreshToken refreshToken = RefreshToken.builder()
                 .user(user)

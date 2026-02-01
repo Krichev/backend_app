@@ -10,7 +10,9 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 
 @Entity
-@Table(name = "refresh_tokens")
+@Table(name = "refresh_tokens", uniqueConstraints = {
+    @UniqueConstraint(name = "uq_refresh_tokens_user_id", columnNames = {"user_id"})
+})
 @Data
 @Builder
 @NoArgsConstructor
