@@ -69,6 +69,8 @@ spring:
 
   # Jackson Configuration
   jackson:
+    mapper:
+      accept-case-insensitive-enums: true
     serialization:
       write-dates-as-timestamps: false
       fail-on-empty-beans: false
