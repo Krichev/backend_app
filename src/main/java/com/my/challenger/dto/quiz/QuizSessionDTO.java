@@ -35,6 +35,10 @@ public class QuizSessionDTO {
     private LocalDateTime startedAt;
     private LocalDateTime completedAt;
     private Integer totalDurationSeconds;
+    private Boolean isPaused;
+    private String pauseMetadata;
+    private Boolean enableAiAnswerValidation;
+
     private LocalDateTime createdAt;
     
     // Pause metadata

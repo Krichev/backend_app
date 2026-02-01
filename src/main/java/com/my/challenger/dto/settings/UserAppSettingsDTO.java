@@ -16,4 +16,7 @@ public class UserAppSettingsDTO {
     private Boolean notificationsEnabled;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Boolean enableSoundEffects;
+    private Boolean enableVibration;
+    private Boolean enableAiAnswerValidation;
 }

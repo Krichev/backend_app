@@ -25,6 +25,13 @@ public class QuizRoundDTO {
     private Integer discussionDurationSeconds;
     private Integer totalRoundDurationSeconds;
     private Boolean hintUsed;
+    
+    private Boolean aiValidationUsed;
+    private Boolean aiAccepted;
+    private Double aiConfidence;
+    private String aiExplanation;
+
+    private LocalDateTime createdAt;
     private Boolean voiceRecordingUsed;
     private String aiFeedback;
 }

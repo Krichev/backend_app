@@ -11,6 +11,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -88,7 +89,12 @@ public class QuizSession {
     @Column(name = "total_duration_seconds")
     private Integer totalDurationSeconds;
 
-    @Column(name = "created_at")
+    @Column(name = "enable_ai_answer_validation")
+    @Builder.Default
+    private Boolean enableAiAnswerValidation = false;
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at")

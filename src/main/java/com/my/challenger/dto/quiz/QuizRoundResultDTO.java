@@ -16,7 +16,15 @@ public class QuizRoundResultDTO {
     private boolean isCorrect;
     private String correctAnswer;
     private String feedback;
-    private Integer sessionScore;
+    private boolean hintUsed;
+    private String hint;
+
+    private boolean aiValidationUsed;
+    private boolean aiAccepted;
+    private Double aiConfidence;
+    private String aiExplanation;
+
+    private int sessionScore;
     @JsonProperty("isSessionComplete")
     private boolean isSessionComplete;
 }

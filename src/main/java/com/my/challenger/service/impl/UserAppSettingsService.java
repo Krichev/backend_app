@@ -54,6 +54,16 @@ public class UserAppSettingsService {
             settings.setNotificationsEnabled(request.getNotificationsEnabled());
             log.info("Updated notifications to '{}' for user {}", request.getNotificationsEnabled(), userId);
         }
+        if (request.getEnableSoundEffects() != null) {
+            settings.setEnableSoundEffects(request.getEnableSoundEffects());
+        }
+        if (request.getEnableVibration() != null) {
+            settings.setEnableVibration(request.getEnableVibration());
+        }
+        if (request.getEnableAiAnswerValidation() != null) {
+            settings.setEnableAiAnswerValidation(request.getEnableAiAnswerValidation());
+            log.info("Updated AI answer validation to '{}' for user {}", request.getEnableAiAnswerValidation(), userId);
+        }
 
         settings = settingsRepository.save(settings);
         return toDTO(settings);
@@ -93,6 +103,9 @@ public class UserAppSettingsService {
             .language("en")
             .theme("system")
             .notificationsEnabled(true)
+            .enableSoundEffects(true)
+            .enableVibration(true)
+            .enableAiAnswerValidation(false) // Opt-in feature
             .build();
 
         return settingsRepository.save(settings);
@@ -108,6 +121,9 @@ public class UserAppSettingsService {
             .language(settings.getLanguage())
             .theme(settings.getTheme())
             .notificationsEnabled(settings.getNotificationsEnabled())
+            .enableSoundEffects(settings.getEnableSoundEffects())
+            .enableVibration(settings.getEnableVibration())
+            .enableAiAnswerValidation(settings.getEnableAiAnswerValidation())
             .createdAt(settings.getCreatedAt())
             .updatedAt(settings.getUpdatedAt())
             .build();

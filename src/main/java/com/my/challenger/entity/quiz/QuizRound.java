@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
@@ -58,8 +59,24 @@ public class QuizRound {
     private Integer totalRoundDurationSeconds;
 
     @Column(name = "hint_used")
+    @Builder.Default
     private Boolean hintUsed = false;
 
+    @Column(name = "ai_validation_used")
+    @Builder.Default
+    private Boolean aiValidationUsed = false;
+
+    @Column(name = "ai_accepted")
+    @Builder.Default
+    private Boolean aiAccepted = false;
+
+    @Column(name = "ai_confidence")
+    private Double aiConfidence;
+
+    @Column(name = "ai_explanation", length = 500)
+    private String aiExplanation;
+
+    @CreationTimestamp
     @Column(name = "voice_recording_used")
     private Boolean voiceRecordingUsed = false;
 

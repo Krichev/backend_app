@@ -47,4 +47,5 @@ public class StartQuizSessionRequest {
     
     // For user-selected questions
     private List<Long> customQuestionIds;
+    private Boolean enableAiAnswerValidation;
 }

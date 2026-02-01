@@ -15,5 +15,7 @@ public class UpdateAppSettingsRequest {
     @Pattern(regexp = "^(light|dark|system)$", message = "Theme must be 'light', 'dark', or 'system'")
     private String theme;
 
-    private Boolean notificationsEnabled;
+    private Boolean enableSoundEffects;
+    private Boolean enableVibration;
+    private Boolean enableAiAnswerValidation;
 }

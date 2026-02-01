@@ -445,10 +445,15 @@ public class QuestionService {
         }
 
         // Validate answer
-        boolean isCorrect = gameService.validateAnswer(
+        boolean enableAiValidation = session.getEnableAiAnswerValidation() != null && session.getEnableAiAnswerValidation();
+        AnswerValidationResult validationResult = gameService.validateAnswerEnhanced(
                 request.getTeamAnswer(),
-                round.getQuestion().getAnswer()
+                round.getQuestion().getAnswer(),
+                enableAiValidation,
+                "en" // Default to English, could be parameterized
         );
+        
+        boolean isCorrect = validationResult.isCorrect();
 
         // Update round
         round.setTeamAnswer(request.getTeamAnswer());
@@ -458,9 +463,15 @@ public class QuestionService {
         round.setHintUsed(request.getHintUsed() != null ? request.getHintUsed() : false);
         round.setVoiceRecordingUsed(request.getVoiceRecordingUsed() != null ? request.getVoiceRecordingUsed() : false);
         round.setAnswerSubmittedAt(LocalDateTime.now());
+        
+        // Set AI validation metadata
+        round.setAiValidationUsed(validationResult.isAiUsed());
+        round.setAiAccepted(validationResult.isAiAccepted());
+        round.setAiConfidence(validationResult.getAiConfidence());
+        round.setAiExplanation(validationResult.getAiExplanation());
 
         // Generate AI feedback if enabled
-        if (session.getEnableAiHost()) {
+        if (session.getEnableAiHost() != null && session.getEnableAiHost()) {
             String feedback = gameService.generateRoundFeedback(round, isCorrect);
             round.setAiFeedback(feedback);
         }
@@ -804,6 +815,10 @@ public class QuestionService {
                 .hintUsed(round.getHintUsed())
                 .voiceRecordingUsed(round.getVoiceRecordingUsed())
                 .aiFeedback(round.getAiFeedback())
+                .aiValidationUsed(round.getAiValidationUsed())
+                .aiAccepted(round.getAiAccepted())
+                .aiConfidence(round.getAiConfidence())
+                .aiExplanation(round.getAiExplanation())
                 .build();
     }
 

@@ -39,6 +39,17 @@ public interface WWWGameService {
      * @return Similarity score between 0.0 and 1.0
      */
     double calculateAnswerSimilarity(String answer1, String answer2);
+
+    /**
+     * Validate answer with optional AI-powered semantic matching
+     * @param teamAnswer The answer provided by the team
+     * @param correctAnswer The correct answer
+     * @param enableAiValidation Whether to use AI for semantic matching
+     * @param language Language context for better matching (en/ru)
+     * @return ValidationResult with isCorrect, aiUsed, explanation
+     */
+    com.my.challenger.dto.quiz.AnswerValidationResult validateAnswerEnhanced(String teamAnswer, String correctAnswer, 
+                                                boolean enableAiValidation, String language);
 }
 
 

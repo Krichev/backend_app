@@ -38,6 +38,7 @@ public class QuizChallengeConfig {
     private Boolean individualOnly;            // true = teamBased must be false, each user separate session
     private Integer maxAttempts;               // max attempts per user (default 1)
     private Boolean shuffleQuestions;          // randomize order per participant
+    private Boolean enableAiAnswerValidation;  // enable AI semantic answer validation
 
     // Result sharing settings
     private ResultSharingPolicy resultSharing; // who can see results

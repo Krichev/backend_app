@@ -36,6 +36,10 @@ public class UserAppSettings {
     @Builder.Default
     private Boolean notificationsEnabled = true;
 
+    @Column(name = "enable_ai_answer_validation")
+    @Builder.Default
+    private Boolean enableAiAnswerValidation = false;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

@@ -234,6 +234,7 @@ public class QuizService {
                 .teamName(request.getTeamName())
                 .teamMembers(String.join(",", request.getTeamMembers()))
                 .enableAiHost(request.getEnableAiHost() != null ? request.getEnableAiHost() : false)
+                .enableAiAnswerValidation(request.getEnableAiAnswerValidation() != null ? request.getEnableAiAnswerValidation() : false)
                 .questionSource(request.getQuestionSource())
                 .build();
 
@@ -347,11 +348,16 @@ public class QuizService {
             throw new IllegalStateException("Answer already submitted for this round");
         }
         
-        // Validate answer
-        boolean isCorrect = gameService.validateAnswer(
+        // Validate answer with AI support if enabled
+        boolean enableAiValidation = session.getEnableAiAnswerValidation() != null && session.getEnableAiAnswerValidation();
+        AnswerValidationResult validationResult = gameService.validateAnswerEnhanced(
             request.getTeamAnswer(),
-            round.getQuestion().getAnswer()
+            round.getQuestion().getAnswer(),
+            enableAiValidation,
+            "en" // Default to English, could be parameterized
         );
+        
+        boolean isCorrect = validationResult.isCorrect();
         
         // Update round
         round.setTeamAnswer(request.getTeamAnswer());
@@ -361,6 +367,12 @@ public class QuizService {
         round.setHintUsed(request.getHintUsed() != null ? request.getHintUsed() : false);
         round.setVoiceRecordingUsed(request.getVoiceRecordingUsed() != null ? request.getVoiceRecordingUsed() : false);
         round.setAnswerSubmittedAt(LocalDateTime.now());
+        
+        // Set AI validation metadata
+        round.setAiValidationUsed(validationResult.isAiUsed());
+        round.setAiAccepted(validationResult.isAiAccepted());
+        round.setAiConfidence(validationResult.getAiConfidence());
+        round.setAiExplanation(validationResult.getAiExplanation());
         
         // Generate AI feedback if enabled
         if (session.getEnableAiHost() != null && session.getEnableAiHost()) {
@@ -419,8 +431,16 @@ public class QuizService {
             throw new IllegalStateException("Answer already submitted for this round");
         }
 
-        // Validate and score the answer
-        boolean isCorrect = gameService.validateAnswer(request.getAnswer(), round.getQuestion().getAnswer());
+        // Validate and score the answer with AI support if enabled
+        boolean enableAiValidation = session.getEnableAiAnswerValidation() != null && session.getEnableAiAnswerValidation();
+        AnswerValidationResult validationResult = gameService.validateAnswerEnhanced(
+            request.getAnswer(),
+            round.getQuestion().getAnswer(),
+            enableAiValidation,
+            "en"
+        );
+        
+        boolean isCorrect = validationResult.isCorrect();
 
         // Update round
         round.setTeamAnswer(request.getAnswer());
@@ -428,6 +448,12 @@ public class QuizService {
         round.setIsCorrect(isCorrect);
         round.setPlayerWhoAnswered(request.getPlayerWhoAnswered());
         round.setDiscussionNotes(request.getDiscussionNotes());
+        
+        // Set AI validation metadata
+        round.setAiValidationUsed(validationResult.isAiUsed());
+        round.setAiAccepted(validationResult.isAiAccepted());
+        round.setAiConfidence(validationResult.getAiConfidence());
+        round.setAiExplanation(validationResult.getAiExplanation());
 
         if (request.getTimeToAnswer() != null) {
             round.setTotalRoundDurationSeconds(request.getTimeToAnswer());
@@ -466,6 +492,10 @@ public class QuizService {
                 .isCorrect(isCorrect)
                 .correctAnswer(round.getQuestion().getAnswer())
                 .feedback(feedback)
+                .aiValidationUsed(validationResult.isAiUsed())
+                .aiAccepted(validationResult.isAiAccepted())
+                .aiConfidence(validationResult.getAiConfidence())
+                .aiExplanation(validationResult.getAiExplanation())
                 .sessionScore(session.getCorrectAnswers())
                 .isSessionComplete(session.getStatus() == QuizSessionStatus.COMPLETED)
                 .build();
@@ -765,6 +795,10 @@ public class QuizService {
                 .hintUsed(round.getHintUsed())
                 .voiceRecordingUsed(round.getVoiceRecordingUsed())
                 .aiFeedback(round.getAiFeedback())
+                .aiValidationUsed(round.getAiValidationUsed())
+                .aiAccepted(round.getAiAccepted())
+                .aiConfidence(round.getAiConfidence())
+                .aiExplanation(round.getAiExplanation())
                 .build();
 
         // Don't include the answer unless the round is complete

@@ -1,15 +1,22 @@
 package com.my.challenger.service.impl;
 
+import com.my.challenger.dto.quiz.AiValidationResult;
+import com.my.challenger.dto.quiz.AnswerValidationResult;
 import com.my.challenger.entity.quiz.QuizRound;
+import com.my.challenger.service.AiAnswerValidationService;
 import com.my.challenger.service.WWWGameService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class WWWGameServiceImpl implements WWWGameService {
 
+    private final AiAnswerValidationService aiValidationService;
     private static final double SIMILARITY_THRESHOLD = 0.8;
+    private static final double AI_CONFIDENCE_THRESHOLD = 0.7;
 
     @Override
     public boolean validateAnswer(String teamAnswer, String correctAnswer) {
@@ -35,6 +42,71 @@ public class WWWGameServiceImpl implements WWWGameService {
     }
 
     @Override
+    public AnswerValidationResult validateAnswerEnhanced(String teamAnswer, String correctAnswer, 
+                                                         boolean enableAiValidation, String language) {
+        // 1. Run existing validation (Exact + Levenshtein)
+        boolean isCorrect = validateAnswer(teamAnswer, correctAnswer);
+
+        // 2. If already correct, return immediately
+        if (isCorrect) {
+            return AnswerValidationResult.builder()
+                    .correct(true)
+                    .exactMatch(true)
+                    .aiUsed(false)
+                    .build();
+        }
+
+        // 3. If incorrect AND AI validation enabled AND AI available
+        if (enableAiValidation && aiValidationService.isAvailable()) {
+            // Check if answers are too long for AI (prevent abuse)
+            if (teamAnswer != null && teamAnswer.length() > 500) {
+                return AnswerValidationResult.builder()
+                        .correct(false)
+                        .aiUsed(false)
+                        .build();
+            }
+            
+            // Check if answers are empty
+            if (teamAnswer == null || teamAnswer.isBlank()) {
+                return AnswerValidationResult.builder()
+                        .correct(false)
+                        .aiUsed(false)
+                        .build();
+            }
+
+            AiValidationResult aiResult = aiValidationService.validateAnswerWithAi(teamAnswer, correctAnswer, language);
+
+            if (aiResult.isEquivalent() && aiResult.getConfidence() >= AI_CONFIDENCE_THRESHOLD) {
+                return AnswerValidationResult.builder()
+                        .correct(true)
+                        .exactMatch(false)
+                        .aiAccepted(true)
+                        .aiConfidence(aiResult.getConfidence())
+                        .aiExplanation(aiResult.getExplanation())
+                        .aiUsed(true)
+                        .build();
+            }
+            
+            // AI returned result but was not confident enough or answer was not equivalent
+            return AnswerValidationResult.builder()
+                    .correct(false)
+                    .exactMatch(false)
+                    .aiAccepted(false)
+                    .aiConfidence(aiResult.getConfidence())
+                    .aiExplanation(aiResult.getExplanation())
+                    .aiUsed(true)
+                    .build();
+        }
+
+        // 4. Fallback (AI disabled or unavailable)
+        return AnswerValidationResult.builder()
+                .correct(false)
+                .exactMatch(false)
+                .aiUsed(false)
+                .build();
+    }
+
+    @Override
     public String generateRoundFeedback(QuizRound round, boolean isCorrect) {
         if (round == null) {
             return "Unable to generate feedback for this round.";
@@ -44,6 +116,11 @@ public class WWWGameServiceImpl implements WWWGameService {
         
         if (isCorrect) {
             feedback.append("🎉 Excellent! That's correct! ");
+            
+            // Add AI explanation if available
+            if (round.getAiAccepted() != null && round.getAiAccepted() && round.getAiExplanation() != null) {
+                 feedback.append(" (").append(round.getAiExplanation()).append(") ");
+            }
             
             // Add encouraging message based on question difficulty
             if (round.getQuestion() != null && round.getQuestion().getDifficulty() != null) {
