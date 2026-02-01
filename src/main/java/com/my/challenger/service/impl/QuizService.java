@@ -15,6 +15,7 @@ import com.my.challenger.exception.ResourceNotFoundException;
 import com.my.challenger.mapper.QuizQuestionMapper;
 import com.my.challenger.repository.*;
 import com.my.challenger.service.WWWGameService;
+import com.my.challenger.service.WagerService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -44,6 +45,7 @@ public class QuizService {
     protected final MinioMediaStorageService mediaStorageService;
     protected final TopicService topicService;
     protected final QuizQuestionDTOEnricher dtoEnricher;
+    protected final WagerService wagerService;
 
     public QuizService(
             QuizQuestionRepository quizQuestionRepository,
@@ -56,7 +58,8 @@ public class QuizService {
             WWWGameService gameService,
             MinioMediaStorageService mediaStorageService,
             TopicService topicService,
-            QuizQuestionDTOEnricher dtoEnricher) {
+            QuizQuestionDTOEnricher dtoEnricher,
+            WagerService wagerService) {
         this.quizQuestionRepository = quizQuestionRepository;
         this.quizSessionRepository = quizSessionRepository;
         this.quizRoundRepository = quizRoundRepository;
@@ -68,6 +71,7 @@ public class QuizService {
         this.mediaStorageService = mediaStorageService;
         this.topicService = topicService;
         this.dtoEnricher = dtoEnricher;
+        this.wagerService = wagerService;
     }
 
     /**
@@ -535,6 +539,18 @@ public class QuizService {
         if (session.getStartedAt() != null) {
             long duration = java.time.Duration.between(session.getStartedAt(), session.getCompletedAt()).getSeconds();
             session.setTotalDurationSeconds((int) duration);
+        }
+
+        // Settle wagers
+        settleWagersForSession(session);
+    }
+
+    private void settleWagersForSession(QuizSession session) {
+        try {
+            log.info("Settling wagers for quiz session: {}", session.getId());
+            wagerService.settleWagersForSession(session.getId(), session.getHostUser().getId(), session.getCorrectAnswers());
+        } catch (Exception e) {
+            log.error("Failed to settle wagers for session: {}", session.getId(), e);
         }
     }
 

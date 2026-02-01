@@ -15,6 +15,7 @@ import com.my.challenger.entity.quiz.Topic;
 import com.my.challenger.mapper.QuizQuestionMapper;
 import com.my.challenger.repository.*;
 import com.my.challenger.service.WWWGameService;
+import com.my.challenger.service.WagerService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -48,11 +49,12 @@ public class EnhancedQuizService extends QuizService {
             TaskRepository taskRepository,
             TopicService topicService,
             ChallengeProgressRepository challengeProgressRepository,
-            QuizQuestionDTOEnricher dtoEnricher) {
+            QuizQuestionDTOEnricher dtoEnricher,
+            WagerService wagerService) {
 
         super(quizQuestionRepository, quizSessionRepository, quizRoundRepository,
                 challengeRepository, userRepository, mediaFileRepository, questRepository, gameService,
-                mediaStorageService, topicService, dtoEnricher);
+                mediaStorageService, topicService, dtoEnricher, wagerService);
 
         this.objectMapper = objectMapper;
         this.taskRepository = taskRepository;

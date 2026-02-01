@@ -15,6 +15,7 @@ import com.my.challenger.mapper.QuizQuestionMapper;
 import com.my.challenger.repository.*;
 import com.my.challenger.service.ExternalMediaValidator;
 import com.my.challenger.service.WWWGameService;
+import com.my.challenger.service.WagerService;
 import com.my.challenger.util.YouTubeUrlParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -48,6 +49,7 @@ public class QuestionService {
     private final TopicService topicService;
     private final QuestionAccessService accessService;
     private final UserRelationshipService relationshipService;
+    private final WagerService wagerService;
     private final MinioMediaStorageService mediaStorageService;
     private final QuizQuestionDTOEnricher dtoEnricher;
     private final ExternalMediaValidator externalMediaValidator;
@@ -499,14 +501,16 @@ public class QuestionService {
         session.setCompletedAt(LocalDateTime.now());
 
         // Calculate total duration if started
-        if (session.getStartedAt() != null) {
-            long durationSeconds = Duration
-                    .between(session.getStartedAt(), session.getCompletedAt())
-                    .getSeconds();
-            session.setTotalDurationSeconds((int) durationSeconds);
+        QuizSession updated = quizSessionRepository.save(session);
+
+        // Settle wagers
+        try {
+            log.info("Settling wagers for quiz session: {}", sessionId);
+            wagerService.settleWagersForSession(sessionId, userId, updated.getCorrectAnswers());
+        } catch (Exception e) {
+            log.error("Failed to settle wagers for session: {}", sessionId, e);
         }
 
-        QuizSession updated = quizSessionRepository.save(session);
         return convertSessionToDTO(updated);
     }
 
