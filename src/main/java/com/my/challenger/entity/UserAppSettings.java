@@ -36,6 +36,14 @@ public class UserAppSettings {
     @Builder.Default
     private Boolean notificationsEnabled = true;
 
+    @Column(name = "enable_sound_effects")
+    @Builder.Default
+    private Boolean enableSoundEffects = true;
+
+    @Column(name = "enable_vibration")
+    @Builder.Default
+    private Boolean enableVibration = true;
+
     @Column(name = "enable_ai_answer_validation")
     @Builder.Default
     private Boolean enableAiAnswerValidation = false;
