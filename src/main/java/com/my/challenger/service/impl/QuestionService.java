@@ -789,6 +789,7 @@ public class QuestionService {
                 .correctAnswers(session.getCorrectAnswers())
                 .scorePercentage(calculateScorePercentage(session))
                 .enableAiHost(session.getEnableAiHost())
+                .enableAiAnswerValidation(session.getEnableAiAnswerValidation())
                 .questionSource(session.getQuestionSource())
                 .status(session.getStatus())
                 .startedAt(session.getStartedAt())

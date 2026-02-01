@@ -758,6 +758,7 @@ public class QuizService {
                 .scorePercentage(calculateScorePercentage(session))
                 .roundTimeSeconds(session.getRoundTimeSeconds())
                 .enableAiHost(session.getEnableAiHost())
+                .enableAiAnswerValidation(session.getEnableAiAnswerValidation())
                 .questionSource(session.getQuestionSource())
                 .startedAt(session.getStartedAt())
                 .completedAt(session.getCompletedAt())

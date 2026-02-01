@@ -392,6 +392,7 @@ public class EnhancedQuizService extends QuizService {
                 .roundTimeSeconds(sessionConfig.getRoundTimeSeconds())
                 .totalRounds(sessionConfig.getTotalRounds())
                 .enableAiHost(sessionConfig.getEnableAiHost())
+                .enableAiAnswerValidation(sessionConfig.getEnableAiAnswerValidation() != null ? sessionConfig.getEnableAiAnswerValidation() : false)
                 .questionSource(sessionConfig.getQuestionSource())
                 .status(QuizSessionStatus.CREATED)
                 .build();

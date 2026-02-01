@@ -23,5 +23,6 @@ public class QuizSessionConfig {
     private Integer roundTimeSeconds;
     private Integer totalRounds;
     private Boolean enableAiHost;
+    private Boolean enableAiAnswerValidation;
     private QuestionSource questionSource;
 }
