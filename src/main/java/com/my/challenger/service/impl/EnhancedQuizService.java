@@ -8,6 +8,7 @@ import com.my.challenger.entity.Task;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.challenge.Challenge;
 import com.my.challenger.entity.enums.*;
+import com.my.challenger.entity.enums.TaskType;
 import com.my.challenger.entity.quiz.QuizQuestion;
 import com.my.challenger.entity.quiz.QuizRound;
 import com.my.challenger.entity.quiz.QuizSession;
@@ -244,27 +245,42 @@ public class EnhancedQuizService extends QuizService {
 
     /**
      * Create a task for the quiz challenge
+     * IMPORTANT: This task is required for challenge completion to work
      */
     private void createQuizTask(Challenge challenge, User creator) {
-        log.info("Creating task for challenge ID: {}", challenge.getId());
+        log.info("Creating task for quiz challenge ID: {} for creator: {}",
+                challenge.getId(), creator.getUsername());
 
-        try {
-            Task task = new Task();
-            task.setChallenge(challenge);
-            task.setAssignedToUser(creator);
-            task.setTitle("Complete Quiz: " + challenge.getTitle());
-            task.setDescription("Participate in the quiz challenge and answer all questions");
-            task.setStatus(TaskStatus.IN_PROGRESS);
-            task.setCreatedAt(LocalDateTime.now());
-            task.setUpdatedAt(LocalDateTime.now());
+        Task task = new Task();
+        task.setChallenge(challenge);
+        task.setTitle("Complete Quiz: " + challenge.getTitle());
+        task.setDescription("Participate in the quiz challenge and answer all questions");
 
-            Task savedTask = taskRepository.save(task);
-            log.info("Task created successfully with ID: {}", savedTask.getId());
+        // CRITICAL: Set both the User object AND the Long ID
+        task.setAssignedToUser(creator);
+        task.setAssignedTo(creator.getId());
 
-        } catch (Exception e) {
-            log.error("Error creating task for challenge", e);
-            // Don't fail the entire challenge creation if task creation fails
-        }
+        // Set task type based on challenge frequency
+        task.setType(challenge.getFrequency() != null ?
+                TaskType.valueOf(challenge.getFrequency().name()) : TaskType.ONE_TIME);
+
+        // Set verification method from challenge
+        task.setVerificationMethod(challenge.getVerificationMethod() != null ?
+                challenge.getVerificationMethod() : VerificationMethod.QUIZ);
+
+        // Set status to IN_PROGRESS so it can be found for completion
+        task.setStatus(TaskStatus.IN_PROGRESS);
+
+        // Set dates
+        task.setStartDate(challenge.getStartDate() != null ?
+                challenge.getStartDate() : LocalDateTime.now());
+        task.setEndDate(challenge.getEndDate());
+        task.setCreatedAt(LocalDateTime.now());
+        task.setUpdatedAt(LocalDateTime.now());
+
+        Task savedTask = taskRepository.save(task);
+        log.info("Quiz task created successfully with ID: {} for challenge: {}",
+                savedTask.getId(), challenge.getId());
     }
 
 
