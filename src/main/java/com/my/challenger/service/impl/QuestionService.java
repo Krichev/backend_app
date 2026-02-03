@@ -26,6 +26,8 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import com.my.challenger.entity.enums.TaskStatus;
+import com.my.challenger.entity.enums.ProgressStatus;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -53,6 +55,8 @@ public class QuestionService {
     private final MinioMediaStorageService mediaStorageService;
     private final QuizQuestionDTOEnricher dtoEnricher;
     private final ExternalMediaValidator externalMediaValidator;
+    private final TaskRepository taskRepository;
+    private final ChallengeProgressRepository challengeProgressRepository;
 
     @Transactional
     public QuizQuestionDTO createQuestionWithMedia(
@@ -502,6 +506,33 @@ public class QuestionService {
 
         // Calculate total duration if started
         QuizSession updated = quizSessionRepository.save(session);
+
+        // Update associated Task
+        if (session.getChallenge() != null) {
+            taskRepository.findFirstByChallengeIdAndAssignedToAndStatus(
+                    session.getChallenge().getId(),
+                    userId,
+                    TaskStatus.IN_PROGRESS
+            ).ifPresent(task -> {
+                task.setStatus(TaskStatus.COMPLETED);
+                task.setUpdatedAt(LocalDateTime.now());
+                taskRepository.save(task);
+                log.info("Updated task {} to COMPLETED for quiz session {}", task.getId(), sessionId);
+            });
+
+            // Update ChallengeProgress
+            challengeProgressRepository.findByChallengeIdAndUserId(
+                    session.getChallenge().getId(),
+                    userId
+            ).ifPresent(progress -> {
+                progress.setCompletionPercentage(calculateScorePercentage(session));
+                progress.setStatus(ProgressStatus.COMPLETED);
+                progress.setUpdatedAt(LocalDateTime.now());
+                challengeProgressRepository.save(progress);
+                log.info("Updated challenge progress for user {} on challenge {}",
+                        userId, session.getChallenge().getId());
+            });
+        }
 
         // Settle wagers
         try {

@@ -25,6 +25,11 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     List<Task> findByChallengeIdAndAssignedTo(Long challengeId, Long userId);
 
     /**
+     * Find the first task with specific challenge and assigned user
+     */
+    Optional<Task> findFirstByChallengeIdAndAssignedTo(Long challengeId, Long userId);
+
+    /**
      * Find tasks by challenge ID, assigned user, and status
      */
     List<Task> findByChallengeIdAndAssignedToAndStatus(Long challengeId, Long userId, TaskStatus status);

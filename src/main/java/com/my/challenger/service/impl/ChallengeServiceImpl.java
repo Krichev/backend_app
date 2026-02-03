@@ -8,6 +8,7 @@ import com.my.challenger.dto.UpdateChallengeRequest;
 import com.my.challenger.dto.verification.VerificationHistoryDTO;
 import com.my.challenger.entity.ChallengeProgress;
 import com.my.challenger.entity.Task;
+import com.my.challenger.entity.quiz.QuizSession;
 import com.my.challenger.entity.TaskCompletion;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.challenge.Challenge;
@@ -41,7 +42,8 @@ public class ChallengeServiceImpl implements ChallengeService {
     private final ChallengeProgressRepository challengeProgressRepository;
     private final ObjectMapper objectMapper;
     private final ChallengeAccessRepository accessRepository;
-    private final PaymentService paymentService; // Inject your payment service
+    private final PaymentService paymentService;
+    private final QuizSessionRepository quizSessionRepository;
 
     @Override
     public List<Map<String, Object>> getAccessList(Long challengeId) {
@@ -247,6 +249,38 @@ public class ChallengeServiceImpl implements ChallengeService {
     }
 
     // ========== PRIVATE HELPER METHODS ==========
+
+    private void updateQuizChallengeCompletion(Challenge challenge, User user, QuizSession session) {
+        // Find or create Task completion record
+        Task task = taskRepository.findFirstByChallengeIdAndAssignedTo(
+                        challenge.getId(), user.getId())
+                .orElse(null);
+
+        if (task != null && task.getStatus() != TaskStatus.COMPLETED) {
+            task.setStatus(TaskStatus.COMPLETED);
+            task.setUpdatedAt(LocalDateTime.now());
+            taskRepository.save(task);
+        }
+
+        // Update progress
+        ChallengeProgress progress = challengeProgressRepository
+                .findByChallengeIdAndUserId(challenge.getId(), user.getId())
+                .orElseGet(() -> createProgressRecord(challenge, user));
+
+        if (progress.getStatus() != ProgressStatus.COMPLETED) {
+            progress.setStatus(ProgressStatus.COMPLETED);
+            progress.setCompletionPercentage(calculateScorePercentage(session));
+            progress.setUpdatedAt(LocalDateTime.now());
+            challengeProgressRepository.save(progress);
+        }
+    }
+
+    private Double calculateScorePercentage(QuizSession session) {
+        if (session.getTotalRounds() == null || session.getTotalRounds() == 0) {
+            return 0.0;
+        }
+        return (double) session.getCorrectAnswers() / session.getTotalRounds() * 100;
+    }
 
     private void setupPayment(Challenge challenge, CreateChallengeRequest request) {
         challenge.setPaymentType(request.getPaymentType() != null ?
@@ -537,6 +571,35 @@ public class ChallengeServiceImpl implements ChallengeService {
     public void submitChallengeCompletion(Long challengeId, Long userId, Map<String, Object> proofData, String notes) {
         Challenge challenge = findChallengeById(challengeId);
         User user = findUserById(userId);
+
+        // Special handling for QUIZ challenges
+        if (challenge.getType() == ChallengeType.QUIZ) {
+            log.info("Quiz challenge detected - checking quiz session completion status");
+
+            // Check if there's a completed quiz session
+            List<QuizSession> sessions = quizSessionRepository
+                    .findByChallengeIdAndHostUserIdAndStatus(challengeId, userId, QuizSessionStatus.COMPLETED);
+
+            if (!sessions.isEmpty()) {
+                log.info("Quiz already completed via quiz session flow for user {} on challenge {}",
+                        userId, challengeId);
+                // Ensure Task and Progress are updated (idempotent)
+                updateQuizChallengeCompletion(challenge, user, sessions.get(0));
+                return;
+            }
+
+            // Check if there's an in-progress session that should be completed
+            List<QuizSession> inProgressSessions = quizSessionRepository
+                    .findByHostUserIdAndStatus(userId, QuizSessionStatus.IN_PROGRESS);
+
+            if (!inProgressSessions.isEmpty()) {
+                throw new IllegalStateException(
+                        "Quiz session is still in progress. Complete the quiz through /quiz/sessions/{sessionId}/complete");
+            }
+
+            throw new IllegalStateException(
+                    "No quiz session found for this challenge. Start a quiz session first.");
+        }
 
         // Find active task for this challenge and user
         Task task = taskRepository.findFirstByChallengeIdAndAssignedToAndStatus(challengeId, userId, TaskStatus.IN_PROGRESS)
