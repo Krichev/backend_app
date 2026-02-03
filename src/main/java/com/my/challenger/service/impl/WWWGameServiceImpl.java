@@ -230,7 +230,7 @@ public class WWWGameServiceImpl implements WWWGameService {
         
         return answer.toLowerCase()
                 .trim()
-                .replaceAll("[^a-z0-9\\s]", "") // Remove punctuation
+                .replaceAll("[^\\p{L}\\p{N}\\s]", "") // Remove punctuation (supports Unicode letters/digits)
                 .replaceAll("\\s+", " "); // Normalize whitespace
     }
 
