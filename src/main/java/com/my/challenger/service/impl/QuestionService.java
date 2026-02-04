@@ -57,6 +57,7 @@ public class QuestionService {
     private final ExternalMediaValidator externalMediaValidator;
     private final TaskRepository taskRepository;
     private final ChallengeProgressRepository challengeProgressRepository;
+    private final com.my.challenger.service.BrainRingService brainRingService;
 
     @Transactional
     public QuizQuestionDTO createQuestionWithMedia(
@@ -398,6 +399,8 @@ public class QuestionService {
                 .teamName(request.getTeamName())
                 .teamMembers(String.join(",", request.getTeamMembers()))
                 .difficulty(request.getDifficulty())
+                .gameMode(request.getGameMode() != null ? request.getGameMode() : GameMode.STANDARD)
+                .answerTimeSeconds(request.getAnswerTimeSeconds() != null ? request.getAnswerTimeSeconds() : 20)
                 .roundTimeSeconds(request.getRoundTimeSeconds())
                 .totalRounds(request.getTotalRounds())
                 .enableAiHost(request.getEnableAiHost())
@@ -767,7 +770,12 @@ public class QuestionService {
                     .hintUsed(false)
                     .voiceRecordingUsed(false)
                     .build();
-            quizRoundRepository.save(round);
+            QuizRound savedRound = quizRoundRepository.save(round);
+
+            // Initialize Brain Ring state if in BRAIN_RING mode
+            if (session.getGameMode() == GameMode.BRAIN_RING) {
+                brainRingService.initializeRoundState(savedRound);
+            }
 
             // Increment usage count for the question
             QuizQuestion question = questions.get(i);
@@ -818,6 +826,8 @@ public class QuestionService {
                 .teamName(session.getTeamName())
                 .teamMembers(teamMembers)
                 .difficulty(session.getDifficulty())
+                .gameMode(session.getGameMode())
+                .answerTimeSeconds(session.getAnswerTimeSeconds())
                 .roundTimeSeconds(session.getRoundTimeSeconds())
                 .totalRounds(session.getTotalRounds())
                 .completedRounds(session.getCompletedRounds())

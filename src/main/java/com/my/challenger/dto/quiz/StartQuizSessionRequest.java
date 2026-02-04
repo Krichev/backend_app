@@ -1,5 +1,6 @@
 package com.my.challenger.dto.quiz;
 
+import com.my.challenger.entity.enums.GameMode;
 import com.my.challenger.entity.enums.QuestionSource;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import jakarta.validation.constraints.NotNull;
@@ -39,6 +40,12 @@ public class StartQuizSessionRequest {
     @NotNull(message = "Round time is required")
     @Min(value = 10, message = "Round time must be at least 10 seconds")
     private Integer roundTimeSeconds;
+
+    @Builder.Default
+    private GameMode gameMode = GameMode.STANDARD;
+
+    @Builder.Default
+    private Integer answerTimeSeconds = 20;
     
     private Boolean enableAiHost;
     

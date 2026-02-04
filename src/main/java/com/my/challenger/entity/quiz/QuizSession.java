@@ -3,6 +3,7 @@ package com.my.challenger.entity.quiz;
 
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.challenge.Challenge;
+import com.my.challenger.entity.enums.GameMode;
 import com.my.challenger.entity.enums.QuestionSource;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.enums.QuizSessionStatus;
@@ -54,6 +55,16 @@ public class QuizSession {
     @Column(name = "difficulty", nullable = false, columnDefinition = "quiz_difficulty")
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private QuizDifficulty difficulty;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "game_mode", nullable = false, columnDefinition = "game_mode")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Builder.Default
+    private GameMode gameMode = GameMode.STANDARD;
+
+    @Column(name = "answer_time_seconds")
+    @Builder.Default
+    private Integer answerTimeSeconds = 20;
 
     @Column(name = "round_time_seconds")
     private Integer roundTimeSeconds;

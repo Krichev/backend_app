@@ -1,5 +1,6 @@
 package com.my.challenger.dto.quiz;
 
+import com.my.challenger.entity.enums.GameMode;
 import com.my.challenger.entity.enums.QuestionSource;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.enums.QuizSessionStatus;
@@ -24,6 +25,8 @@ public class QuizSessionDTO {
     private String teamName;
     private List<String> teamMembers;
     private QuizDifficulty difficulty;
+    private GameMode gameMode;
+    private Integer answerTimeSeconds;
     private Integer roundTimeSeconds;
     private Integer totalRounds;
     private Integer completedRounds;

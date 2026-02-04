@@ -46,6 +46,7 @@ public class QuizService {
     protected final TopicService topicService;
     protected final QuizQuestionDTOEnricher dtoEnricher;
     protected final WagerService wagerService;
+    protected final com.my.challenger.service.BrainRingService brainRingService;
 
     public QuizService(
             QuizQuestionRepository quizQuestionRepository,
@@ -59,7 +60,8 @@ public class QuizService {
             MinioMediaStorageService mediaStorageService,
             TopicService topicService,
             QuizQuestionDTOEnricher dtoEnricher,
-            WagerService wagerService) {
+            WagerService wagerService,
+            com.my.challenger.service.BrainRingService brainRingService) {
         this.quizQuestionRepository = quizQuestionRepository;
         this.quizSessionRepository = quizSessionRepository;
         this.quizRoundRepository = quizRoundRepository;
@@ -72,6 +74,7 @@ public class QuizService {
         this.topicService = topicService;
         this.dtoEnricher = dtoEnricher;
         this.wagerService = wagerService;
+        this.brainRingService = brainRingService;
     }
 
     /**
@@ -235,6 +238,8 @@ public class QuizService {
                 .completedRounds(0)
                 .correctAnswers(0)
                 .roundTimeSeconds(request.getRoundTimeSeconds())
+                .gameMode(request.getGameMode() != null ? request.getGameMode() : GameMode.STANDARD)
+                .answerTimeSeconds(request.getAnswerTimeSeconds() != null ? request.getAnswerTimeSeconds() : 20)
                 .teamName(request.getTeamName())
                 .teamMembers(String.join(",", request.getTeamMembers()))
                 .enableAiHost(request.getEnableAiHost() != null ? request.getEnableAiHost() : false)
@@ -300,7 +305,12 @@ public class QuizService {
                     .voiceRecordingUsed(false)
                     .isCorrect(false)
                     .build();
-            quizRoundRepository.save(round);
+            QuizRound savedRound = quizRoundRepository.save(round);
+
+            // Initialize Brain Ring state if in BRAIN_RING mode
+            if (session.getGameMode() == GameMode.BRAIN_RING) {
+                brainRingService.initializeRoundState(savedRound);
+            }
 
             // Increment usage count for the question
             QuizQuestion question = questions.get(i);
@@ -768,6 +778,8 @@ public class QuizService {
                 .teamMembers(teamMembers)
                 .status(session.getStatus())
                 .difficulty(session.getDifficulty())
+                .gameMode(session.getGameMode())
+                .answerTimeSeconds(session.getAnswerTimeSeconds())
                 .totalRounds(session.getTotalRounds())
                 .completedRounds(session.getCompletedRounds())
                 .correctAnswers(session.getCorrectAnswers())
