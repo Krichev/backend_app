@@ -1,6 +1,7 @@
 package com.my.challenger.scheduler;
 
 import com.my.challenger.entity.ScreenTimeBudget;
+import com.my.challenger.entity.User;
 import com.my.challenger.repository.ScreenTimeBudgetRepository;
 import com.my.challenger.service.ScreenTimeResetService;
 import org.junit.jupiter.api.Test;
@@ -29,7 +30,9 @@ class ScreenTimeBudgetResetSchedulerTest {
         // Since we are using an actual DB or H2, we should let the ID be generated or ensure unique
         // For @Transactional tests, saving will generate ID if configured.
         // Assuming ScreenTimeBudget has @Id @GeneratedValue
-        budget.setUserId(System.currentTimeMillis()); // Mock User ID
+        User user = new User();
+        user.setId(System.currentTimeMillis());
+        budget.setUser(user); // Mock User ID
         budget.setDailyBudgetMinutes(180);
         budget.setAvailableMinutes(0); // Needs reset
         budget.setLockedMinutes(0);

@@ -14,6 +14,7 @@ import com.my.challenger.entity.quiz.Topic;
 import com.my.challenger.exception.ResourceNotFoundException;
 import com.my.challenger.mapper.QuizQuestionMapper;
 import com.my.challenger.repository.*;
+import com.my.challenger.service.BrainRingService;
 import com.my.challenger.service.WWWGameService;
 import com.my.challenger.service.WagerService;
 import lombok.extern.slf4j.Slf4j;
@@ -61,7 +62,7 @@ public class QuizService {
             TopicService topicService,
             QuizQuestionDTOEnricher dtoEnricher,
             WagerService wagerService,
-            com.my.challenger.service.BrainRingService brainRingService) {
+            BrainRingService brainRingService) {
         this.quizQuestionRepository = quizQuestionRepository;
         this.quizSessionRepository = quizSessionRepository;
         this.quizRoundRepository = quizRoundRepository;

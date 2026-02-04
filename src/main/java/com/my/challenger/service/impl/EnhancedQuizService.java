@@ -15,6 +15,7 @@ import com.my.challenger.entity.quiz.QuizSession;
 import com.my.challenger.entity.quiz.Topic;
 import com.my.challenger.mapper.QuizQuestionMapper;
 import com.my.challenger.repository.*;
+import com.my.challenger.service.BrainRingService;
 import com.my.challenger.service.WWWGameService;
 import com.my.challenger.service.WagerService;
 import lombok.extern.slf4j.Slf4j;
@@ -51,11 +52,12 @@ public class EnhancedQuizService extends QuizService {
             TopicService topicService,
             ChallengeProgressRepository challengeProgressRepository,
             QuizQuestionDTOEnricher dtoEnricher,
-            WagerService wagerService) {
+            WagerService wagerService,
+            BrainRingService brainRingService) {
 
         super(quizQuestionRepository, quizSessionRepository, quizRoundRepository,
                 challengeRepository, userRepository, mediaFileRepository, questRepository, gameService,
-                mediaStorageService, topicService, dtoEnricher, wagerService);
+                mediaStorageService, topicService, dtoEnricher, wagerService, brainRingService);
 
         this.objectMapper = objectMapper;
         this.taskRepository = taskRepository;
