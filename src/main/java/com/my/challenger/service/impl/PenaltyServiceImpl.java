@@ -35,6 +35,7 @@ public class PenaltyServiceImpl implements PenaltyService {
     private final MinioMediaStorageService mediaStorageService;
     private final EnhancedPaymentService paymentService;
     private final MediaFileRepository mediaFileRepository;
+    private final com.my.challenger.service.ScreenTimeBudgetService screenTimeBudgetService;
 
     @Override
     @Transactional
@@ -85,7 +86,19 @@ public class PenaltyServiceImpl implements PenaltyService {
                 .verificationMethod(PenaltyVerificationMethod.AI_VERIFICATION) // Or system verified
                 .build();
 
-        // Phase 3 will hook in here to actually lock the device/app
+        // Lock screen time
+        if (wager.getScreenTimeMinutes() != null && wager.getScreenTimeMinutes() > 0) {
+            try {
+                screenTimeBudgetService.lockTime(outcome.getLoser().getId(), wager.getScreenTimeMinutes());
+            } catch (Exception e) {
+                log.error("Failed to lock screen time for user {}", outcome.getLoser().getId(), e);
+                // Continue saving penalty even if locking fails? 
+                // Requirement says "InsufficientScreenTimeException" is possible.
+                // If locking fails (e.g. insufficient time), maybe we shouldn't create penalty?
+                // Or let exception propagate.
+                throw e; 
+            }
+        }
         
         penaltyRepository.save(penalty);
     }
@@ -155,6 +168,15 @@ public class PenaltyServiceImpl implements PenaltyService {
             proof.setReviewedAt(LocalDateTime.now());
             proof.setReviewedBy(penalty.getAssignedTo());
             proof.setReviewNotes("Self-reported completion");
+
+            // Unlock screen time if applicable
+            if (penalty.getPenaltyType() == PenaltyType.SCREEN_TIME_LOCK && penalty.getScreenTimeMinutes() != null) {
+                try {
+                    screenTimeBudgetService.unlockTime(penalty.getAssignedTo().getId(), penalty.getScreenTimeMinutes());
+                } catch (Exception e) {
+                    log.error("Failed to unlock screen time for user {}", penalty.getAssignedTo().getId(), e);
+                }
+            }
         } else {
             penalty.setStatus(PenaltyStatus.COMPLETED); // Awaiting verification
         }
@@ -201,6 +223,15 @@ public class PenaltyServiceImpl implements PenaltyService {
             penalty.setStatus(PenaltyStatus.VERIFIED);
             penalty.setVerifiedAt(LocalDateTime.now());
             penalty.setVerifiedBy(verifier);
+
+            // Unlock screen time if applicable
+            if (penalty.getPenaltyType() == PenaltyType.SCREEN_TIME_LOCK && penalty.getScreenTimeMinutes() != null) {
+                try {
+                    screenTimeBudgetService.unlockTime(penalty.getAssignedTo().getId(), penalty.getScreenTimeMinutes());
+                } catch (Exception e) {
+                    log.error("Failed to unlock screen time for user {}", penalty.getAssignedTo().getId(), e);
+                }
+            }
         } else {
             penalty.setStatus(PenaltyStatus.IN_PROGRESS); // Send back to user
             // penalty.setCompletedAt(null); // Optional: clear completion time?
@@ -241,6 +272,16 @@ public class PenaltyServiceImpl implements PenaltyService {
         }
 
         penalty.setStatus(PenaltyStatus.WAIVED);
+
+        // Unlock screen time if applicable
+        if (penalty.getPenaltyType() == PenaltyType.SCREEN_TIME_LOCK && penalty.getScreenTimeMinutes() != null) {
+            try {
+                screenTimeBudgetService.unlockTime(penalty.getAssignedTo().getId(), penalty.getScreenTimeMinutes());
+            } catch (Exception e) {
+                log.error("Failed to unlock screen time for user {}", penalty.getAssignedTo().getId(), e);
+            }
+        }
+
         penaltyRepository.save(penalty);
         return mapToDTO(penalty);
     }

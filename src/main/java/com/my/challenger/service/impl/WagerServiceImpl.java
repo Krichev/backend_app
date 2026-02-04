@@ -40,6 +40,9 @@ public class WagerServiceImpl implements WagerService {
     private final QuizSessionRepository quizSessionRepository;
     private final EnhancedPaymentService paymentService;
     private final PenaltyService penaltyService;
+    private final com.my.challenger.service.ScreenTimeBudgetService screenTimeBudgetService;
+    private final com.my.challenger.service.ParentalControlService parentalControlService;
+    private final com.my.challenger.repository.ChildSettingsRepository childSettingsRepository;
 
     @Override
     @Transactional
@@ -48,6 +51,9 @@ public class WagerServiceImpl implements WagerService {
 
         User creator = userRepository.findById(creatorUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", creatorUserId));
+
+        // Check parental approval
+        checkParentalApproval(creator, request);
 
         Challenge challenge = challengeRepository.findById(request.getChallengeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Challenge", "id", request.getChallengeId()));
@@ -326,6 +332,16 @@ public class WagerServiceImpl implements WagerService {
             loser.setStatus(ParticipantWagerStatus.LOST);
             loser.setAmountLost(wager.getStakeAmount());
             loser.setSettledAt(LocalDateTime.now());
+            
+            // Deduct screen time if applicable
+            if (wager.getStakeType() == StakeType.SCREEN_TIME && wager.getScreenTimeMinutes() != null) {
+                try {
+                    screenTimeBudgetService.loseTime(loser.getUser().getId(), wager.getScreenTimeMinutes());
+                } catch (Exception e) {
+                    log.error("Failed to deduct screen time from loser {}", loser.getUser().getId(), e);
+                }
+            }
+            
             participantRepository.save(loser);
         }
 
@@ -457,6 +473,41 @@ public class WagerServiceImpl implements WagerService {
         }
     }
 
+    private void checkParentalApproval(User creator, CreateWagerRequest request) {
+        if (!parentalControlService.isChildAccount(creator.getId())) {
+            return; // Not a child, no approval needed
+        }
+        
+        com.my.challenger.entity.parental.ChildSettings settings = childSettingsRepository.findByChildId(creator.getId())
+                .orElse(null);
+        
+        if (settings == null) {
+            return; // No parental settings, allow
+        }
+        
+        // Check if wager type is allowed
+        if (request.getStakeType() == StakeType.MONEY && !settings.isAllowMoneyWagers()) {
+            throw new com.my.challenger.exception.ParentalRestrictionException("Money wagers are not allowed for this account");
+        }
+        
+        // Check if amount exceeds limit
+        if (request.getStakeAmount().compareTo(settings.getMaxWagerAmount()) > 0) {
+            // Create approval request instead of blocking
+            parentalControlService.createApprovalRequest(
+                    creator.getId(),
+                    "HIGH_STAKES",
+                    null,
+                    "WAGER",
+                    java.util.Map.of(
+                            "stakeType", request.getStakeType(),
+                            "amount", request.getStakeAmount(),
+                            "challengeId", request.getChallengeId()
+                    )
+            );
+            throw new com.my.challenger.exception.PendingParentalApprovalException("This wager requires parental approval");
+        }
+    }
+
     private void escrowStake(WagerParticipant participant, Wager wager) {
         if (wager.getStakeType() == StakeType.POINTS) {
             paymentService.deductPoints(participant.getUser(), wager.getStakeAmount().longValue());
@@ -484,6 +535,12 @@ public class WagerServiceImpl implements WagerService {
     private void distributeWinnings(WagerParticipant winner, BigDecimal amount, Wager wager) {
         if (wager.getStakeType() == StakeType.POINTS) {
             paymentService.addPoints(winner.getUser(), amount.longValue());
+        } else if (wager.getStakeType() == StakeType.SCREEN_TIME && wager.getScreenTimeMinutes() != null) {
+            try {
+                screenTimeBudgetService.winTime(winner.getUser().getId(), wager.getScreenTimeMinutes());
+            } catch (Exception e) {
+                log.error("Failed to distribute screen time winnings to user {}", winner.getUser().getId(), e);
+            }
         }
         // Other stake types (MONEY) would have distribution here
     }

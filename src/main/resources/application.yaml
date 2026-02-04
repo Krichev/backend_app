@@ -186,10 +186,19 @@ management:
       prometheus:
         enabled: true
 
+# Screen Time Configuration
+screen-time:
+  reset:
+    batch-size: 500
+    default-timezone: UTC
+    default-daily-budget-minutes: 180
+
 # Logging Configuration
 logging:
   level:
     com.my.challenger: INFO
+    com.my.challenger.scheduler: INFO
+    net.javacrumbs.shedlock: DEBUG
     org.springframework.security: WARN
     org.hibernate.SQL: WARN
     org.hibernate.type.descriptor.sql.BasicBinder: WARN
