@@ -73,6 +73,10 @@ public class User {
     )
     private Set<Reward> rewards = new HashSet<>();
 
+    @Column(name = "is_child_account")
+    @Builder.Default
+    private Boolean childAccount = false;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

@@ -31,6 +31,7 @@ public class ParentalControlServiceImpl implements ParentalControlService {
     private final TimeExtensionRequestRepository extensionRequestRepository;
     private final UserRepository userRepository;
     private final ScreenTimeBudgetService screenTimeBudgetService;
+    private final UserParentalSettingsService parentalSettingsService;
 
     // ========== LINK MANAGEMENT ==========
 
@@ -98,10 +99,14 @@ public class ParentalControlServiceImpl implements ParentalControlService {
                     .build();
             childSettingsRepository.save(settings);
             
-            // Mark user as child account
-            User child = link.getChild();
-            child.setChildAccount(true); // Assuming this field exists on User entity or we need to add it
-            userRepository.save(child);
+            // Link account in the new parental settings system
+            LinkChildRequest linkRequest = LinkChildRequest.builder()
+                    .childUserId(childId)
+                    .ageGroup("UNDER_13")
+                    .contentRestrictionLevel("MODERATE")
+                    .requireParentApproval(true)
+                    .build();
+            parentalSettingsService.linkChildAccount(link.getParent().getId(), linkRequest);
         }
 
         return mapToDTO(link);
