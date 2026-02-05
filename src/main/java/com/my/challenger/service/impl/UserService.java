@@ -29,6 +29,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.my.challenger.entity.enums.Gender;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -39,6 +41,21 @@ public class UserService {
     private final ChallengeRepository challengeRepository;
     private final ChallengeProgressRepository challengeProgressRepository;
     private final UserRelationshipRepository relationshipRepository;
+
+    /**
+     * Update user gender
+     */
+    public void updateGender(Long userId, Gender gender) {
+        log.debug("Updating gender for userId: {}", userId);
+        
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        
+        user.setGender(gender);
+        userRepository.save(user);
+        
+        log.info("Successfully updated gender for userId: {}", userId);
+    }
 
     @Transactional(readOnly = true)
     public UserSearchPageResponse searchUsersWithConnectionStatus(

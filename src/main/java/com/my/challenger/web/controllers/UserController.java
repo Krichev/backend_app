@@ -136,4 +136,13 @@ public class UserController {
             throw e;
         }
     }
+
+    @Operation(summary = "Update user gender")
+    @PutMapping("/me/gender")
+    public ResponseEntity<Void> updateGender(
+            @Valid @RequestBody com.my.challenger.dto.user.UpdateUserGenderRequest request,
+            @CurrentUser UserPrincipal currentUser) {
+        userService.updateGender(currentUser.getId(), request.getGender());
+        return ResponseEntity.ok().build();
+    }
 }

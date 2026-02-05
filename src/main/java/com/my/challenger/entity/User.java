@@ -5,7 +5,15 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import com.my.challenger.entity.enums.Gender;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
@@ -32,6 +40,11 @@ public class User {
 
     @Column(name = "profile_picture_url")
     private String profilePictureUrl;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "gender", columnDefinition = "gender_type")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private Gender gender;
 
     private String bio;
 
