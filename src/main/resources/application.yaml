@@ -111,6 +111,8 @@ app:
   # Base URL Configuration
   base:
     url: ${APP_BASE_URL:http://localhost:8082}
+  game:
+    join-base-url: ${GAME_JOIN_BASE_URL:https://play.yourapp.com}
 
   # Storage Configuration
   storage:

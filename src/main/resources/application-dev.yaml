@@ -114,6 +114,9 @@ app:
     header: Authorization
     token-prefix: "Bearer "
 
+  game:
+    join-base-url: http://localhost:5173
+
   # Storage Configuration - Local for development
   storage:
     type: s3 # local, s3

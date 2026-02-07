@@ -1,0 +1,2 @@
+ALTER TABLE quiz_sessions ADD COLUMN room_code VARCHAR(10) UNIQUE;
+ALTER TABLE quiz_sessions ADD COLUMN is_multiplayer BOOLEAN DEFAULT FALSE;

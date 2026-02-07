@@ -13,6 +13,8 @@ import com.my.challenger.security.UserPrincipal;
 import com.my.challenger.service.impl.QuestionService;
 import com.my.challenger.service.impl.QuizQuestionDTOEnricher;
 import com.my.challenger.service.impl.QuizService;
+import com.my.challenger.websocket.model.GameRoom;
+import com.my.challenger.websocket.service.GameRoomService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -32,6 +34,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
 
 @RestController
 @RequestMapping("/api/quiz")
@@ -45,6 +48,10 @@ public class QuizController {
     private final QuizQuestionDTOEnricher dtoEnricher;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
+    private final GameRoomService gameRoomService;
+
+    @Value("${app.game.join-base-url}")
+    private String joinBaseUrl;
 
 
     @PostMapping(value = "/questions/with-media", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -339,6 +346,28 @@ public class QuizController {
         User user = getUserFromUserDetails(userDetails);
         quizService.updateSessionStatus(sessionId, status, user.getId());
         return ResponseEntity.ok(new MessageResponse("Session status updated successfully"));
+    }
+
+    @PostMapping("/sessions/{sessionId}/room")
+    @Operation(summary = "Create a multiplayer game room for this session")
+    public ResponseEntity<Map<String, Object>> createGameRoom(
+            @PathVariable Long sessionId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        
+        User user = getUserFromUserDetails(userDetails);
+        
+        // Ensure session exists and belongs to user
+        quizService.getQuizSession(sessionId, user.getId()); 
+        
+        GameRoom room = gameRoomService.createRoom(sessionId, user.getId());
+        
+        String joinUrl = joinBaseUrl + "/join/" + room.getRoomCode();
+        
+        return ResponseEntity.ok(Map.of(
+            "roomCode", room.getRoomCode(),
+            "wsEndpoint", "/ws-game",
+            "joinUrl", joinUrl
+        ));
     }
 
     // =============================================================================
