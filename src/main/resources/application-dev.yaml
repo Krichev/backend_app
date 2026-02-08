@@ -40,8 +40,8 @@ spring:
           auto: none
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
-        show_sql: true
-        use_sql_comments: true
+        show_sql: false
+        use_sql_comments: false
         generate_statistics: false
         jdbc:
           batch_size: 10

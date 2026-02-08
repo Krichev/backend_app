@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -29,6 +30,9 @@ public class ParentalControlController {
     public ResponseEntity<ParentalLinkDTO> requestLink(
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody LinkChildRequest request) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         Long parentId = ((UserPrincipal) userDetails).getId();
         return ResponseEntity.ok(parentalService.requestLink(parentId, request.getChildUserId()));
     }
@@ -39,6 +43,9 @@ public class ParentalControlController {
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long linkId,
             @RequestBody AcceptLinkRequest request) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         Long childId = ((UserPrincipal) userDetails).getId();
         return ResponseEntity.ok(parentalService.acceptLink(childId, linkId, request.getVerificationCode()));
     }
@@ -48,6 +55,9 @@ public class ParentalControlController {
     public ResponseEntity<Void> rejectLink(
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long linkId) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         Long childId = ((UserPrincipal) userDetails).getId();
         parentalService.rejectLink(childId, linkId);
         return ResponseEntity.noContent().build();
@@ -57,6 +67,9 @@ public class ParentalControlController {
     @Operation(summary = "Get parent's linked children")
     public ResponseEntity<List<ParentalLinkDTO>> getLinkedChildren(
             @AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         Long parentId = ((UserPrincipal) userDetails).getId();
         return ResponseEntity.ok(parentalService.getLinkedChildren(parentId));
     }
@@ -65,6 +78,9 @@ public class ParentalControlController {
     @Operation(summary = "Get child's linked parents")
     public ResponseEntity<List<ParentalLinkDTO>> getLinkedParents(
             @AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         Long childId = ((UserPrincipal) userDetails).getId();
         return ResponseEntity.ok(parentalService.getLinkedParents(childId));
     }
@@ -76,6 +92,9 @@ public class ParentalControlController {
     public ResponseEntity<ChildSettingsDTO> getChildSettings(
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long childId) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         Long parentId = ((UserPrincipal) userDetails).getId();
         return ResponseEntity.ok(parentalService.getChildSettings(parentId, childId));
     }
@@ -86,6 +105,9 @@ public class ParentalControlController {
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long childId,
             @Valid @RequestBody UpdateChildSettingsRequest request) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         Long parentId = ((UserPrincipal) userDetails).getId();
         return ResponseEntity.ok(parentalService.updateChildSettings(parentId, childId, request));
     }
@@ -95,6 +117,9 @@ public class ParentalControlController {
     public ResponseEntity<ChildScreenTimeDTO> getChildScreenTime(
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long childId) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         Long parentId = ((UserPrincipal) userDetails).getId();
         return ResponseEntity.ok(parentalService.getChildScreenTime(parentId, childId));
     }
@@ -105,6 +130,9 @@ public class ParentalControlController {
     @Operation(summary = "Get pending approvals for parent")
     public ResponseEntity<List<ParentalApprovalDTO>> getPendingApprovals(
             @AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         Long parentId = ((UserPrincipal) userDetails).getId();
         return ResponseEntity.ok(parentalService.getPendingApprovals(parentId));
     }
@@ -115,6 +143,9 @@ public class ParentalControlController {
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long approvalId,
             @RequestBody ApprovalResponseRequest request) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         Long parentId = ((UserPrincipal) userDetails).getId();
         return ResponseEntity.ok(parentalService.approveRequest(parentId, approvalId, request));
     }
@@ -125,6 +156,9 @@ public class ParentalControlController {
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long approvalId,
             @RequestBody ApprovalResponseRequest request) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         Long parentId = ((UserPrincipal) userDetails).getId();
         return ResponseEntity.ok(parentalService.denyRequest(parentId, approvalId, request));
     }
@@ -137,6 +171,9 @@ public class ParentalControlController {
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long requestId,
             @Valid @RequestBody ApproveExtensionRequest request) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         Long parentId = ((UserPrincipal) userDetails).getId();
         return ResponseEntity.ok(parentalService.approveExtension(
                 parentId, requestId, request.getMinutesToGrant(), request.getMessage()));
@@ -148,6 +185,9 @@ public class ParentalControlController {
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long requestId,
             @RequestBody DenyExtensionRequest request) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         Long parentId = ((UserPrincipal) userDetails).getId();
         return ResponseEntity.ok(parentalService.denyExtension(parentId, requestId, request.getMessage()));
     }
