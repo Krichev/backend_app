@@ -36,6 +36,8 @@ public class PenaltyServiceImpl implements PenaltyService {
     private final EnhancedPaymentService paymentService;
     private final MediaFileRepository mediaFileRepository;
     private final com.my.challenger.service.ScreenTimeBudgetService screenTimeBudgetService;
+    private final com.my.challenger.service.UnlockRequestService unlockRequestService;
+    private final UnlockRequestRepository unlockRequestRepository;
 
     @Override
     @Transactional
@@ -96,13 +98,15 @@ public class PenaltyServiceImpl implements PenaltyService {
                 // Requirement says "InsufficientScreenTimeException" is possible.
                 // If locking fails (e.g. insufficient time), maybe we shouldn't create penalty?
                 // Or let exception propagate.
-                throw e; 
-            }
-        }
-        
-        penaltyRepository.save(penalty);
-    }
-
+                                throw e; 
+                            }
+                        }
+                
+                        // Ensure lock config exists for the user
+                        unlockRequestService.getOrCreateConfig(outcome.getLoser().getId());
+                
+                        penaltyRepository.save(penalty);
+                    }
     @Override
     @Transactional
     public PenaltyDTO startPenalty(Long penaltyId, Long userId) {
@@ -232,6 +236,8 @@ public class PenaltyServiceImpl implements PenaltyService {
                     log.error("Failed to unlock screen time for user {}", penalty.getAssignedTo().getId(), e);
                 }
             }
+            // Clean up pending unlock requests
+            cleanupUnlockRequests(penaltyId);
         } else {
             penalty.setStatus(PenaltyStatus.IN_PROGRESS); // Send back to user
             // penalty.setCompletedAt(null); // Optional: clear completion time?
@@ -283,6 +289,8 @@ public class PenaltyServiceImpl implements PenaltyService {
         }
 
         penaltyRepository.save(penalty);
+        // Clean up pending unlock requests
+        cleanupUnlockRequests(penaltyId);
         return mapToDTO(penalty);
     }
 
@@ -371,6 +379,18 @@ public class PenaltyServiceImpl implements PenaltyService {
             }
         }
         return count;
+    }
+
+    private void cleanupUnlockRequests(Long penaltyId) {
+        try {
+            List<UnlockRequest> pendingRequests = unlockRequestRepository.findByPenaltyIdAndStatus(penaltyId, UnlockRequestStatus.PENDING);
+            for (UnlockRequest req : pendingRequests) {
+                req.setStatus(UnlockRequestStatus.CANCELLED);
+                unlockRequestRepository.save(req);
+            }
+        } catch (Exception e) {
+            log.error("Failed to clean up unlock requests for penalty {}", penaltyId, e);
+        }
     }
 
     private Penalty getPenaltyEntity(Long id) {
