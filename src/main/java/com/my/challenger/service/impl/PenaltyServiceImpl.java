@@ -4,6 +4,7 @@ import com.my.challenger.dto.penalty.*;
 import com.my.challenger.entity.MediaFile;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.enums.*;
+import com.my.challenger.entity.lock.UnlockRequest;
 import com.my.challenger.entity.penalty.Penalty;
 import com.my.challenger.entity.penalty.PenaltyProof;
 import com.my.challenger.entity.wager.Wager;
