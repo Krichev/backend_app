@@ -1,52 +1,63 @@
-# ================================
-# Stage 1: Builder
-# ================================
-FROM eclipse-temurin:17-jdk-focal AS builder
+# =============================================================================
+# Multi-stage Dockerfile for Spring Boot 3.x / Java 17
+# Optimized for: Security, Size, Build Speed
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: Build
+# -----------------------------------------------------------------------------
+FROM eclipse-temurin:17-jdk-jammy AS builder
 
 WORKDIR /app
 
-# Copy maven wrapper and pom
-COPY .mvn .mvn
+# Copy Maven wrapper and pom.xml first (better layer caching)
+COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
-RUN chmod +x mvnw
 
-# Download dependencies (cached layer)
+# Download dependencies (cached unless pom.xml changes)
 RUN ./mvnw dependency:go-offline -B
 
 # Copy source code
-COPY src src
+COPY src/ src/
 
-# Build application
+# Build the application (skip tests for faster builds - run tests in CI separately)
 RUN ./mvnw package -DskipTests -B
 
-# ================================
-# Stage 2: Runtime
-# ================================
-FROM eclipse-temurin:17-jre-focal
+# Extract layers for better caching (Spring Boot 2.3+)
+RUN java -Djarmode=layertools -jar target/*.jar extract --destination extracted
 
-# Security: run as non-root user
-RUN groupadd -g 1001 appgroup && 
-    useradd -u 1001 -g appgroup -s /bin/sh appuser
+# -----------------------------------------------------------------------------
+# Stage 2: Runtime
+# -----------------------------------------------------------------------------
+FROM eclipse-temurin:17-jre-jammy AS runtime
+
+# Security: Create non-root user
+RUN groupadd --system --gid 1001 appgroup && \
+    useradd --system --uid 1001 --gid appgroup --shell /bin/false appuser
 
 WORKDIR /app
 
-# Copy jar from builder
-COPY --from=builder /app/target/*.jar app.jar
+# Copy extracted layers (most stable to least stable for better caching)
+COPY --from=builder /app/extracted/dependencies/ ./
+COPY --from=builder /app/extracted/spring-boot-loader/ ./
+COPY --from=builder /app/extracted/snapshot-dependencies/ ./
+COPY --from=builder /app/extracted/application/ ./
 
 # Set ownership
 RUN chown -R appuser:appgroup /app
 
+# Switch to non-root user
 USER appuser
 
-# Environment variables
-ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
-ENV SERVER_PORT=8080
-
-EXPOSE ${SERVER_PORT}
+# Expose port (adjust if your app uses different port)
+EXPOSE 8080
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 
-    CMD wget -q --spider http://localhost:${SERVER_PORT}/actuator/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8080/actuator/health || exit 1
 
-# Startup
-ENTRYPOINT ["sh", "-c", "java ${JAVA_OPTS} -jar app.jar"]
+# JVM tuning for containers
+ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:InitialRAMPercentage=50.0"
+
+# Run with layered jar launcher
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS org.springframework.boot.loader.launch.JarLauncher"]
