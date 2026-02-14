@@ -3,7 +3,7 @@ name: Backend CI/CD Pipeline
 on:
   push:
     branches:
-      - '**'  # All branches
+      - '**'
   pull_request:
     branches:
       - main
@@ -13,7 +13,7 @@ env:
   JAVA_VERSION: '17'
   DOCKER_IMAGE_NAME: challenger-backend
   REGISTRY: ghcr.io
-  
+
 jobs:
   # ====================
   # BUILD & TEST
@@ -21,7 +21,7 @@ jobs:
   build:
     name: Build & Test
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -41,7 +41,7 @@ jobs:
 
       - name: Run tests
         run: ./mvnw test
-        
+
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
@@ -68,11 +68,12 @@ jobs:
     permissions:
       contents: read
       packages: write
-    
+
     outputs:
       image_tag: ${{ steps.meta.outputs.tags }}
       environment: ${{ steps.set-env.outputs.environment }}
-    
+      image_name: ${{ steps.set-env.outputs.image_name }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -86,6 +87,10 @@ jobs:
       - name: Determine environment
         id: set-env
         run: |
+          # IMPORTANT: Convert owner to lowercase for Docker
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "owner_lc=${OWNER_LC}" >> $GITHUB_OUTPUT
+          
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "environment=prod" >> $GITHUB_OUTPUT
             echo "Building for PRODUCTION"
@@ -93,6 +98,9 @@ jobs:
             echo "environment=dev" >> $GITHUB_OUTPUT
             echo "Building for DEVELOPMENT"
           fi
+          
+          # Set lowercase image name
+          echo "image_name=ghcr.io/${OWNER_LC}/${{ env.DOCKER_IMAGE_NAME }}" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -108,7 +116,8 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}
+          # USE LOWERCASE IMAGE NAME
+          images: ${{ steps.set-env.outputs.image_name }}
           tags: |
             type=ref,event=branch
             type=sha,prefix={{branch}}-
@@ -135,11 +144,11 @@ jobs:
     needs: docker
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/feature/'))
-    
-    environment: 
+
+    environment:
       name: ${{ needs.docker.outputs.environment }}
       url: ${{ needs.docker.outputs.environment == 'prod' && 'https://api.challenger.yourdomain.com' || 'https://api-dev.challenger.yourdomain.com' }}
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -147,6 +156,9 @@ jobs:
       - name: Set deployment variables
         id: vars
         run: |
+          # Convert owner to lowercase
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          
           ENV="${{ needs.docker.outputs.environment }}"
           if [[ "$ENV" == "prod" ]]; then
             echo "port=8081" >> $GITHUB_OUTPUT
@@ -156,6 +168,9 @@ jobs:
             echo "compose_file=docker-compose.dev.yml" >> $GITHUB_OUTPUT
           fi
           echo "deploy_path=/opt/challenger/$ENV/backend" >> $GITHUB_OUTPUT
+          
+          # Set lowercase image tag
+          echo "image_tag=ghcr.io/${OWNER_LC}/${{ env.DOCKER_IMAGE_NAME }}:${ENV}-latest" >> $GITHUB_OUTPUT
 
       - name: Setup SSH
         run: |
@@ -163,19 +178,6 @@ jobs:
           echo "${{ secrets.VPS_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
-
-      - name: Debug secrets (REMOVE AFTER TESTING)
-        run: |
-          echo "VPS_HOST length: ${#VPS_HOST}"
-          echo "VPS_USER length: ${#VPS_USER}"
-          echo "SSH_KEY length: ${#SSH_KEY}"
-          echo "VPS_HOST first char: ${VPS_HOST:0:1}"
-          echo "VPS_USER first char: ${VPS_USER:0:1}"
-
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          SSH_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
 
       - name: Copy deployment files
         run: |
@@ -200,25 +202,25 @@ jobs:
       - name: Deploy to VPS
         env:
           ENVIRONMENT: ${{ needs.docker.outputs.environment }}
-          IMAGE_TAG: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:${{ needs.docker.outputs.environment }}-latest
+          IMAGE_TAG: ${{ steps.vars.outputs.image_tag }}
           DATABASE_URL: ${{ needs.docker.outputs.environment == 'prod' && secrets.DATABASE_URL_PROD || secrets.DATABASE_URL_DEV }}
           DATABASE_PASSWORD: ${{ needs.docker.outputs.environment == 'prod' && secrets.DATABASE_PASSWORD_PROD || secrets.DATABASE_PASSWORD_DEV }}
           JWT_SECRET: ${{ needs.docker.outputs.environment == 'prod' && secrets.JWT_SECRET_PROD || secrets.JWT_SECRET_DEV }}
         run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'ENDSSH'
+          ssh -i ~/.ssh/deploy_key ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << ENDSSH
             set -e
             cd ${{ steps.vars.outputs.deploy_path }}
-            
+          
             # Login to GitHub Container Registry
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            
-            # Pull latest image
-            docker pull ${{ env.IMAGE_TAG }}
-            
+          
+            # Pull latest image (LOWERCASE)
+            docker pull ${{ steps.vars.outputs.image_tag }}
+          
             # Create .env file for docker-compose
             cat > .env << EOF
           ENVIRONMENT=${{ env.ENVIRONMENT }}
-          IMAGE_TAG=${{ env.IMAGE_TAG }}
+          IMAGE_TAG=${{ steps.vars.outputs.image_tag }}
           DATABASE_URL=${{ env.DATABASE_URL }}
           DATABASE_USERNAME=${{ secrets.DATABASE_USERNAME }}
           DATABASE_PASSWORD=${{ env.DATABASE_PASSWORD }}
@@ -227,11 +229,11 @@ jobs:
           MINIO_SECRET_KEY=${{ secrets.MINIO_SECRET_KEY }}
           SERVER_PORT=${{ steps.vars.outputs.port }}
           EOF
-            
-            # Deploy with docker-compose
-            docker-compose -f ${{ steps.vars.outputs.compose_file }} down --remove-orphans || true
-            docker-compose -f ${{ steps.vars.outputs.compose_file }} up -d
-            
+          
+            # Deploy with docker compose (v2 syntax)
+            docker compose -f ${{ steps.vars.outputs.compose_file }} down --remove-orphans || true
+            docker compose -f ${{ steps.vars.outputs.compose_file }} up -d
+          
             # Cleanup old images
             docker image prune -af --filter "until=24h"
           ENDSSH
