@@ -168,7 +168,7 @@ jobs:
       - name: Copy deployment files
         run: |
           # Verify files exist before copying
-          for file in infrastructure/docker/docker-compose.prod.yml infrastructure/scripts/deploy.sh; do
+          for file in infrastructure/docker/docker-compose.dev.yml infrastructure/scripts/deploy.sh; do
             if [ ! -f "$file" ]; then
               echo "ERROR: $file not found!"
               exit 1
@@ -177,7 +177,7 @@ jobs:
 
           # Copy files to server
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r \
-            infrastructure/docker/docker-compose.prod.yml \
+            infrastructure/docker/docker-compose.dev.yml \
             infrastructure/scripts/deploy.sh \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/${{ secrets.APP_NAME }}/prod/backend/"
 
