@@ -44,5 +44,6 @@ build/
 
 *.log
 
+
 # Ignore Flyway configuration with credentials
 docker-composes/flyway-commands/flyway.conf

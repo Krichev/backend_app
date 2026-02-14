@@ -64,6 +64,10 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
+
+    permissions:
+      contents: read
+      packages: write
     
     outputs:
       image_tag: ${{ steps.meta.outputs.tags }}
@@ -160,12 +164,22 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
 
+
       - name: Copy deployment files
         run: |
-          scp -i ~/.ssh/deploy_key -r 
-            infrastructure/docker/${{ steps.vars.outputs.compose_file }} 
-            infrastructure/scripts/deploy.sh 
-            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ steps.vars.outputs.deploy_path }}/
+          # Verify files exist before copying
+          for file in infrastructure/docker/docker-compose.prod.yml infrastructure/scripts/deploy.sh; do
+            if [ ! -f "$file" ]; then
+              echo "ERROR: $file not found!"
+              exit 1
+            fi
+          done
+
+          # Copy files to server
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r \
+            infrastructure/docker/docker-compose.prod.yml \
+            infrastructure/scripts/deploy.sh \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/${{ secrets.APP_NAME }}/prod/backend/"
 
       - name: Deploy to VPS
         env:
