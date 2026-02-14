@@ -164,6 +164,18 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
 
+      - name: Debug secrets (REMOVE AFTER TESTING)
+        run: |
+          echo "VPS_HOST length: ${#VPS_HOST}"
+          echo "VPS_USER length: ${#VPS_USER}"
+          echo "SSH_KEY length: ${#SSH_KEY}"
+          echo "VPS_HOST first char: ${VPS_HOST:0:1}"
+          echo "VPS_USER first char: ${VPS_USER:0:1}"
+
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          SSH_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
 
       - name: Copy deployment files
         run: |
@@ -180,19 +192,6 @@ jobs:
             infrastructure/docker/docker-compose.dev.yml \
             infrastructure/scripts/deploy.sh \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/${{ secrets.APP_NAME }}/prod/backend/"
-
-      - name: Debug secrets (REMOVE AFTER TESTING)
-        run: |
-          echo "VPS_HOST length: ${#VPS_HOST}"
-          echo "VPS_USER length: ${#VPS_USER}"
-          echo "SSH_KEY length: ${#SSH_KEY}"
-          echo "VPS_HOST first char: ${VPS_HOST:0:1}"
-          echo "VPS_USER first char: ${VPS_USER:0:1}"
-
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          SSH_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
 
       - name: Deploy to VPS
         env:
