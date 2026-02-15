@@ -1,17 +1,104 @@
 # Production Configuration
 # This file overrides settings from application.yaml when spring.profiles.active=prod
 
-app:
-  # Storage Configuration for Production
-  storage:
-    minio:
-      public-bucket: false  # IMPORTANT: Private bucket in production - requires presigned URLs
-      presigned-url-duration: 60  # Duration in minutes for presigned URLs
+spring:
+  # Spring DataSource Configuration
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 10
+      idle-timeout: 300000
+      max-lifetime: 1200000
+      connection-timeout: 30000
+      pool-name: ChallengerProdHikariPool
 
-# Logging for Production
+  # JPA Configuration
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+# Server Configuration
+server:
+  servlet:
+    context-path: /api
+  compression:
+    enabled: true
+  error:
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+
+# Application Configuration
+app:
+  # JWT Configuration
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration: 86400000 # 24 hours
+    refresh-expiration: 604800000 # 7 days
+
+  # Game Configuration
+  game:
+    join-base-url: ${GAME_JOIN_BASE_URL}
+
+  # DeepSeek AI Configuration
+  deepseek:
+    api-key: ${DEEPSEEK_API_KEY}
+
+  # Storage Configuration (MinIO/S3)
+  storage:
+    s3:
+      access-key: ${MINIO_ACCESS_KEY}
+      secret-key: ${MINIO_SECRET_KEY}
+      endpoint: ${MINIO_ENDPOINT}
+      bucket-name: ${MINIO_BUCKET_NAME:challenger-app}
+    minio:
+      public-bucket: false
+      presigned-url-duration: 60
+
+  # CORS Configuration
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
+    allowed-methods: GET,POST,PUT,DELETE,PATCH,OPTIONS
+    allowed-headers: "*"
+    allow-credentials: true
+    max-age: 3600
+
+  # Rate Limiting
+  rate-limit:
+    enabled: true
+    requests-per-minute: 60
+    requests-per-hour: 1000
+
+# Management/Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+    shutdown:
+      enabled: false
+
+# Logging Configuration
 logging:
   level:
     com.my.challenger: INFO
     org.springframework.security: WARN
     org.hibernate.SQL: ERROR
     org.springframework.web: WARN
+
+# Springdoc/Swagger
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+# Debug mode
+debug: false
