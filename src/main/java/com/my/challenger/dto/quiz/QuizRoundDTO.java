@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -28,7 +29,7 @@ public class QuizRoundDTO {
     
     private Boolean aiValidationUsed;
     private Boolean aiAccepted;
-    private Double aiConfidence;
+    private BigDecimal aiConfidence;
     private String aiExplanation;
 
     private LocalDateTime createdAt;

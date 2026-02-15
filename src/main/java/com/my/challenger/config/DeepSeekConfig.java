@@ -13,6 +13,7 @@ import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.client.HttpClient;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
@@ -27,7 +28,7 @@ public class DeepSeekConfig {
     private long timeoutMs;
     private int maxTokens;
     private double temperature;
-    private double confidenceThreshold;
+    private BigDecimal confidenceThreshold;
     private boolean enabled;
     private int rateLimitPerMinute;
 

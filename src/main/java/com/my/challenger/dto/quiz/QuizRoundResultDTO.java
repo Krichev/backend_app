@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -21,7 +23,7 @@ public class QuizRoundResultDTO {
 
     private boolean aiValidationUsed;
     private boolean aiAccepted;
-    private Double aiConfidence;
+    private BigDecimal aiConfidence;
     private String aiExplanation;
 
     private int sessionScore;

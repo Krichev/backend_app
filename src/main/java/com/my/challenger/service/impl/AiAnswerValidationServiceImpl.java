@@ -13,6 +13,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
@@ -111,7 +112,7 @@ public class AiAnswerValidationServiceImpl implements AiAnswerValidationService 
             JsonNode jsonContent = objectMapper.readTree(content);
 
             boolean equivalent = jsonContent.path("equivalent").asBoolean(false);
-            double confidence = jsonContent.path("confidence").asDouble(0.0);
+            BigDecimal confidence = new BigDecimal(jsonContent.path("confidence").asText("0.0"));
             String explanation = jsonContent.path("explanation").asText("");
 
             return AiValidationResult.builder()
@@ -132,7 +133,7 @@ public class AiAnswerValidationServiceImpl implements AiAnswerValidationService 
     private AiValidationResult fallbackResult(String reason) {
         return AiValidationResult.builder()
                 .equivalent(false)
-                .confidence(0.0)
+                .confidence(BigDecimal.ZERO)
                 .explanation(reason)
                 .aiUsed(false)
                 .fallbackUsed(true)

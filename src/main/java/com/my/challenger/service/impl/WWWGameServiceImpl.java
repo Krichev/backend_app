@@ -9,6 +9,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -16,7 +18,7 @@ public class WWWGameServiceImpl implements WWWGameService {
 
     private final AiAnswerValidationService aiValidationService;
     private static final double SIMILARITY_THRESHOLD = 0.8;
-    private static final double AI_CONFIDENCE_THRESHOLD = 0.7;
+    private static final BigDecimal AI_CONFIDENCE_THRESHOLD = new BigDecimal("0.7");
 
     @Override
     public boolean validateAnswer(String teamAnswer, String correctAnswer) {
@@ -76,7 +78,7 @@ public class WWWGameServiceImpl implements WWWGameService {
 
             AiValidationResult aiResult = aiValidationService.validateAnswerWithAi(teamAnswer, correctAnswer, language);
 
-            if (aiResult.isEquivalent() && aiResult.getConfidence() >= AI_CONFIDENCE_THRESHOLD) {
+            if (aiResult.isEquivalent() && aiResult.getConfidence().compareTo(AI_CONFIDENCE_THRESHOLD) >= 0) {
                 return AnswerValidationResult.builder()
                         .correct(true)
                         .exactMatch(false)

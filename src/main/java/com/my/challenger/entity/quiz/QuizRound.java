@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -71,8 +72,8 @@ public class QuizRound {
     @Builder.Default
     private Boolean aiAccepted = false;
 
-    @Column(name = "ai_confidence")
-    private Double aiConfidence;
+    @Column(name = "ai_confidence", precision = 3, scale = 2)
+    private BigDecimal aiConfidence;
 
     @Column(name = "ai_explanation", length = 500)
     private String aiExplanation;
