@@ -240,6 +240,19 @@
             <version>2.0.12</version>
         </dependency>
 
+        <!-- Hibernate JCache -->
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-jcache</artifactId>
+        </dependency>
+
+        <!-- JCache Provider (e.g., Ehcache) -->
+        <dependency>
+            <groupId>org.ehcache</groupId>
+            <artifactId>ehcache</artifactId>
+            <classifier>jakarta</classifier>
+        </dependency>
+
         <!-- ShedLock for distributed scheduling -->
         <dependency>
             <groupId>net.javacrumbs.shedlock</groupId>
