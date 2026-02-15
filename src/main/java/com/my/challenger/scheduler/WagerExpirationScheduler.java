@@ -3,6 +3,7 @@ package com.my.challenger.scheduler;
 import com.my.challenger.service.WagerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -17,6 +18,7 @@ public class WagerExpirationScheduler {
      * Check for expired wagers every 5 minutes
      */
     @Scheduled(fixedRate = 300000)
+    @SchedulerLock(name = "WagerExpirationScheduler_checkExpired", lockAtLeastFor = "PT1M", lockAtMostFor = "PT4M")
     public void checkExpiredWagers() {
         log.debug("Starting scheduled check for expired wagers");
         int expiredCount = wagerService.expireStaleWagers();

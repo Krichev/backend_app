@@ -13,6 +13,7 @@ import com.my.challenger.repository.MatchmakingQueueRepository;
 import com.my.challenger.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +32,7 @@ public class MatchmakingService {
     private final UserRepository userRepository;
 
     @Scheduled(fixedRate = 5000) // Every 5 seconds
+    @SchedulerLock(name = "MatchmakingService_processQueue", lockAtLeastFor = "PT2S", lockAtMostFor = "PT4S")
     @Transactional
     public void processMatchmakingQueue() {
         log.debug("Processing matchmaking queue...");
@@ -104,6 +106,7 @@ public class MatchmakingService {
     }
 
     @Scheduled(fixedRate = 60000) // Every minute
+    @SchedulerLock(name = "MatchmakingService_cleanupExpired", lockAtLeastFor = "PT30S", lockAtMostFor = "PT50S")
     @Transactional
     public void cleanupExpiredEntries() {
         log.debug("Cleaning up expired matchmaking entries...");

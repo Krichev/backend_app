@@ -23,7 +23,7 @@ spring:
       leak-detection-threshold: 60000
       connection-test-query: SELECT 1
       pool-name: ChallengerHikariPool
-      auto-commit: true
+      auto-commit: false
 
   # JPA Configuration
   jpa:
