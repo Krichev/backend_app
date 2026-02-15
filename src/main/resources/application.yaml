@@ -51,6 +51,9 @@ spring:
           use_query_cache: true
           region:
             factory_class: org.hibernate.cache.jcache.JCacheRegionFactory
+        javax:
+          cache:
+            provider: com.github.benmanes.caffeine.jcache.spi.CaffeineCachingProvider
     show-sql: false
 
 #  # Flyway Migration
