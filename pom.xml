@@ -240,17 +240,29 @@
             <version>2.0.12</version>
         </dependency>
 
-        <!-- Hibernate JCache -->
         <dependency>
             <groupId>org.hibernate.orm</groupId>
             <artifactId>hibernate-jcache</artifactId>
         </dependency>
 
-        <!-- JCache Provider (e.g., Ehcache) -->
+        <!-- JCache Provider (Ehcache) - with exclusions for problematic transitive deps -->
         <dependency>
             <groupId>org.ehcache</groupId>
             <artifactId>ehcache</artifactId>
             <classifier>jakarta</classifier>
+            <exclusions>
+                <!-- Exclude old JAXB that references deprecated HTTP repos -->
+                <exclusion>
+                    <groupId>org.glassfish.jaxb</groupId>
+                    <artifactId>jaxb-runtime</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!-- Modern JAXB Runtime (Jakarta compatible, managed by Spring Boot) -->
+        <dependency>
+            <groupId>org.glassfish.jaxb</groupId>
+            <artifactId>jaxb-runtime</artifactId>
         </dependency>
 
         <!-- ShedLock for distributed scheduling -->
