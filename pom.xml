@@ -25,6 +25,27 @@
         <springdoc.version>2.2.0</springdoc.version>
     </properties>
 
+    <dependencyManagement>
+        <dependencies>
+            <!-- Force modern JAXB versions to avoid HTTP repository issues from Ehcache transitive deps -->
+            <dependency>
+                <groupId>org.glassfish.jaxb</groupId>
+                <artifactId>jaxb-runtime</artifactId>
+                <version>4.0.5</version>
+            </dependency>
+            <dependency>
+                <groupId>org.glassfish.jaxb</groupId>
+                <artifactId>jaxb-core</artifactId>
+                <version>4.0.5</version>
+            </dependency>
+            <dependency>
+                <groupId>jakarta.xml.bind</groupId>
+                <artifactId>jakarta.xml.bind-api</artifactId>
+                <version>4.0.2</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
         <!-- Spring Boot Starters -->
 <!--        <dependency>-->
@@ -245,16 +266,29 @@
             <artifactId>hibernate-jcache</artifactId>
         </dependency>
 
-        <!-- JCache Provider (Ehcache) - with exclusions for problematic transitive deps -->
+        <!-- Hibernate JCache -->
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-jcache</artifactId>
+        </dependency>
+
+        <!-- JCache Provider (Ehcache) -->
         <dependency>
             <groupId>org.ehcache</groupId>
             <artifactId>ehcache</artifactId>
             <classifier>jakarta</classifier>
             <exclusions>
-                <!-- Exclude old JAXB that references deprecated HTTP repos -->
                 <exclusion>
                     <groupId>org.glassfish.jaxb</groupId>
                     <artifactId>jaxb-runtime</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.glassfish.jaxb</groupId>
+                    <artifactId>jaxb-core</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>javax.xml.bind</groupId>
+                    <artifactId>jaxb-api</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
