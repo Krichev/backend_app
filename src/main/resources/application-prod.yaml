@@ -2,9 +2,6 @@
 # This file overrides settings from application.yaml when spring.profiles.active=prod
 
 spring:
-  profiles:
-    active: prod
-
   # Spring DataSource Configuration
   datasource:
     url: ${DATABASE_URL}

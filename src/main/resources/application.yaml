@@ -5,7 +5,7 @@ spring:
 
   # Profile Configuration
   profiles:
-    active: dev
+    active: ${SPRING_PROFILES_ACTIVE:dev}
 
   # NOTE: All secrets below require explicit env vars. No defaults intentionally.
   # See .env file / GitHub secrets for required values.
