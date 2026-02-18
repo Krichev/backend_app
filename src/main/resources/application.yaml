@@ -127,19 +127,19 @@ app:
     type: ${STORAGE_TYPE:s3} # local, s3
     environment: ${STORAGE_ENV:dev}
     s3:
-      bucket-name: ${S3_BUCKET_NAME}
-      region: ${S3_REGION:us-east-1}
-      access-key: ${S3_ACCESS_KEY}
-      secret-key: ${S3_SECRET_KEY}
-      endpoint: ${MINIO_ENDPOINT}
+      bucket-name: ${MINIO_BUCKET_NAME:challenger-app}
+      region: ${MINIO_REGION:us-east-1}
+      access-key: ${MINIO_ACCESS_KEY:minioadmin}
+      secret-key: ${MINIO_SECRET_KEY:minioadmin}
+      endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
       buckets:
-        images: ${S3_BUCKET_IMAGES}
-        audio: ${S3_BUCKET_AUDIO}
-        videos: ${S3_BUCKET_VIDEOS}
-        documents: ${S3_BUCKET_DOCUMENTS}
+        images: ${MINIO_BUCKET_IMAGES:quiz-media-images}
+        audio: ${MINIO_BUCKET_AUDIO:quiz-media-audio}
+        videos: ${MINIO_BUCKET_VIDEOS:quiz-media-videos}
+        documents: ${MINIO_BUCKET_DOCUMENTS:quiz-media-documents}
     minio:
-      public-bucket: true  # Development only - allows direct URL access for debugging
-      presigned-url-duration: 60  # Duration in minutes for presigned URLs
+      public-bucket: ${MINIO_PUBLIC_BUCKET:false}
+      presigned-url-duration: ${MINIO_PRESIGNED_URL_DURATION:60}
 
   # Media Proxy Configuration
   media:

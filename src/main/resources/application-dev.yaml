@@ -122,14 +122,9 @@ app:
     type: s3 # local, s3
     local:
       upload-dir: ${UPLOAD_DIR:./uploads}
+    minio:
+      public-bucket: true  # Only for development debugging
     s3:
-      access-key: challenger_minio
-      secret-key: challenger_minio_secure_password_123
-      region: us-east-1
-      endpoint: http://45.129.186.166:9000  # Points to your MinIO instance
-      bucket-name: challenger-app
-      cloudfront-domain: ""  # Leave empty for direct MinIO access
-
       upload:
         max-file-size: 10485760  # 10MB
         photo-verification-dir: uploads/verification-photos/

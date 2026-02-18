@@ -34,6 +34,9 @@ public class S3Config {
     @Value("${app.storage.s3.endpoint:}")
     private String endpoint;
 
+    @Value("${app.storage.minio.presigned-url-duration:60}")
+    private int presignedUrlDuration;
+
     @Bean
     public S3Client s3Client() {
         AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKey, secretKey);

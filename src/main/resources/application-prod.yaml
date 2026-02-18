@@ -56,8 +56,8 @@ app:
       endpoint: ${MINIO_ENDPOINT}
       bucket-name: ${MINIO_BUCKET_NAME}
     minio:
-      public-bucket: false
-      presigned-url-duration: 60
+      public-bucket: false  # CRITICAL: Private buckets in production
+      presigned-url-duration: ${MINIO_PRESIGNED_URL_DURATION:60}
 
   # CORS Configuration
   cors:
