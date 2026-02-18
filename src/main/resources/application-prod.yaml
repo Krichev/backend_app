@@ -2,6 +2,9 @@
 # This file overrides settings from application.yaml when spring.profiles.active=prod
 
 spring:
+  profiles:
+    active: prod
+
   # Spring DataSource Configuration
   datasource:
     url: ${DATABASE_URL}
@@ -54,7 +57,7 @@ app:
       access-key: ${MINIO_ACCESS_KEY}
       secret-key: ${MINIO_SECRET_KEY}
       endpoint: ${MINIO_ENDPOINT}
-      bucket-name: ${MINIO_BUCKET_NAME:challenger-app}
+      bucket-name: ${MINIO_BUCKET_NAME}
     minio:
       public-bucket: false
       presigned-url-duration: 60

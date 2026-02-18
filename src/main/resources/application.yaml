@@ -7,11 +7,15 @@ spring:
   profiles:
     active: dev
 
+  # NOTE: All secrets below require explicit env vars. No defaults intentionally.
+  # See .env file / GitHub secrets for required values.
+  # App will FAIL FAST at startup if any are missing — this is by design.
+
   # Database Configuration (Default - Production)
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/challenger_db?sslmode=disable&tcpKeepAlive=true&connectTimeout=10&socketTimeout=30}
-    username: ${DATABASE_USERNAME:challenger_user}
-    password: ${DATABASE_PASSWORD:challenger_password_secure_123}
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
@@ -106,7 +110,7 @@ server:
 app:
   # JWT Configuration
   jwt:
-    secret: ${JWT_SECRET:mySecretKey123456789012345678901234567890}
+    secret: ${JWT_SECRET}
     expiration: 86400000 # 24 hours
     refresh-expiration: 604800000 # 7 days
     header: Authorization
@@ -123,16 +127,16 @@ app:
     type: ${STORAGE_TYPE:s3} # local, s3
     environment: ${STORAGE_ENV:dev}
     s3:
-      bucket-name: ${S3_BUCKET_NAME:challenger-app}
+      bucket-name: ${S3_BUCKET_NAME}
       region: ${S3_REGION:us-east-1}
-      access-key: ${S3_ACCESS_KEY:challenger_minio}
-      secret-key: ${S3_SECRET_KEY:challenger_secret_123}
-      endpoint: ${S3_ENDPOINT:http://45.129.186.166:9000}
+      access-key: ${S3_ACCESS_KEY}
+      secret-key: ${S3_SECRET_KEY}
+      endpoint: ${MINIO_ENDPOINT}
       buckets:
-        images: ${S3_BUCKET_IMAGES:quiz-media-images}
-        audio: ${S3_BUCKET_AUDIO:quiz-media-audio}
-        videos: ${S3_BUCKET_VIDEOS:quiz-media-videos}
-        documents: ${S3_BUCKET_DOCUMENTS:quiz-media-documents}
+        images: ${S3_BUCKET_IMAGES}
+        audio: ${S3_BUCKET_AUDIO}
+        videos: ${S3_BUCKET_VIDEOS}
+        documents: ${S3_BUCKET_DOCUMENTS}
     minio:
       public-bucket: true  # Development only - allows direct URL access for debugging
       presigned-url-duration: 60  # Duration in minutes for presigned URLs

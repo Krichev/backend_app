@@ -227,7 +227,7 @@ jobs:
           JWT_SECRET=${{ env.JWT_SECRET }}
           MINIO_ACCESS_KEY=${{ secrets.MINIO_ACCESS_KEY }}
           MINIO_SECRET_KEY=${{ secrets.MINIO_SECRET_KEY }}
-          S3_ENDPOINT=${{ secrets.MINIO_ENDPOINT }}
+          MINIO_ENDPOINT =${{ secrets.MINIO_ENDPOINT }}
           SERVER_PORT=${{ steps.vars.outputs.port }}
           EOF
           
