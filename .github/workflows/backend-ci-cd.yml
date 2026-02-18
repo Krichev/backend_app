@@ -205,9 +205,19 @@ jobs:
           IMAGE_TAG: ${{ steps.vars.outputs.image_tag }}
           DATABASE_URL: ${{ needs.docker.outputs.environment == 'prod' && secrets.DATABASE_URL_PROD || secrets.DATABASE_URL_DEV }}
           DATABASE_PASSWORD: ${{ needs.docker.outputs.environment == 'prod' && secrets.DATABASE_PASSWORD_PROD || secrets.DATABASE_PASSWORD_DEV }}
+          DATABASE_USERNAME: ${{ secrets.DATABASE_USERNAME }}
           JWT_SECRET: ${{ needs.docker.outputs.environment == 'prod' && secrets.JWT_SECRET_PROD || secrets.JWT_SECRET_DEV }}
+          MINIO_ENDPOINT: ${{ secrets.MINIO_ENDPOINT }}
+          MINIO_ACCESS_KEY: ${{ secrets.MINIO_ACCESS_KEY }}
+          MINIO_SECRET_KEY: ${{ secrets.MINIO_SECRET_KEY }}
+          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+          S3_BUCKET_IMAGES: ${{ secrets.S3_BUCKET_IMAGES }}
+          S3_BUCKET_AUDIO: ${{ secrets.S3_BUCKET_AUDIO }}
+          S3_BUCKET_VIDEOS: ${{ secrets.S3_BUCKET_VIDEOS }}
+          S3_BUCKET_DOCUMENTS: ${{ secrets.S3_BUCKET_DOCUMENTS }}
+          SPRING_PROFILES_ACTIVE: ${{ needs.docker.outputs.environment == 'prod' && 'prod' || 'dev' }}
         run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << ENDSSH
+          ssh -i ~/.ssh/deploy_key ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'ENDSSH'
             set -e
             cd ${{ steps.vars.outputs.deploy_path }}
           
@@ -218,18 +228,30 @@ jobs:
             docker pull ${{ steps.vars.outputs.image_tag }}
           
             # Create .env file for docker-compose
-            cat > .env << EOF
+            cat > .env << 'ENVEOF'
           ENVIRONMENT=${{ env.ENVIRONMENT }}
           IMAGE_TAG=${{ steps.vars.outputs.image_tag }}
           DATABASE_URL=${{ env.DATABASE_URL }}
-          DATABASE_USERNAME=${{ secrets.DATABASE_USERNAME }}
+          DATABASE_USERNAME=${{ env.DATABASE_USERNAME }}
           DATABASE_PASSWORD=${{ env.DATABASE_PASSWORD }}
           JWT_SECRET=${{ env.JWT_SECRET }}
-          MINIO_ACCESS_KEY=${{ secrets.MINIO_ACCESS_KEY }}
-          MINIO_SECRET_KEY=${{ secrets.MINIO_SECRET_KEY }}
-          MINIO_ENDPOINT =${{ secrets.MINIO_ENDPOINT }}
+          MINIO_ENDPOINT=${{ env.MINIO_ENDPOINT }}
+          MINIO_ACCESS_KEY=${{ env.MINIO_ACCESS_KEY }}
+          MINIO_SECRET_KEY=${{ env.MINIO_SECRET_KEY }}
+          S3_ENDPOINT=${{ env.MINIO_ENDPOINT }}
+          S3_ACCESS_KEY=${{ env.MINIO_ACCESS_KEY }}
+          S3_SECRET_KEY=${{ env.MINIO_SECRET_KEY }}
+          S3_BUCKET_NAME=${{ env.S3_BUCKET_NAME }}
+          S3_BUCKET_IMAGES=${{ env.S3_BUCKET_IMAGES }}
+          S3_BUCKET_AUDIO=${{ env.S3_BUCKET_AUDIO }}
+          S3_BUCKET_VIDEOS=${{ env.S3_BUCKET_VIDEOS }}
+          S3_BUCKET_DOCUMENTS=${{ env.S3_BUCKET_DOCUMENTS }}
+          SPRING_PROFILES_ACTIVE=${{ env.SPRING_PROFILES_ACTIVE }}
           SERVER_PORT=${{ steps.vars.outputs.port }}
-          EOF
+          ENVEOF
+
+            # Restricted permissions for .env
+            chmod 600 .env
           
             # Deploy with docker compose (v2 syntax)
             docker compose -f ${{ steps.vars.outputs.compose_file }} down --remove-orphans || true
