@@ -267,9 +267,17 @@ jobs:
         run: |
           echo "Waiting for service to be healthy..."
           sleep 30
-          
-          HEALTH_URL="http://${{ secrets.VPS_HOST }}:${{ steps.vars.outputs.port }}/actuator/health"
-          
+
+          # Set context path based on environment
+          if [[ "${{ needs.docker.outputs.environment }}" == "prod" ]]; then
+            CONTEXT_PATH="/api"
+          else
+            CONTEXT_PATH="/challenger"
+          fi
+
+          HEALTH_URL="http://${{ secrets.VPS_HOST }}:${{ steps.vars.outputs.port }}${CONTEXT_PATH}/actuator/health"
+          echo "Health check URL: $HEALTH_URL"
+
           for i in {1..10}; do
             HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" $HEALTH_URL || echo "000")
             if [[ "$HTTP_STATUS" == "200" ]]; then
@@ -279,7 +287,7 @@ jobs:
             echo "Attempt $i: HTTP $HTTP_STATUS - waiting..."
             sleep 10
           done
-          
+
           echo "❌ Health check failed!"
           exit 1
 
