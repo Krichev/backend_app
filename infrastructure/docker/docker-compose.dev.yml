@@ -22,6 +22,9 @@ services:
       - S3_BUCKET_AUDIO=${S3_BUCKET_AUDIO:-quiz-media-audio}
       - S3_BUCKET_VIDEOS=${S3_BUCKET_VIDEOS:-quiz-media-videos}
       - S3_BUCKET_DOCUMENTS=${S3_BUCKET_DOCUMENTS:-quiz-media-documents}
+      - GAME_JOIN_BASE_URL=${GAME_JOIN_BASE_URL}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
     networks:
       - challenger_network
     healthcheck:
