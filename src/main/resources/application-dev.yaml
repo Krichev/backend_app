@@ -2,9 +2,9 @@
 spring:
   # Database Configuration - PostgreSQL for Development
   datasource:
-    url: jdbc:postgresql://45.129.186.166:5432/challenger_db?currentSchema=challenger&sslmode=disable&socketTimeout=0&tcpKeepAlive=true
-    username: challenger_user
-    password: challenger_password_secure_123
+    url: ${DATABASE_URL:jdbc:postgresql://45.129.186.166:5432/challenger_db?currentSchema=challenger&sslmode=disable&socketTimeout=0&tcpKeepAlive=true}
+    username: ${DATABASE_USERNAME:challenger_user}
+    password: ${DATABASE_PASSWORD:challenger_password_secure_123}
     driver-class-name: org.postgresql.Driver
     hikari:
       data-source-properties:
@@ -108,33 +108,40 @@ app:
     enabled: true
 
   jwt:
-    secret: devSecretKey123456789012345678901234567890
+    secret: ${JWT_SECRET:devSecretKey123456789012345678901234567890}
     expiration: 3600000 # 1 hour (shorter for development)
     refresh-expiration: 86400000 # 24 hours
     header: Authorization
     token-prefix: "Bearer "
 
   game:
-    join-base-url: http://localhost:5173
+    join-base-url: ${GAME_JOIN_BASE_URL:http://localhost:5173}
 
   # Storage Configuration - Local for development
   storage:
-    type: s3 # local, s3
+    type: ${STORAGE_TYPE:s3}
     local:
       upload-dir: ${UPLOAD_DIR:./uploads}
     minio:
-      public-bucket: true  # Only for development debugging
+      public-bucket: ${MINIO_PUBLIC_BUCKET:true}
+      presigned-url-duration: ${MINIO_PRESIGNED_URL_DURATION:60}
     s3:
+      access-key: ${MINIO_ACCESS_KEY:challenger_minio}
+      secret-key: ${MINIO_SECRET_KEY:challenger_minio_secure_password_123}
+      region: ${MINIO_REGION:us-east-1}
+      endpoint: ${MINIO_ENDPOINT:http://45.129.186.166:9000}
+      bucket-name: ${MINIO_BUCKET_NAME:challenger-app}
+      cloudfront-domain: ${MINIO_CLOUDFRONT_DOMAIN:}
       upload:
-        max-file-size: 10485760  # 10MB
-        photo-verification-dir: uploads/verification-photos/
+        max-file-size: ${MINIO_MAX_FILE_SIZE:10485760}
+        photo-verification-dir: ${MINIO_PHOTO_VERIFICATION_DIR:uploads/verification-photos/}
   # Metrics Configuration
   metrics:
     enabled: true
 
   # CORS Configuration - More permissive for development
   cors:
-    allowed-origins: "*" # Allow all origins in development
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:*} # Allow all origins in development
     allowed-methods: "*" # Allow all methods
     allowed-headers: "*"
     allow-credentials: true
