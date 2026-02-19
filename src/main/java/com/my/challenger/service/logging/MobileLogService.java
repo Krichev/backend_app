@@ -62,8 +62,7 @@ public class MobileLogService {
                 if (entry.getStackTrace() != null && !entry.getStackTrace().isEmpty()) {
                     writer.write("	Stack trace:");
                     writer.newLine();
-                    String[] stackLines = entry.getStackTrace().split("
-");
+                    String[] stackLines = entry.getStackTrace().split(" ");
                     for (String stackLine : stackLines) {
                         writer.write("		" + stackLine);
                         writer.newLine();
