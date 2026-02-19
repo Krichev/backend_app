@@ -178,6 +178,12 @@ app:
     enabled: ${DEEPSEEK_ENABLED:true}
     rate-limit-per-minute: ${DEEPSEEK_RATE_LIMIT:60}
 
+  # Mobile Logging Configuration
+  mobile-logs:
+    directory: ${MOBILE_LOGS_DIR:./logs/mobile}
+    retention-days: 30
+    max-batch-size: 100
+
 # Management/Actuator Configuration
 management:
   endpoints:
