@@ -119,8 +119,8 @@ public class AppVersionService {
     public static int compareVersions(String a, String b) {
         if (a == null || b == null) return 0;
         
-        String[] partsA = a.split("\.");
-        String[] partsB = b.split("\.");
+        String[] partsA = a.split("\\.");
+        String[] partsB = b.split("\\.");
         int length = Math.max(partsA.length, partsB.length);
         
         for (int i = 0; i < length; i++) {
@@ -134,7 +134,7 @@ public class AppVersionService {
 
     private Integer extractVersionCode(String version) {
         try {
-            String[] parts = version.split("\.");
+            String[] parts = version.split("\\.");
             if (parts.length > 0) {
                 return Integer.parseInt(parts[parts.length - 1].replaceAll("[^0-9]", ""));
             }
