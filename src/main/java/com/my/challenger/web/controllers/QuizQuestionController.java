@@ -33,7 +33,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/quiz-questions")
+@RequestMapping("/quiz-questions")
 @AllArgsConstructor
 @Slf4j
 public class QuizQuestionController {

@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
  * Shows how to use the fixed repository methods via service layer
  */
 @RestController
-@RequestMapping("/api/quiz/questions")
+@RequestMapping("/quiz/questions")
 @RequiredArgsConstructor
 @Slf4j
 public class QuizQuestionSearchController {

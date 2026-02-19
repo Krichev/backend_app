@@ -20,7 +20,7 @@ import java.util.List;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/contact-groups")
+@RequestMapping("/contact-groups")
 @RequiredArgsConstructor
 @Tag(name = "Contact Groups", description = "Manage custom groups for contacts")
 public class ContactGroupController {

@@ -14,7 +14,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/screen-time")
+@RequestMapping("/screen-time")
 @RequiredArgsConstructor
 @Slf4j
 @PreAuthorize("isAuthenticated()")

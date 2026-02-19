@@ -20,7 +20,7 @@ import java.util.Map;
  * Simple photo controller with optional metrics
  */
 @RestController
-@RequestMapping("/api/photos")
+@RequestMapping("/photos")
 @RequiredArgsConstructor
 @Slf4j
 public class PhotoController {

@@ -37,7 +37,7 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 
 @RestController
-@RequestMapping("/api/quiz")
+@RequestMapping("/quiz")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Quiz Management", description = "Complete quiz and session management API")

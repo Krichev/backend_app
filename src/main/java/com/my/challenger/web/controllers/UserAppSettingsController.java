@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/app-settings")
+@RequestMapping("/app-settings")
 @RequiredArgsConstructor
 @Tag(name = "App Settings", description = "Manage user application settings (language, theme, notifications)")
 public class UserAppSettingsController {

@@ -14,7 +14,7 @@ import java.util.Map;
  * Controller for photo metrics endpoints
  */
 @RestController
-@RequestMapping("/api/metrics/photos")
+@RequestMapping("/metrics/photos")
 @RequiredArgsConstructor
 @ConditionalOnBean(PhotoMetricsService.class)
 public class PhotoMetricsController {

@@ -27,7 +27,7 @@ import java.util.Optional;
  * Controller for handling challenge-related endpoints
  */
 @RestController
-@RequestMapping("/api/challenges")
+@RequestMapping("/challenges")
 @RequiredArgsConstructor
 @Slf4j
 public class ChallengeController {

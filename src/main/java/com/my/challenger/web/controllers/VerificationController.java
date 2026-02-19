@@ -23,7 +23,7 @@ import java.util.Map;
  * Controller for handling verification requests for challenges
  */
 @RestController
-@RequestMapping("/api/verification")
+@RequestMapping("/verification")
 @RequiredArgsConstructor
 @Slf4j
 public class VerificationController {

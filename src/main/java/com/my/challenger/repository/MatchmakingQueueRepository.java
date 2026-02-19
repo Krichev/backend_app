@@ -23,5 +23,5 @@ public interface MatchmakingQueueRepository extends JpaRepository<MatchmakingQue
     Optional<MatchmakingQueueEntry> findByUserId(Long userId);
 
     @Modifying
-    void deleteByExpiresAtBefore(LocalDateTime expiryTime);
+    int deleteByExpiresAtBefore(LocalDateTime expiryTime);
 }

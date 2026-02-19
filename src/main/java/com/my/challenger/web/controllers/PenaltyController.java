@@ -23,7 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/penalties")
+@RequestMapping("/penalties")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Penalty Management", description = "Endpoints for managing penalties and punishments")

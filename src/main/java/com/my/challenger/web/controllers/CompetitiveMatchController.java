@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/competitive")
+@RequestMapping("/competitive")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Competitive Matches", description = "Endpoints for 1v1 Karaoke Battles")

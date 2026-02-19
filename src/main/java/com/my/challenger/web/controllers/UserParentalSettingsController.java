@@ -20,7 +20,7 @@ import java.util.Map;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/parental-settings")
+@RequestMapping("/parental-settings")
 @RequiredArgsConstructor
 @Tag(name = "Parental Settings", description = "Manage parental controls and child account linking")
 public class UserParentalSettingsController {

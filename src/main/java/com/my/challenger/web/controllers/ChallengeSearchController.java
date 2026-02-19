@@ -21,7 +21,7 @@ import java.util.List;
  * REST Controller for Challenge Search
  */
 @RestController
-@RequestMapping("/api/challenges/search")
+@RequestMapping("/challenges/search")
 @RequiredArgsConstructor
 @Slf4j
 public class ChallengeSearchController {

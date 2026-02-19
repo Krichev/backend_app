@@ -22,7 +22,7 @@ import java.util.List;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/relationships")
+@RequestMapping("/relationships")
 @RequiredArgsConstructor
 @Tag(name = "User Relationships", description = "Manage user relationships (friends/family)")
 public class UserRelationshipController {

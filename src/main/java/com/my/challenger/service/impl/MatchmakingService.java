@@ -35,17 +35,10 @@ public class MatchmakingService {
     @SchedulerLock(name = "MatchmakingService_processQueue", lockAtLeastFor = "PT2S", lockAtMostFor = "PT4S")
     @Transactional
     public void processMatchmakingQueue() {
-        log.debug("Processing matchmaking queue...");
-        
         // We iterate through challenge types to find matches
         // In a real production system, this would be more optimized (e.g. database query for pairs)
         for (AudioChallengeType type : AudioChallengeType.values()) {
-            List<MatchmakingQueueEntry> queuedEntries = queueRepository
-                    .findByStatusAndAudioChallengeTypeAndPreferredRounds(
-                            MatchmakingStatus.QUEUED, type, 1); // Only supporting 1 round for now as default, or we loop rounds too
-            
-            // Or better, just fetch all QUEUED and group them
-            // But for simplicity let's rely on the repository method I created which filters by rounds too
+            // Process common round counts
             processQueueForTypeAndRounds(type, 1);
             processQueueForTypeAndRounds(type, 3);
             processQueueForTypeAndRounds(type, 5);
@@ -74,7 +67,7 @@ public class MatchmakingService {
 
     private void createMatch(MatchmakingQueueEntry entry1, MatchmakingQueueEntry entry2, 
                              AudioChallengeType type, Integer rounds) {
-        log.info("Matching users {} and {}", entry1.getUser().getId(), entry2.getUser().getId());
+        log.debug("Matching users {} and {}", entry1.getUser().getId(), entry2.getUser().getId());
 
         // Create match
         CompetitiveMatch match = CompetitiveMatch.builder()
@@ -109,8 +102,10 @@ public class MatchmakingService {
     @SchedulerLock(name = "MatchmakingService_cleanupExpired", lockAtLeastFor = "PT30S", lockAtMostFor = "PT50S")
     @Transactional
     public void cleanupExpiredEntries() {
-        log.debug("Cleaning up expired matchmaking entries...");
-        queueRepository.deleteByExpiresAtBefore(LocalDateTime.now());
+        int deletedCount = queueRepository.deleteByExpiresAtBefore(LocalDateTime.now());
+        if (deletedCount > 0) {
+            log.debug("Cleaned up {} expired matchmaking entries", deletedCount);
+        }
     }
 
     @Transactional(readOnly = true)

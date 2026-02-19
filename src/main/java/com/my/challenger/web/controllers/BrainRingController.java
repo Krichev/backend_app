@@ -17,7 +17,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/quiz/sessions/{sessionId}/rounds/{roundId}")
+@RequestMapping("/quiz/sessions/{sessionId}/rounds/{roundId}")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Brain Ring", description = "Brain Ring game mode operations")

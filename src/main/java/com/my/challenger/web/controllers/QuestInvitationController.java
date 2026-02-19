@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/invitations")
+@RequestMapping("/invitations")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Quest Invitations", description = "Quest invitation management with stake negotiation")

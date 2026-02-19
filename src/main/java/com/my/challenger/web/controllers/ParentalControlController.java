@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/parental")
+@RequestMapping("/parental")
 @RequiredArgsConstructor
 @Tag(name = "Parental Controls", description = "Parent-child account management and controls")
 public class ParentalControlController {

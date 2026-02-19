@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/quiz/challenges")
+@RequestMapping("/quiz/challenges")
 @RequiredArgsConstructor
 @Slf4j
 public class EnhancedQuizChallengeController {

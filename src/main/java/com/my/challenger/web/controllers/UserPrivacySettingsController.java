@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/privacy-settings")
+@RequestMapping("/privacy-settings")
 @RequiredArgsConstructor
 @Tag(name = "Privacy Settings", description = "Manage user privacy settings")
 public class UserPrivacySettingsController {

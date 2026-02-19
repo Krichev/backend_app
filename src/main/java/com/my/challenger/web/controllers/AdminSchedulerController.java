@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/admin/scheduler")
+@RequestMapping("/admin/scheduler")
 @RequiredArgsConstructor
 @Tag(name = "Admin - Scheduler", description = "Admin endpoints for scheduler management")
 @PreAuthorize("hasRole('ADMIN')")

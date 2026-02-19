@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/topics")
+@RequestMapping("/topics")
 @RequiredArgsConstructor
 @Tag(name = "Topics", description = "Topic management endpoints")
 public class TopicController {

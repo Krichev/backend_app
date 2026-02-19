@@ -16,7 +16,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/users/me/invitation-preferences")
+@RequestMapping("/users/me/invitation-preferences")
 @RequiredArgsConstructor
 @Tag(name = "Invitation Preferences", description = "User invitation privacy settings")
 public class InvitationPreferencesController {

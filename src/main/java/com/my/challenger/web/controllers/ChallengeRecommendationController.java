@@ -16,7 +16,7 @@ import java.util.List;
  * Add these methods to your existing ChallengeController
  */
 @RestController
-@RequestMapping("/api/challenges")
+@RequestMapping("/challenges")
 @RequiredArgsConstructor
 @Slf4j
 public class ChallengeRecommendationController {

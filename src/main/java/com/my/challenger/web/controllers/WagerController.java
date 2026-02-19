@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/wagers")
+@RequestMapping("/wagers")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Wager Management", description = "Endpoints for creating and managing wagers")

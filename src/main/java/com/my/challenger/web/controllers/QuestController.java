@@ -35,7 +35,7 @@ import java.util.Map;
  * that redirect to challenge endpoints.
  */
 @RestController
-@RequestMapping("/api/quests")
+@RequestMapping("/quests")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Quest Management (Deprecated)",

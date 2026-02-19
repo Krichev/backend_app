@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/public/rooms")
+@RequestMapping("/public/rooms")
 @RequiredArgsConstructor
 @Tag(name = "Public Room Info", description = "Unauthenticated room information endpoints")
 public class PublicRoomController {

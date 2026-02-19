@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/v1/verification-details")
+@RequestMapping("/v1/verification-details")
 @RequiredArgsConstructor
 @Tag(name = "Verification Details", description = "API for managing verification details")
 public class VerificationDetailsController {

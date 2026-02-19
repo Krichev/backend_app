@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/vibration-quiz")
+@RequestMapping("/vibration-quiz")
 @RequiredArgsConstructor
 public class VibrationQuizController {
 

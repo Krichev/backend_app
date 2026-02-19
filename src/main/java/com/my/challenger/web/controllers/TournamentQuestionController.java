@@ -26,7 +26,7 @@ import java.util.Map;
  * Provides CRUD operations and game-specific endpoints for tournament questions
  */
 @RestController
-@RequestMapping("/api/tournaments/{tournamentId}/questions")
+@RequestMapping("/tournaments/{tournamentId}/questions")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Tournament Questions", description = "APIs for managing tournament questions")

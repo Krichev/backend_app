@@ -36,7 +36,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/media")
+@RequestMapping("/media")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Media Management", description = "Enhanced media upload and management endpoints")

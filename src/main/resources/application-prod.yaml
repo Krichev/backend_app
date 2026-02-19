@@ -92,6 +92,7 @@ logging:
     org.springframework.security: WARN
     org.hibernate.SQL: ERROR
     org.springframework.web: WARN
+    net.javacrumbs.shedlock.core.DefaultLockingTaskExecutor: warn
 
 # Springdoc/Swagger
 springdoc:

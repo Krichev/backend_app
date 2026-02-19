@@ -19,7 +19,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/challenges")
+@RequestMapping("/challenges")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Challenge Audio Management", description = "API for managing audio configuration in challenges")

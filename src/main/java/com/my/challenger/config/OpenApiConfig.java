@@ -22,7 +22,7 @@ public class OpenApiConfig {
     public GroupedOpenApi publicApi() {
         return GroupedOpenApi.builder()
                 .group("my-api")
-                .pathsToMatch("/api/**") // Adjust the path pattern as needed
+                .pathsToMatch("/**") // Adjust the path pattern as needed
                 .build();
     }
 }

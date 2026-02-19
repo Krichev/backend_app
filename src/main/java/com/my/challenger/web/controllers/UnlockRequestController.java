@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/unlock-requests")
+@RequestMapping("/unlock-requests")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Unlock Request Management", description = "Endpoints for requesting and approving device unlocks")
