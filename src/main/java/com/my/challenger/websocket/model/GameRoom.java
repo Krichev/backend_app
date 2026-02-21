@@ -13,6 +13,7 @@ public class GameRoom {
     private String roomCode;
     private Long hostUserId;
     private Long quizSessionId;
+    private Long puzzleGameId;
     private GamePhase currentPhase;
     @Builder.Default
     private Map<Long, RoomPlayer> players = new ConcurrentHashMap<>(); // Key: userId

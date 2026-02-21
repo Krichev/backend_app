@@ -21,7 +21,7 @@ import java.util.Map;
  */
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
-import org.springframework.security.authentication.AuthenticationException;
+import org.springframework.security.core.AuthenticationException;
 
 @RestControllerAdvice
 @Slf4j

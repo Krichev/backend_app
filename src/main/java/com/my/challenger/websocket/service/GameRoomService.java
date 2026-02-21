@@ -32,6 +32,20 @@ public class GameRoomService {
         return room;
     }
 
+    public GameRoom createPuzzleRoom(Long puzzleGameId, Long hostUserId) {
+        String roomCode = generateRoomCode();
+        GameRoom room = GameRoom.builder()
+                .roomCode(roomCode)
+                .puzzleGameId(puzzleGameId)
+                .hostUserId(hostUserId)
+                .currentPhase(GamePhase.LOBBY)
+                .lastActivity(LocalDateTime.now())
+                .build();
+        activeRooms.put(roomCode, room);
+        log.info("Created puzzle game room {} for game {}", roomCode, puzzleGameId);
+        return room;
+    }
+
     public GameRoom getRoom(String roomCode) {
         return activeRooms.get(roomCode);
     }

@@ -26,6 +26,11 @@ public enum MediaCategory {
     SYSTEM,
 
     /**
+     * Jigsaw puzzle pieces
+     */
+    PUZZLE_PIECE,
+
+    /**
      * Temporary uploads that haven't been assigned yet
      */
     TEMPORARY;
