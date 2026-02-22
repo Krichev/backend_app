@@ -109,12 +109,6 @@ public class PuzzleController {
         return ResponseEntity.ok(puzzleService.submitAnswer(id, userId, answer));
     }
 
-    @GetMapping("/games/{id}/spectate")
-    @Operation(summary = "Spectator view (TV mode)")
-    public ResponseEntity<SpectatorViewDTO> spectateGame(@PathVariable Long id) {
-        return ResponseEntity.ok(puzzleService.getSpectatorView(id));
-    }
-
     @PostMapping("/games/{id}/abandon")
     @Operation(summary = "Abandon game")
     public ResponseEntity<Void> abandonGame(
