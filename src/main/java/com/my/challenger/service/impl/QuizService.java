@@ -272,9 +272,14 @@ public class QuizService {
         if (QuestionSource.user.equals(request.getQuestionSource()) && request.getCustomQuestionIds() != null && !request.getCustomQuestionIds().isEmpty()) {
             log.info("Using {} custom questions for session {}", request.getCustomQuestionIds().size(), session.getId());
             questions = quizQuestionRepository.findAllById(request.getCustomQuestionIds());
+            if (questions.isEmpty()) {
+                throw new IllegalArgumentException("No custom questions found for the provided IDs");
+            }
             if (questions.size() < request.getTotalRounds()) {
-                log.error("Insufficient custom questions: provided {}, required {}", questions.size(), request.getTotalRounds());
-                throw new IllegalArgumentException("Not enough custom questions provided. Required: " + request.getTotalRounds() + ", provided: " + questions.size());
+                log.info("Adjusting totalRounds from {} to {} to match available custom questions for session {}", 
+                        request.getTotalRounds(), questions.size(), session.getId());
+                session.setTotalRounds(questions.size());
+                quizSessionRepository.save(session);
             }
         } else {
             log.info("Fetching {} random questions by difficulty: {} for session {}", 
