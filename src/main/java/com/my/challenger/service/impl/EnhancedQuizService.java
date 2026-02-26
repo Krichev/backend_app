@@ -32,6 +32,7 @@ import com.my.challenger.dto.request.ReplayChallengeRequest;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -418,42 +419,138 @@ public class EnhancedQuizService extends QuizService {
 
 
     /**
-     * Get questions for a challenge using the junction table.
-     * Priority: junction table → legacy challenge_id lookup → random fallback
+     * Get quiz questions for a challenge.
+     *
+     * Priority order:
+     * 1. Questions from the latest COMPLETED session (source of truth for played quests)
+     * 2. Questions from junction table (Layer 1 — assigned questions)
+     * 3. Questions from legacy source pattern (inline-created)
+     * 4. Check IN_PROGRESS sessions (for sessions that were started)
+     * 5. Random app questions by difficulty (fallback for brand-new quests)
      */
     public List<QuizQuestionDTO> getQuestionsForChallenge(Long challengeId, QuizDifficulty difficulty, int count) {
-        challengeRepository.findById(challengeId)
+        Challenge challenge = challengeRepository.findById(challengeId)
                 .orElseThrow(() -> new IllegalArgumentException("Challenge not found"));
 
-        // PRIMARY: Get questions from junction table (all assignment types)
+        // ─── PRIORITY 1: Questions from completed sessions ───
+        try {
+            List<QuizQuestion> playedQuestions = quizRoundRepository
+                    .findQuestionsFromLatestCompletedSession(challengeId);
+
+            if (!playedQuestions.isEmpty()) {
+                log.info("Challenge {}: Found {} played questions from completed session",
+                        challengeId, playedQuestions.size());
+                return playedQuestions.stream()
+                        .map(q -> dtoEnricher.enrichWithUrls(QuizQuestionMapper.INSTANCE.toDTO(q)))
+                        .collect(Collectors.toList());
+            }
+        } catch (Exception e) {
+            log.error("Error fetching played questions for challenge {}. Falling through.", challengeId, e);
+        }
+
+        // ─── PRIORITY 2: Junction table assignments (Layer 1) ───
         List<QuizQuestion> assignedQuestions = challengeQuestionAssignmentRepository
                 .findQuestionsByChallengeId(challengeId);
-
         if (!assignedQuestions.isEmpty()) {
-            log.info("Found {} assigned questions for challenge {} via junction table",
-                    assignedQuestions.size(), challengeId);
+            log.info("Challenge {}: Found {} assigned questions from junction table",
+                    challengeId, assignedQuestions.size());
             return assignedQuestions.stream()
-                    .map(QuizQuestionMapper.INSTANCE::toDTO)
+                    .map(q -> dtoEnricher.enrichWithUrls(QuizQuestionMapper.INSTANCE.toDTO(q)))
                     .collect(Collectors.toList());
         }
 
-        // LEGACY FALLBACK: Check old challenge_id lookup (via source string pattern)
-        log.warn("No junction table entries for challenge {}. Checking legacy lookup.", challengeId);
-        List<QuizQuestion> legacyQuestions = quizQuestionRepository.findByChallengeId(challengeId);
-        if (!legacyQuestions.isEmpty()) {
-            log.info("Found {} questions via legacy lookup for challenge {}",
-                    legacyQuestions.size(), challengeId);
-            return legacyQuestions.stream()
-                    .map(QuizQuestionMapper.INSTANCE::toDTO)
+        // ─── PRIORITY 3: Legacy source pattern (inline-created) ───
+        List<QuizQuestion> userQuestions = quizQuestionRepository
+                .findByCreator_IdAndSourceContaining(
+                        challenge.getCreator().getId(),
+                        "USER_CREATED_FOR_CHALLENGE_" + challengeId);
+
+        if (!userQuestions.isEmpty()) {
+            log.info("Challenge {}: Found {} legacy inline questions",
+                    challengeId, userQuestions.size());
+            List<QuizQuestionDTO> questions = userQuestions.stream()
+                    .map(q -> dtoEnricher.enrichWithUrls(QuizQuestionMapper.INSTANCE.toDTO(q)))
                     .collect(Collectors.toList());
+
+            // Supplement with app questions if needed
+            if (questions.size() < count) {
+                int remainingCount = count - questions.size();
+                List<QuizQuestion> appQuestions = quizQuestionRepository
+                        .findByDifficulty(difficulty, PageRequest.of(0, remainingCount));
+                questions.addAll(appQuestions.stream()
+                        .map(q -> dtoEnricher.enrichWithUrls(QuizQuestionMapper.INSTANCE.toDTO(q)))
+                        .collect(Collectors.toList()));
+            }
+            return questions;
         }
 
-        // FINAL FALLBACK: Random app questions (only if nothing else found)
-        log.warn("No questions found for challenge {} via any method. Falling back to random.", challengeId);
+        // ─── PRIORITY 4: Check IN_PROGRESS sessions ───
+        Optional<QuizSession> activeSession = quizSessionRepository
+                .findFirstByChallengeIdAndStatusOrderByCreatedAtDesc(challengeId, QuizSessionStatus.IN_PROGRESS);
+
+        if (activeSession.isPresent()) {
+            List<QuizQuestion> activeQuestions = quizRoundRepository
+                    .findQuestionsBySessionId(activeSession.get().getId());
+            if (!activeQuestions.isEmpty()) {
+                log.info("Challenge {}: Found {} questions from active session {}",
+                        challengeId, activeQuestions.size(), activeSession.get().getId());
+                return activeQuestions.stream()
+                        .map(q -> dtoEnricher.enrichWithUrls(QuizQuestionMapper.INSTANCE.toDTO(q)))
+                        .collect(Collectors.toList());
+            }
+        }
+
+        // ─── PRIORITY 5: Random fallback (only for brand-new quests with zero history) ───
+        log.warn("Challenge {}: No question source found. Falling back to {} random questions.",
+                challengeId, count);
         List<QuizQuestion> appQuestions = quizQuestionRepository
                 .findByDifficulty(difficulty, PageRequest.of(0, count));
         return appQuestions.stream()
-                .map(QuizQuestionMapper.INSTANCE::toDTO)
+                .map(q -> dtoEnricher.enrichWithUrls(QuizQuestionMapper.INSTANCE.toDTO(q)))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get the actually-played questions for a challenge with full round context.
+     * This is the "review mode" data — shows what was played, what was answered, etc.
+     *
+     * @param challengeId The challenge ID
+     * @param sessionId   Optional specific session. If null, uses latest COMPLETED session.
+     * @return List of round DTOs with embedded question data
+     */
+    public List<QuizRoundDTO> getPlayedQuestionsForChallenge(Long challengeId, Long sessionId) {
+        challengeRepository.findById(challengeId)
+                .orElseThrow(() -> new IllegalArgumentException("Challenge not found"));
+
+        Long targetSessionId;
+
+        if (sessionId != null) {
+            // Use the specified session
+            QuizSession session = quizSessionRepository.findById(sessionId)
+                    .orElseThrow(() -> new IllegalArgumentException("Session not found"));
+            if (!session.getChallenge().getId().equals(challengeId)) {
+                throw new IllegalArgumentException("Session does not belong to this challenge");
+            }
+            targetSessionId = sessionId;
+        } else {
+            // Find the latest completed session for this challenge
+            Optional<QuizSession> latestCompleted = quizSessionRepository
+                    .findFirstByChallengeIdAndStatusOrderByCompletedAtDesc(
+                            challengeId, QuizSessionStatus.COMPLETED);
+
+            if (latestCompleted.isEmpty()) {
+                log.info("No completed sessions found for challenge {}. Returning empty.", challengeId);
+                return List.of();
+            }
+            targetSessionId = latestCompleted.get().getId();
+        }
+
+        log.info("Fetching played questions for challenge {} from session {}", challengeId, targetSessionId);
+
+        List<QuizRound> rounds = quizRoundRepository.findByQuizSessionIdOrderByRoundNumber(targetSessionId);
+
+        return rounds.stream()
+                .map(this::convertRoundToDTO)
                 .collect(Collectors.toList());
     }
 
@@ -519,7 +616,16 @@ public class EnhancedQuizService extends QuizService {
                     .voiceRecordingUsed(false)
                     .build();
 
-            quizRoundRepository.save(round);
+            QuizRound savedRound = quizRoundRepository.save(round);
+
+            // Initialize Brain Ring state if in BRAIN_RING mode
+            if (session.getGameMode() == GameMode.BRAIN_RING) {
+                brainRingService.initializeRoundState(savedRound);
+            }
+
+            // Increment usage count for the question
+            question.setUsageCount((question.getUsageCount() == null ? 0 : question.getUsageCount()) + 1);
+            quizQuestionRepository.save(question);
         }
     }
 
@@ -773,6 +879,57 @@ public class EnhancedQuizService extends QuizService {
                 .completedAt(session.getCompletedAt())
                 .duration(session.getTotalDurationSeconds() != null ? session.getTotalDurationSeconds().longValue() : null)
                 .build());
+    }
+
+    /**
+     * Override createQuizRounds to prioritize questions from the junction table
+     * if the session is linked to a challenge.
+     */
+    @Override
+    protected void createQuizRounds(QuizSession session, StartQuizSessionRequest request) {
+        if (request.getChallengeId() != null) {
+            log.info("Creating rounds for session {} using questions assigned to challenge {}",
+                    session.getId(), request.getChallengeId());
+
+            // Get questions for this specific challenge via junction table
+            List<QuizQuestion> assignedQuestions = challengeQuestionAssignmentRepository
+                    .findQuestionsByChallengeId(request.getChallengeId());
+
+            if (!assignedQuestions.isEmpty()) {
+                log.info("Found {} assigned questions for challenge {}. Using them for session {}.",
+                        assignedQuestions.size(), request.getChallengeId(), session.getId());
+
+                // Create rounds using these questions
+                int roundsToCreate = Math.min(session.getTotalRounds(), assignedQuestions.size());
+                for (int i = 0; i < roundsToCreate; i++) {
+                    QuizRound round = QuizRound.builder()
+                            .quizSession(session)
+                            .question(assignedQuestions.get(i))
+                            .roundNumber(i + 1)
+                            .isCorrect(false)
+                            .hintUsed(false)
+                            .voiceRecordingUsed(false)
+                            .build();
+                    QuizRound savedRound = quizRoundRepository.save(round);
+
+                    // Initialize Brain Ring state if in BRAIN_RING mode
+                    if (session.getGameMode() == GameMode.BRAIN_RING) {
+                        brainRingService.initializeRoundState(savedRound);
+                    }
+
+                    // Increment usage count
+                    QuizQuestion q = assignedQuestions.get(i);
+                    q.setUsageCount(q.getUsageCount() + 1);
+                    quizQuestionRepository.save(q);
+                }
+                return;
+            }
+            log.warn("No questions assigned to challenge {} via junction table. Falling back to default logic.",
+                    request.getChallengeId());
+        }
+
+        // Default logic from parent QuizService
+        super.createQuizRounds(session, request);
     }
 
     /**

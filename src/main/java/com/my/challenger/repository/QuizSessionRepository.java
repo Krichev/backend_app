@@ -156,6 +156,23 @@ public interface QuizSessionRepository extends JpaRepository<QuizSession, Long> 
     Optional<QuizSession> findTopByChallengeIdAndHostUserIdAndStatusOrderByCompletedAtDesc(
             Long challengeId, Long userId, QuizSessionStatus status);
 
+    /**
+     * Find the latest COMPLETED session for a challenge
+     */
+    Optional<QuizSession> findFirstByChallengeIdAndStatusOrderByCompletedAtDesc(
+            Long challengeId, QuizSessionStatus status);
+
+    /**
+     * Find the latest session for a challenge by status ordered by creation date
+     */
+    Optional<QuizSession> findFirstByChallengeIdAndStatusOrderByCreatedAtDesc(
+            Long challengeId, QuizSessionStatus status);
+
+    /**
+     * Check if a challenge has any completed sessions
+     */
+    boolean existsByChallengeIdAndStatus(Long challengeId, QuizSessionStatus status);
+
     // Find all sessions for a challenge by user, paginated
     Page<QuizSession> findByChallengeIdAndHostUserIdOrderByCreatedAtDesc(
             Long challengeId, Long userId, Pageable pageable);

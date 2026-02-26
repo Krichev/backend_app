@@ -264,7 +264,7 @@ public class QuizService {
         return convertSessionToDTO(savedSession);
     }
 
-    private void createQuizRounds(QuizSession session, StartQuizSessionRequest request) {
+    protected void createQuizRounds(QuizSession session, StartQuizSessionRequest request) {
         log.info("Creating quiz rounds for session: {} using source: {}", session.getId(), request.getQuestionSource());
 
         List<QuizQuestion> questions;

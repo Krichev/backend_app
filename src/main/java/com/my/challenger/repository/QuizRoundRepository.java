@@ -73,6 +73,29 @@ public interface QuizRoundRepository extends JpaRepository<QuizRound, Long> {
     @Query("DELETE FROM QuizRound qr WHERE qr.quizSession.id = :sessionId")
     void deleteByQuizSessionId(@Param("sessionId") Long sessionId);
 
+    /**
+     * Get distinct questions that were played in a specific session, ordered by round number.
+     * This is the source of truth for "what questions were in this quest?"
+     */
+    @Query("SELECT qr.question FROM QuizRound qr " +
+            "WHERE qr.quizSession.id = :sessionId " +
+            "ORDER BY qr.roundNumber ASC")
+    List<com.my.challenger.entity.quiz.QuizQuestion> findQuestionsBySessionId(@Param("sessionId") Long sessionId);
+
+    /**
+     * Get distinct questions that were played across ANY completed session for a challenge.
+     * Uses the latest completed session.
+     */
+    @Query("SELECT qr.question FROM QuizRound qr " +
+            "WHERE qr.quizSession.challenge.id = :challengeId " +
+            "AND qr.quizSession.status = 'COMPLETED' " +
+            "AND qr.quizSession.id = (" +
+            "  SELECT MAX(qs.id) FROM QuizSession qs " +
+            "  WHERE qs.challenge.id = :challengeId AND qs.status = 'COMPLETED'" +
+            ") " +
+            "ORDER BY qr.roundNumber ASC")
+    List<com.my.challenger.entity.quiz.QuizQuestion> findQuestionsFromLatestCompletedSession(@Param("challengeId") Long challengeId);
+
     // =====================================================================
     // MISSING METHODS THAT NEED TO BE ADDED
     // =====================================================================

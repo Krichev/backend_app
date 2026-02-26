@@ -66,6 +66,24 @@ public class EnhancedQuizChallengeController {
     }
 
     /**
+     * Get the questions that were actually played in this challenge,
+     * with round context (answers, correctness, timing).
+     * Returns data from quiz_rounds — the source of truth for completed quests.
+     *
+     * If sessionId is provided, returns rounds from that specific session.
+     * Otherwise, returns rounds from the latest COMPLETED session.
+     */
+    @GetMapping("/{challengeId}/played-questions")
+    public ResponseEntity<List<QuizRoundDTO>> getPlayedQuestions(
+            @PathVariable Long challengeId,
+            @RequestParam(required = false) Long sessionId) {
+
+        List<QuizRoundDTO> rounds = enhancedQuizService.getPlayedQuestionsForChallenge(
+                challengeId, sessionId);
+        return ResponseEntity.ok(rounds);
+    }
+
+    /**
      * Replay a completed quiz challenge
      */
     @PostMapping("/{challengeId}/replay")
