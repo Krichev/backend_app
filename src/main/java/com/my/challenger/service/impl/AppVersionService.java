@@ -50,7 +50,12 @@ public class AppVersionService {
         String latestTagName = latestRelease.getTagName();
         String latestVersion = latestTagName.startsWith("v") ? latestTagName.substring(1) : latestTagName;
 
-        boolean updateAvailable = compareVersions(currentVersion, latestVersion) < 0;
+        int comparisonResult = compareVersions(currentVersion, latestVersion);
+        boolean updateAvailable = comparisonResult < 0;
+        
+        log.info("Version check - current: {}, latest: {}, result: {}, updateAvailable: {}", 
+                currentVersion, latestVersion, comparisonResult, updateAvailable);
+
         boolean forceUpdate = compareVersions(currentVersion, config.getMinSupportedVersion()) < 0;
         
         // Additional force update check if config.forceUpdateBelow is set

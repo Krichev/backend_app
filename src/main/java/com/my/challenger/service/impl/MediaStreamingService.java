@@ -23,7 +23,7 @@ public class MediaStreamingService {
     private final MediaFileRepository mediaFileRepository;
 
     @Value("${app.storage.s3.bucket-name}")
-    private String bucketName;
+    private String defaultBucketName;
 
     /**
      * Get media file entity by ID
@@ -46,8 +46,9 @@ public class MediaStreamingService {
      */
     public InputStream streamMedia(String s3Key) {
         try {
+            String bucket = resolveBucket(s3Key);
             GetObjectRequest request = GetObjectRequest.builder()
-                    .bucket(bucketName)
+                    .bucket(bucket)
                     .key(s3Key)
                     .build();
 
@@ -66,8 +67,9 @@ public class MediaStreamingService {
      */
     public ResponseInputStream<GetObjectResponse> streamMediaRange(String s3Key, String rangeHeader) {
         try {
+            String bucket = resolveBucket(s3Key);
             GetObjectRequest request = GetObjectRequest.builder()
-                    .bucket(bucketName)
+                    .bucket(bucket)
                     .key(s3Key)
                     .range(rangeHeader)
                     .build();
@@ -87,8 +89,9 @@ public class MediaStreamingService {
      */
     public HeadObjectResponse getObjectMetadata(String s3Key) {
         try {
+            String bucket = resolveBucket(s3Key);
             HeadObjectRequest request = HeadObjectRequest.builder()
-                    .bucket(bucketName)
+                    .bucket(bucket)
                     .key(s3Key)
                     .build();
 
@@ -99,5 +102,15 @@ public class MediaStreamingService {
             log.error("Failed to get S3 metadata: {}", s3Key, e);
             throw new MediaProcessingException("Failed to get media metadata", e);
         }
+    }
+
+    /**
+     * Resolves the bucket name for a given S3 key by looking up the MediaFile record.
+     * Falls back to the default bucket name if no record is found.
+     */
+    private String resolveBucket(String s3Key) {
+        return mediaFileRepository.findByS3Key(s3Key)
+                .map(MediaFile::getBucketName)
+                .orElse(defaultBucketName);
     }
 }

@@ -6,6 +6,7 @@ import com.my.challenger.entity.quiz.QuizQuestion;
 import com.my.challenger.exception.MediaProcessingException;
 import com.my.challenger.exception.ResourceNotFoundException;
 import com.my.challenger.exception.UnauthorizedException;
+import com.my.challenger.repository.MediaFileRepository;
 import com.my.challenger.repository.QuizQuestionRepository;
 import com.my.challenger.service.MediaService;
 import com.my.challenger.service.impl.MediaStreamingService;
@@ -45,6 +46,7 @@ public class MediaController {
     private final MediaService mediaService;
     private final MediaStreamingService streamingService;
     private final QuizQuestionRepository quizQuestionRepository;
+    private final MediaFileRepository mediaFileRepository;
     private final MinioMediaStorageService storageService; // Keep for backward compatibility
 
     @PostMapping("/upload/quiz-media")
@@ -260,6 +262,15 @@ public class MediaController {
         QuizQuestion question = quizQuestionRepository.findById(questionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Question not found: " + questionId));
 
+        // Use questionMediaId if available, as it's more robust for bucket resolution
+        if (question.getQuestionMediaId() != null) {
+            MediaFile mediaFile = mediaFileRepository.findById(question.getQuestionMediaId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Media file not found for ID: " + question.getQuestionMediaId()));
+            
+            return streamMediaByS3Key(mediaFile.getS3Key(), rangeHeader, question.getQuestionMediaType());
+        }
+
+        // Fallback to S3 key if media ID is not set
         String s3Key = question.getQuestionMediaUrl();
         if (s3Key == null || s3Key.isEmpty()) {
             return ResponseEntity.notFound().build();

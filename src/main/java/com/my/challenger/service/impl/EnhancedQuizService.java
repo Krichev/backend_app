@@ -24,6 +24,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.my.challenger.entity.ChallengeProgress;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import com.my.challenger.dto.QuizSessionSummaryDTO;
+import com.my.challenger.dto.request.ReplayChallengeRequest;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -669,5 +673,132 @@ public class EnhancedQuizService extends QuizService {
         challengeProgressRepository.save(progress);
 
         log.info("Progress record created successfully for challenge {}", challenge.getId());
+    }
+
+    /**
+     * Get all quiz sessions for a challenge by a user (Session History)
+     */
+    @Transactional(readOnly = true)
+    public Page<QuizSessionSummaryDTO> getSessionHistory(Long challengeId, Long userId, Pageable pageable) {
+        log.info("Fetching session history for challenge: {}, user: {}", challengeId, userId);
+
+        // 1. Verify user has access to challenge
+        Challenge challenge = challengeRepository.findById(challengeId)
+                .orElseThrow(() -> new IllegalArgumentException("Challenge not found"));
+
+        if (!isUserChallengeParticipant(challengeId, userId)) {
+            throw new IllegalStateException("Access denied to challenge history");
+        }
+
+        // 2. Query sessions for this challenge by this user
+        Page<QuizSession> sessions = quizSessionRepository.findByChallengeIdAndHostUserIdOrderByCreatedAtDesc(challengeId, userId, pageable);
+
+        // 3. Map to DTO
+        return sessions.map(session -> QuizSessionSummaryDTO.builder()
+                .sessionId(session.getId())
+                .correctAnswers(session.getCorrectAnswers())
+                .totalRounds(session.getTotalRounds())
+                .scorePercentage(session.getScorePercentage())
+                .status(session.getStatus().name())
+                .questionSource(session.getQuestionSource() != null ? session.getQuestionSource().name() : null)
+                .createdAt(session.getCreatedAt())
+                .completedAt(session.getCompletedAt())
+                .duration(session.getTotalDurationSeconds() != null ? session.getTotalDurationSeconds().longValue() : null)
+                .build());
+    }
+
+    /**
+     * Replay a quiz challenge by creating a new session
+     */
+    @Transactional
+    public QuizSessionDTO replayChallenge(Long challengeId, Long userId, ReplayChallengeRequest request) {
+        log.info("Replaying challenge: {} for user: {}", challengeId, userId);
+
+        // 1. Load the challenge, verify it exists and is QUIZ type
+        Challenge challenge = challengeRepository.findById(challengeId)
+                .orElseThrow(() -> new IllegalArgumentException("Challenge not found"));
+
+        if (challenge.getType() != ChallengeType.QUIZ) {
+            throw new IllegalArgumentException("Challenge is not a quiz type");
+        }
+
+        // 2. Verify user is creator or participant
+        if (!isUserChallengeParticipant(challengeId, userId)) {
+            throw new IllegalStateException("Access denied to replay challenge");
+        }
+
+        // 3. Parse existing quizConfig from challenge
+        QuizSessionConfig sessionConfig = new QuizSessionConfig();
+        try {
+            if (challenge.getQuizConfig() != null) {
+                QuizChallengeConfig challengeConfig = objectMapper.readValue(challenge.getQuizConfig(), QuizChallengeConfig.class);
+
+                sessionConfig.setDifficulty(challengeConfig.getDefaultDifficulty() != null ?
+                        challengeConfig.getDefaultDifficulty() : QuizDifficulty.MEDIUM);
+                sessionConfig.setTotalRounds(challengeConfig.getDefaultTotalRounds() != null ?
+                        challengeConfig.getDefaultTotalRounds() : 10);
+                sessionConfig.setRoundTimeSeconds(challengeConfig.getDefaultRoundTimeSeconds() != null ?
+                        challengeConfig.getDefaultRoundTimeSeconds() : 30);
+                sessionConfig.setEnableAiHost(challengeConfig.getEnableAiHost() != null ?
+                        challengeConfig.getEnableAiHost() : false);
+                sessionConfig.setEnableAiAnswerValidation(challengeConfig.getEnableAiAnswerValidation() != null ?
+                        challengeConfig.getEnableAiAnswerValidation() : false);
+                
+                String qSource = challengeConfig.getQuestionSource();
+                if (qSource != null) {
+                    try {
+                        sessionConfig.setQuestionSource(QuestionSource.valueOf(qSource.toLowerCase()));
+                    } catch (Exception e) {
+                        sessionConfig.setQuestionSource(QuestionSource.app);
+                    }
+                } else {
+                    sessionConfig.setQuestionSource(QuestionSource.app);
+                }
+                
+                sessionConfig.setTeamName(challengeConfig.getTeamName());
+                sessionConfig.setTeamMembers(challengeConfig.getTeamMembers() != null ?
+                        challengeConfig.getTeamMembers() : new ArrayList<>());
+            }
+        } catch (Exception e) {
+            log.error("Failed to parse quiz config from challenge", e);
+            // Fallback to defaults
+            sessionConfig.setDifficulty(QuizDifficulty.MEDIUM);
+            sessionConfig.setTotalRounds(10);
+            sessionConfig.setRoundTimeSeconds(30);
+            sessionConfig.setQuestionSource(QuestionSource.app);
+        }
+
+        // 4. Apply overrides from ReplayChallengeRequest
+        if (request != null) {
+            if (request.getDifficulty() != null) {
+                try {
+                    sessionConfig.setDifficulty(QuizDifficulty.valueOf(request.getDifficulty().toUpperCase()));
+                } catch (Exception e) {
+                    log.warn("Invalid difficulty override: {}", request.getDifficulty());
+                }
+            }
+            if (request.getRoundCount() != null) {
+                sessionConfig.setTotalRounds(request.getRoundCount());
+            }
+            if (request.getRoundTime() != null) {
+                sessionConfig.setRoundTimeSeconds(request.getRoundTime());
+            }
+            if (request.getEnableAIHost() != null) {
+                sessionConfig.setEnableAiHost(request.getEnableAIHost());
+            }
+            if (request.getEnableAiAnswerValidation() != null) {
+                sessionConfig.setEnableAiAnswerValidation(request.getEnableAiAnswerValidation());
+            }
+            if (request.getQuestionSource() != null) {
+                try {
+                    sessionConfig.setQuestionSource(QuestionSource.valueOf(request.getQuestionSource().toLowerCase()));
+                } catch (Exception e) {
+                    log.warn("Invalid question source override: {}", request.getQuestionSource());
+                }
+            }
+        }
+
+        // 5. Create a new QuizSession using the merged config
+        return createQuizSessionForChallenge(challengeId, userId, sessionConfig);
     }
 }

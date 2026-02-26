@@ -14,6 +14,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface QuizSessionRepository extends JpaRepository<QuizSession, Long> {
@@ -142,4 +143,19 @@ public interface QuizSessionRepository extends JpaRepository<QuizSession, Long> 
 
     // Delete old sessions (for cleanup)
     void deleteByCreatedAtBefore(LocalDateTime date);
+
+    // Count sessions for a challenge by a specific user
+    long countByChallengeIdAndHostUserId(Long challengeId, Long userId);
+
+    // Find best score session for a challenge by user
+    Optional<QuizSession> findTopByChallengeIdAndHostUserIdAndStatusOrderByCorrectAnswersDesc(
+            Long challengeId, Long userId, QuizSessionStatus status);
+
+    // Find most recent completed session
+    Optional<QuizSession> findTopByChallengeIdAndHostUserIdAndStatusOrderByCompletedAtDesc(
+            Long challengeId, Long userId, QuizSessionStatus status);
+
+    // Find all sessions for a challenge by user, paginated
+    Page<QuizSession> findByChallengeIdAndHostUserIdOrderByCreatedAtDesc(
+            Long challengeId, Long userId, Pageable pageable);
 }

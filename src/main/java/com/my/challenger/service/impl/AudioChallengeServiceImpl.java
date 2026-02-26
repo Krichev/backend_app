@@ -55,6 +55,10 @@ public class AudioChallengeServiceImpl implements AudioChallengeService {
         log.info("🎵 Creating audio challenge question: type={}, creator={}",
                 request.getAudioChallengeType(), creatorId);
 
+        log.info("Creating audio question - file size: {}, filename: {}",
+                referenceAudio != null ? referenceAudio.getSize() : "null",
+                referenceAudio != null ? referenceAudio.getOriginalFilename() : "null");
+
         // 1. Validate creator
         User creator = userRepository.findById(creatorId)
                 .orElseThrow(() -> new ResourceNotFoundException("Creator not found"));

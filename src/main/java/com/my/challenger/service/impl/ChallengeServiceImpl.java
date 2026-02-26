@@ -3,6 +3,7 @@ package com.my.challenger.service.impl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.my.challenger.dto.ChallengeDTO;
+import com.my.challenger.dto.CompletedChallengeDTO;
 import com.my.challenger.dto.CreateChallengeRequest;
 import com.my.challenger.dto.UpdateChallengeRequest;
 import com.my.challenger.dto.verification.VerificationHistoryDTO;
@@ -19,6 +20,7 @@ import com.my.challenger.repository.specification.ChallengeSpecification;
 import com.my.challenger.service.ChallengeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -44,6 +46,65 @@ public class ChallengeServiceImpl implements ChallengeService {
     private final ChallengeAccessRepository accessRepository;
     private final PaymentService paymentService;
     private final QuizSessionRepository quizSessionRepository;
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<CompletedChallengeDTO> getCompletedChallenges(Long userId, String type, Pageable pageable) {
+        log.info("Fetching completed challenges for user: {}, type: {}", userId, type);
+
+        ChallengeType challengeType = null;
+        if (type != null && !type.isEmpty()) {
+            try {
+                challengeType = ChallengeType.valueOf(type.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                log.warn("Invalid challenge type provided: {}", type);
+            }
+        }
+
+        Page<Challenge> challenges = challengeRepository.findCompletedChallengesByUser(
+                userId, ChallengeStatus.COMPLETED, challengeType, pageable);
+
+        return challenges.map(challenge -> enrichCompletedChallenge(challenge, userId));
+    }
+
+    private CompletedChallengeDTO enrichCompletedChallenge(Challenge challenge, Long userId) {
+        CompletedChallengeDTO dto = CompletedChallengeDTO.builder()
+                .id(challenge.getId())
+                .title(challenge.getTitle())
+                .description(challenge.getDescription())
+                .type(challenge.getType())
+                .visibility(challenge.isPublic() ? VisibilityType.PUBLIC : VisibilityType.PRIVATE)
+                .status(challenge.getStatus())
+                .created_at(challenge.getCreatedAt())
+                .updated_at(challenge.getUpdatedAt())
+                .creator_id(challenge.getCreator().getId())
+                .creatorUsername(challenge.getCreator().getUsername())
+                .verificationMethod(challenge.getVerificationMethod() != null ?
+                        challenge.getVerificationMethod().toString() : null)
+                .quizConfig(challenge.getQuizConfig())
+                .build();
+
+        if (challenge.getType() == ChallengeType.QUIZ) {
+            long sessionCount = quizSessionRepository.countByChallengeIdAndHostUserId(challenge.getId(), userId);
+            dto.setSessionCount((int) sessionCount);
+
+            quizSessionRepository.findTopByChallengeIdAndHostUserIdAndStatusOrderByCorrectAnswersDesc(
+                            challenge.getId(), userId, QuizSessionStatus.COMPLETED)
+                    .ifPresent(bestSession -> {
+                        dto.setBestScore(bestSession.getCorrectAnswers());
+                        dto.setTotalRounds(bestSession.getTotalRounds());
+                        dto.setBestScorePercentage(bestSession.getScorePercentage());
+                    });
+
+            quizSessionRepository.findTopByChallengeIdAndHostUserIdAndStatusOrderByCompletedAtDesc(
+                            challenge.getId(), userId, QuizSessionStatus.COMPLETED)
+                    .ifPresent(lastSession -> {
+                        dto.setLastPlayedAt(lastSession.getCompletedAt());
+                    });
+        }
+
+        return dto;
+    }
 
     @Override
     public List<Map<String, Object>> getAccessList(Long challengeId) {

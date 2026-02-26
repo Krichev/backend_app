@@ -41,7 +41,10 @@ public class AppVersionController {
             @RequestParam String currentVersion) {
         log.info("GET /public/app-version/check - platform: {}, currentVersion: {}", platform, currentVersion);
         try {
-            return ResponseEntity.ok(appVersionService.checkForUpdate(platform, currentVersion));
+            AppVersionCheckResponse response = appVersionService.checkForUpdate(platform, currentVersion);
+            log.info("Version check result - platform: {}, current: {}, latest: {}, updateAvailable: {}", 
+                    platform, currentVersion, response.getLatestVersion(), response.isUpdateAvailable());
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Failed to check for updates", e);
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();

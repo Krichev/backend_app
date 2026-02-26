@@ -1,15 +1,21 @@
 package com.my.challenger.web.controllers;
 
 import com.my.challenger.dto.ChallengeDTO;
+import com.my.challenger.dto.CompletedChallengeDTO;
 import com.my.challenger.dto.MessageResponse;
+import com.my.challenger.dto.QuizSessionSummaryDTO;
 import com.my.challenger.dto.quiz.*;
+import com.my.challenger.dto.request.ReplayChallengeRequest;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.repository.UserRepository;
+import com.my.challenger.service.ChallengeService;
 import com.my.challenger.service.impl.EnhancedQuizService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -24,7 +30,55 @@ import java.util.List;
 public class EnhancedQuizChallengeController {
 
     private final EnhancedQuizService enhancedQuizService;
+    private final ChallengeService challengeService;
     private final UserRepository userRepository;
+
+    /**
+     * Get completed challenges for the authenticated user
+     */
+    @GetMapping("/completed")
+    public ResponseEntity<Page<CompletedChallengeDTO>> getCompletedChallenges(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String type,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        User user = getUserFromUserDetails(userDetails);
+        Page<CompletedChallengeDTO> challenges = challengeService.getCompletedChallenges(
+                user.getId(), type, PageRequest.of(page, size));
+        return ResponseEntity.ok(challenges);
+    }
+
+    /**
+     * Get session history for a specific challenge
+     */
+    @GetMapping("/{challengeId}/session-history")
+    public ResponseEntity<Page<QuizSessionSummaryDTO>> getSessionHistory(
+            @PathVariable Long challengeId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        User user = getUserFromUserDetails(userDetails);
+        Page<QuizSessionSummaryDTO> history = enhancedQuizService.getSessionHistory(
+                challengeId, user.getId(), PageRequest.of(page, size));
+        return ResponseEntity.ok(history);
+    }
+
+    /**
+     * Replay a completed quiz challenge
+     */
+    @PostMapping("/{challengeId}/replay")
+    public ResponseEntity<QuizSessionDTO> replayChallenge(
+            @PathVariable Long challengeId,
+            @Valid @RequestBody(required = false) ReplayChallengeRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        User user = getUserFromUserDetails(userDetails);
+        QuizSessionDTO session = enhancedQuizService.replayChallenge(
+                challengeId, user.getId(), request);
+        return ResponseEntity.ok(session);
+    }
 
     /**
      * Create a new quiz challenge with custom questions

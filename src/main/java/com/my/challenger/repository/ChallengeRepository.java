@@ -4,6 +4,7 @@ import com.my.challenger.entity.challenge.Challenge;
 import com.my.challenger.entity.enums.ChallengeDifficulty;
 import com.my.challenger.entity.enums.ChallengeStatus;
 import com.my.challenger.entity.enums.ChallengeType;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -21,6 +22,23 @@ import java.util.Optional;
 @Repository
 public interface ChallengeRepository extends JpaRepository<Challenge, Long>,
         JpaSpecificationExecutor<Challenge> {
+
+    /**
+     * Find completed challenges where user is creator or participant
+     */
+    @Query("""
+        SELECT DISTINCT c FROM Challenge c 
+        LEFT JOIN c.progress cp 
+        WHERE (c.creator.id = :userId OR cp.user.id = :userId) 
+        AND c.status = :status 
+        AND (:type IS NULL OR c.type = :type)
+        ORDER BY c.updatedAt DESC
+    """)
+    Page<Challenge> findCompletedChallengesByUser(
+            @Param("userId") Long userId,
+            @Param("status") ChallengeStatus status,
+            @Param("type") ChallengeType type,
+            Pageable pageable);
 
     /**
      * Find challenges by creator ID

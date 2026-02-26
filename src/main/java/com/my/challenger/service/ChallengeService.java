@@ -1,10 +1,12 @@
 package com.my.challenger.service;
 
 import com.my.challenger.dto.ChallengeDTO;
+import com.my.challenger.dto.CompletedChallengeDTO;
 import com.my.challenger.dto.CreateChallengeRequest;
 import com.my.challenger.dto.UpdateChallengeRequest;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.challenge.Challenge;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.util.List;
@@ -15,6 +17,11 @@ import java.util.Optional;
  * Service interface for Challenge operations
  */
 public interface ChallengeService {
+
+    /**
+     * Get completed challenges for a user
+     */
+    Page<CompletedChallengeDTO> getCompletedChallenges(Long userId, String type, Pageable pageable);
 
     /**
      * Get challenges with optional filters
