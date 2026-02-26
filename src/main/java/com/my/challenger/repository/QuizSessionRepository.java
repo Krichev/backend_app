@@ -148,6 +148,7 @@ public interface QuizSessionRepository extends JpaRepository<QuizSession, Long> 
     long countByChallengeIdAndHostUserId(Long challengeId, Long userId);
 
     // Find best score session for a challenge by user
+
     Optional<QuizSession> findTopByChallengeIdAndHostUserIdAndStatusOrderByCorrectAnswersDesc(
             Long challengeId, Long userId, QuizSessionStatus status);
 

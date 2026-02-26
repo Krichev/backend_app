@@ -33,8 +33,12 @@ public class CreateQuizChallengeRequest {
     private LocalDateTime endDate;
     private FrequencyType frequency;
 
-    @NotNull(message = "Quiz configuration is required")
-    private QuizChallengeConfig quizConfig;
-
-    private List<CreateQuizQuestionRequest> customQuestions;
-}
+        @NotNull(message = "Quiz configuration is required")
+        private QuizChallengeConfig quizConfig;
+    
+        private List<CreateQuizQuestionRequest> customQuestions;
+    
+        // IDs of existing questions to assign to this challenge (app or user questions)
+        private List<Long> selectedQuestionIds;
+    }
+    

@@ -13,6 +13,7 @@ import com.my.challenger.entity.quiz.QuizQuestion;
 import com.my.challenger.entity.quiz.QuizRound;
 import com.my.challenger.entity.quiz.QuizSession;
 import com.my.challenger.entity.quiz.Topic;
+import com.my.challenger.entity.quiz.ChallengeQuestionAssignment;
 import com.my.challenger.mapper.QuizQuestionMapper;
 import com.my.challenger.repository.*;
 import com.my.challenger.service.BrainRingService;
@@ -31,6 +32,7 @@ import com.my.challenger.dto.request.ReplayChallengeRequest;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -40,6 +42,7 @@ public class EnhancedQuizService extends QuizService {
     private final ObjectMapper objectMapper;
     private final TaskRepository taskRepository;
     private final ChallengeProgressRepository challengeProgressRepository;
+    private final ChallengeQuestionAssignmentRepository challengeQuestionAssignmentRepository;
 
     public EnhancedQuizService(
             QuizQuestionRepository quizQuestionRepository,
@@ -57,7 +60,8 @@ public class EnhancedQuizService extends QuizService {
             ChallengeProgressRepository challengeProgressRepository,
             QuizQuestionDTOEnricher dtoEnricher,
             WagerService wagerService,
-            BrainRingService brainRingService) {
+            BrainRingService brainRingService,
+            ChallengeQuestionAssignmentRepository challengeQuestionAssignmentRepository) {
 
         super(quizQuestionRepository, quizSessionRepository, quizRoundRepository,
                 challengeRepository, userRepository, mediaFileRepository, questRepository, gameService,
@@ -66,6 +70,7 @@ public class EnhancedQuizService extends QuizService {
         this.objectMapper = objectMapper;
         this.taskRepository = taskRepository;
         this.challengeProgressRepository = challengeProgressRepository;
+        this.challengeQuestionAssignmentRepository = challengeQuestionAssignmentRepository;
     }
 
 
@@ -193,6 +198,13 @@ public class EnhancedQuizService extends QuizService {
                 );
             } else {
                 log.info("No custom questions provided");
+            }
+
+            // Step 5b: Save selected existing question assignments
+            if (request.getSelectedQuestionIds() != null && !request.getSelectedQuestionIds().isEmpty()) {
+                log.info("Assigning {} existing questions to challenge {}",
+                        request.getSelectedQuestionIds().size(), savedChallenge.getId());
+                assignExistingQuestionsToChallenge(savedChallenge, request.getSelectedQuestionIds());
             }
 
             // 6. Create initial task for the challenge
@@ -355,6 +367,34 @@ public class EnhancedQuizService extends QuizService {
         return questions;
     }
 
+    private void assignExistingQuestionsToChallenge(Challenge challenge, List<Long> questionIds) {
+        List<QuizQuestion> existingQuestions = quizQuestionRepository.findAllById(questionIds);
+
+        if (existingQuestions.isEmpty()) {
+            log.warn("None of the provided question IDs were found: {}", questionIds);
+            return;
+        }
+
+        if (existingQuestions.size() < questionIds.size()) {
+            log.warn("Some question IDs were not found. Requested: {}, Found: {}",
+                    questionIds.size(), existingQuestions.size());
+        }
+
+        List<ChallengeQuestionAssignment> assignments = new ArrayList<>();
+        for (int i = 0; i < existingQuestions.size(); i++) {
+            ChallengeQuestionAssignment assignment = ChallengeQuestionAssignment.builder()
+                    .challenge(challenge)
+                    .question(existingQuestions.get(i))
+                    .sortOrder(i)
+                    .build();
+            assignments.add(assignment);
+        }
+
+        challengeQuestionAssignmentRepository.saveAll(assignments);
+        log.info("Successfully assigned {} questions to challenge {}",
+                assignments.size(), challenge.getId());
+    }
+
 
     /**
      * Get quiz questions for a challenge (user questions + app questions if needed)
@@ -363,27 +403,47 @@ public class EnhancedQuizService extends QuizService {
         Challenge challenge = challengeRepository.findById(challengeId)
                 .orElseThrow(() -> new IllegalArgumentException("Challenge not found"));
 
-        // First, try to get user-created questions for this challenge
-        List<QuizQuestion> userQuestions = quizQuestionRepository
+        List<QuizQuestionDTO> questions = new ArrayList<>();
+
+        // Priority 1: Get assigned existing questions from junction table
+        List<QuizQuestion> assignedQuestions = challengeQuestionAssignmentRepository
+                .findQuestionsByChallengeId(challengeId);
+
+        if (!assignedQuestions.isEmpty()) {
+            log.info("Found {} assigned questions for challenge {}", assignedQuestions.size(), challengeId);
+            questions.addAll(assignedQuestions.stream()
+                    .map(QuizQuestionMapper.INSTANCE::toDTO)
+                    .collect(Collectors.toList()));
+        }
+
+        // Priority 2: Get inline-created questions for this challenge
+        List<QuizQuestion> inlineQuestions = quizQuestionRepository
                 .findByCreator_IdAndSourceContaining(
                         challenge.getCreator().getId(),
                         "USER_CREATED_FOR_CHALLENGE_" + challengeId);
 
-        List<QuizQuestionDTO> questions = userQuestions.stream()
-                .map(QuizQuestionMapper.INSTANCE::toDTO)
-                .collect(Collectors.toList());
+        if (!inlineQuestions.isEmpty()) {
+            log.info("Found {} inline-created questions for challenge {}", inlineQuestions.size(), challengeId);
+            // Avoid duplicates (question might be both assigned AND inline-created)
+            Set<Long> existingIds = questions.stream()
+                    .map(QuizQuestionDTO::getId)
+                    .collect(Collectors.toSet());
 
-        // If we don't have enough user questions, supplement with app questions
-        if (questions.size() < count) {
+            inlineQuestions.stream()
+                    .filter(q -> !existingIds.contains(q.getId()))
+                    .map(QuizQuestionMapper.INSTANCE::toDTO)
+                    .forEach(questions::add);
+        }
+
+        // Priority 3: Supplement with random app questions ONLY if we have zero questions
+        if (questions.isEmpty()) {
+            log.warn("No assigned/inline questions found for challenge {}, falling back to app questions", challengeId);
             int remainingCount = count - questions.size();
             List<QuizQuestion> appQuestions = quizQuestionRepository
                     .findByDifficulty(difficulty, PageRequest.of(0, remainingCount));
-
-            List<QuizQuestionDTO> appQuestionDTOs = appQuestions.stream()
+            questions.addAll(appQuestions.stream()
                     .map(QuizQuestionMapper.INSTANCE::toDTO)
-                    .collect(Collectors.toList());
-
-            questions.addAll(appQuestionDTOs);
+                    .collect(Collectors.toList()));
         }
 
         return questions;
