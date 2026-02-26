@@ -204,7 +204,7 @@ public class EnhancedQuizService extends QuizService {
             if (request.getSelectedQuestionIds() != null && !request.getSelectedQuestionIds().isEmpty()) {
                 log.info("Assigning {} existing questions to challenge {}",
                         request.getSelectedQuestionIds().size(), savedChallenge.getId());
-                assignExistingQuestionsToChallenge(savedChallenge, request.getSelectedQuestionIds());
+                assignSelectedQuestions(savedChallenge, request.getSelectedQuestionIds(), creator);
             }
 
             // 6. Create initial task for the challenge
@@ -356,6 +356,16 @@ public class EnhancedQuizService extends QuizService {
                 log.debug("Saved question ID: {} - {}", savedQuestion.getId(),
                         savedQuestion.getQuestion().substring(0, Math.min(50, savedQuestion.getQuestion().length())));
 
+                // Create the assignment record
+                ChallengeQuestionAssignment assignment = ChallengeQuestionAssignment.builder()
+                        .challenge(challengeRepository.getReferenceById(challengeId))
+                        .question(savedQuestion)
+                        .assignmentType(AssignmentType.CREATED_INLINE)
+                        .sortOrder(questions.size()) // use current size as sort order
+                        .assignedBy(creator)
+                        .build();
+                challengeQuestionAssignmentRepository.save(assignment);
+
                 questions.add(QuizQuestionMapper.INSTANCE.toDTO(savedQuestion));
             } catch (Exception e) {
                 log.error("Error saving question: {}", questionRequest.getQuestion(), e);
@@ -367,11 +377,11 @@ public class EnhancedQuizService extends QuizService {
         return questions;
     }
 
-    private void assignExistingQuestionsToChallenge(Challenge challenge, List<Long> questionIds) {
+    private void assignSelectedQuestions(Challenge challenge, List<Long> questionIds, User assignedBy) {
         List<QuizQuestion> existingQuestions = quizQuestionRepository.findAllById(questionIds);
 
         if (existingQuestions.isEmpty()) {
-            log.warn("None of the provided question IDs were found: {}", questionIds);
+            log.warn("None of the provided question IDs were found for challenge {}: {}", challenge.getId(), questionIds);
             return;
         }
 
@@ -382,71 +392,69 @@ public class EnhancedQuizService extends QuizService {
 
         List<ChallengeQuestionAssignment> assignments = new ArrayList<>();
         for (int i = 0; i < existingQuestions.size(); i++) {
-            ChallengeQuestionAssignment assignment = ChallengeQuestionAssignment.builder()
+            // Skip if already assigned (e.g., question was both selected AND created inline)
+            if (challengeQuestionAssignmentRepository.existsByChallengeIdAndQuestionId(
+                    challenge.getId(), existingQuestions.get(i).getId())) {
+                log.debug("Question {} already assigned to challenge {}, skipping",
+                        existingQuestions.get(i).getId(), challenge.getId());
+                continue;
+            }
+
+            assignments.add(ChallengeQuestionAssignment.builder()
                     .challenge(challenge)
                     .question(existingQuestions.get(i))
+                    .assignmentType(AssignmentType.SELECTED)
                     .sortOrder(i)
-                    .build();
-            assignments.add(assignment);
+                    .assignedBy(assignedBy)
+                    .build());
         }
 
-        challengeQuestionAssignmentRepository.saveAll(assignments);
-        log.info("Successfully assigned {} questions to challenge {}",
-                assignments.size(), challenge.getId());
+        if (!assignments.isEmpty()) {
+            challengeQuestionAssignmentRepository.saveAll(assignments);
+            log.info("Successfully assigned {} SELECTED questions to challenge {}",
+                    assignments.size(), challenge.getId());
+        }
     }
 
 
     /**
-     * Get quiz questions for a challenge (user questions + app questions if needed)
+     * Get questions for a challenge using the junction table.
+     * Priority: junction table → legacy challenge_id lookup → random fallback
      */
     public List<QuizQuestionDTO> getQuestionsForChallenge(Long challengeId, QuizDifficulty difficulty, int count) {
-        Challenge challenge = challengeRepository.findById(challengeId)
+        challengeRepository.findById(challengeId)
                 .orElseThrow(() -> new IllegalArgumentException("Challenge not found"));
 
-        List<QuizQuestionDTO> questions = new ArrayList<>();
-
-        // Priority 1: Get assigned existing questions from junction table
+        // PRIMARY: Get questions from junction table (all assignment types)
         List<QuizQuestion> assignedQuestions = challengeQuestionAssignmentRepository
                 .findQuestionsByChallengeId(challengeId);
 
         if (!assignedQuestions.isEmpty()) {
-            log.info("Found {} assigned questions for challenge {}", assignedQuestions.size(), challengeId);
-            questions.addAll(assignedQuestions.stream()
+            log.info("Found {} assigned questions for challenge {} via junction table",
+                    assignedQuestions.size(), challengeId);
+            return assignedQuestions.stream()
                     .map(QuizQuestionMapper.INSTANCE::toDTO)
-                    .collect(Collectors.toList()));
+                    .collect(Collectors.toList());
         }
 
-        // Priority 2: Get inline-created questions for this challenge
-        List<QuizQuestion> inlineQuestions = quizQuestionRepository
-                .findByCreator_IdAndSourceContaining(
-                        challenge.getCreator().getId(),
-                        "USER_CREATED_FOR_CHALLENGE_" + challengeId);
-
-        if (!inlineQuestions.isEmpty()) {
-            log.info("Found {} inline-created questions for challenge {}", inlineQuestions.size(), challengeId);
-            // Avoid duplicates (question might be both assigned AND inline-created)
-            Set<Long> existingIds = questions.stream()
-                    .map(QuizQuestionDTO::getId)
-                    .collect(Collectors.toSet());
-
-            inlineQuestions.stream()
-                    .filter(q -> !existingIds.contains(q.getId()))
+        // LEGACY FALLBACK: Check old challenge_id lookup (via source string pattern)
+        log.warn("No junction table entries for challenge {}. Checking legacy lookup.", challengeId);
+        List<QuizQuestion> legacyQuestions = quizQuestionRepository.findByChallengeId(challengeId);
+        if (!legacyQuestions.isEmpty()) {
+            log.info("Found {} questions via legacy lookup for challenge {}",
+                    legacyQuestions.size(), challengeId);
+            return legacyQuestions.stream()
                     .map(QuizQuestionMapper.INSTANCE::toDTO)
-                    .forEach(questions::add);
+                    .collect(Collectors.toList());
         }
 
-        // Priority 3: Supplement with random app questions ONLY if we have zero questions
-        if (questions.isEmpty()) {
-            log.warn("No assigned/inline questions found for challenge {}, falling back to app questions", challengeId);
-            int remainingCount = count - questions.size();
-            List<QuizQuestion> appQuestions = quizQuestionRepository
-                    .findByDifficulty(difficulty, PageRequest.of(0, remainingCount));
-            questions.addAll(appQuestions.stream()
-                    .map(QuizQuestionMapper.INSTANCE::toDTO)
-                    .collect(Collectors.toList()));
-        }
-
-        return questions;
+        // FINAL FALLBACK: Random app questions (only if nothing else found)
+        log.warn("No questions found for challenge {} via any method. Falling back to random.", challengeId);
+        List<QuizQuestion> appQuestions = quizQuestionRepository
+                .findByDifficulty(difficulty, PageRequest.of(0, count));
+        return appQuestions.stream()
+                .map(QuizQuestionMapper.INSTANCE::toDTO)
+                .collect(Collectors.toList());
     }
 
     /**

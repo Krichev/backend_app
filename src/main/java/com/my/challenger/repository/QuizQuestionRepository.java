@@ -357,4 +357,7 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
     List<QuizQuestion> findByCreator_IdAndIsUserCreatedTrueOrderByCreatedAtDesc(Long userId);
 
     long countByDifficulty(QuizDifficulty difficulty);
+
+    @Query("SELECT q FROM QuizQuestion q WHERE q.source LIKE CONCAT('USER_CREATED_FOR_CHALLENGE_', :challengeId)")
+    List<QuizQuestion> findByChallengeId(@Param("challengeId") Long challengeId);
 }
