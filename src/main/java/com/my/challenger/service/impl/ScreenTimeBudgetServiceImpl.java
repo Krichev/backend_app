@@ -29,6 +29,7 @@ public class ScreenTimeBudgetServiceImpl implements ScreenTimeBudgetService {
 
     private final ScreenTimeBudgetRepository screenTimeBudgetRepository;
     private final UserRepository userRepository;
+    private final com.my.challenger.repository.UserParentalSettingsRepository parentalRepository;
 
     @Override
     @Transactional
@@ -81,6 +82,11 @@ public class ScreenTimeBudgetServiceImpl implements ScreenTimeBudgetService {
         if (minutes <= 0) return getOrCreateBudget(userId);
 
         ScreenTimeBudget budget = getBudgetEntity(userId);
+        
+        if (!Boolean.TRUE.equals(budget.getScreenTimeEnabled())) {
+            return convertToDTO(budget);
+        }
+
         checkAndPerformDailyReset(budget);
 
         if (budget.isFullyLocked()) {
@@ -106,8 +112,10 @@ public class ScreenTimeBudgetServiceImpl implements ScreenTimeBudgetService {
     @Override
     @Transactional
     public ScreenTimeBudgetDTO syncUsage(Long userId, SyncTimeRequest request) {
-        // Similar to deduct but idempotent-ish or cumulative? 
-        // Usually sync sends "used since last sync". Treating it as deduct.
+        ScreenTimeBudget budget = getBudgetEntity(userId);
+        if (!Boolean.TRUE.equals(budget.getScreenTimeEnabled())) {
+            return convertToDTO(budget);
+        }
         return deductTime(userId, request.getUsedMinutes());
     }
 
@@ -115,21 +123,8 @@ public class ScreenTimeBudgetServiceImpl implements ScreenTimeBudgetService {
     @Transactional(readOnly = true)
     public ScreenTimeStatusDTO getStatus(Long userId) {
         ScreenTimeBudget budget = screenTimeBudgetRepository.findByUserId(userId)
-                .orElseGet(() -> createDefaultBudget(userId)); // Creating inside read-only tx might be issue if not exists
+                .orElseGet(() -> createDefaultBudget(userId)); 
         
-        // Better to separate or handle properly. 
-        // If we want to strictly follow read-only, we shouldn't create.
-        // But for UX, let's assume getOrCreate logic is fine or we handle creation separately.
-        // Let's use getOrCreateBudget logic which is transactional.
-        // Actually, let's just use the repo directly if we want to avoid creation side-effect in GET if possible, 
-        // but requirement says "ResourceNotFoundException: When budget doesn't exist (should auto-create)".
-        
-        // Since this method is read-only, we can't save the new budget if it doesn't exist.
-        // So we should probably remove readOnly=true or delegate.
-        // I will allow write here to support auto-creation.
-        
-        // Actually, I'll just remove @Transactional(readOnly=true) from this method 
-        // and rely on getOrCreateBudget which is Transactional.
         return convertToStatusDTO(getOrCreateBudget(userId));
     }
 
@@ -140,12 +135,6 @@ public class ScreenTimeBudgetServiceImpl implements ScreenTimeBudgetService {
         checkAndPerformDailyReset(budget);
 
         int available = budget.getAvailableMinutes();
-        int toLock = Math.min(available, minutes); 
-        // If minutes > available, we lock what we can? 
-        // Requirement: "Lock: Move time from available to locked"
-        // If they don't have enough available, we lock what they have, and maybe "debt" logic?
-        // Requirement says "InsufficientScreenTimeException: When trying to deduct/lock more than available"
-        // So we throw.
         
         if (available < minutes) {
             throw new InsufficientScreenTimeException("Cannot lock " + minutes + " minutes. Available: " + available);
@@ -162,7 +151,6 @@ public class ScreenTimeBudgetServiceImpl implements ScreenTimeBudgetService {
     @Transactional
     public void unlockTime(Long userId, int minutes) {
         ScreenTimeBudget budget = getBudgetEntity(userId);
-        // checkAndPerformDailyReset(budget); // Reset shouldn't affect locked time logic usually, but good to keep consistent.
         
         if (budget.getLockedMinutes() < minutes) {
             log.warn("Attempting to unlock more minutes than locked. User: {}, Locked: {}, Unlock: {}", 
@@ -184,7 +172,6 @@ public class ScreenTimeBudgetServiceImpl implements ScreenTimeBudgetService {
         checkAndPerformDailyReset(budget);
 
         int available = budget.getAvailableMinutes();
-        // Even if available is 0, we track the loss
         int effectiveDeduction = Math.min(available, minutes);
         
         budget.setAvailableMinutes(available - effectiveDeduction);
@@ -217,9 +204,120 @@ public class ScreenTimeBudgetServiceImpl implements ScreenTimeBudgetService {
         log.info("Completed daily reset of screen time budgets");
     }
 
+    @Override
+    @Transactional
+    public ScreenTimeBudgetDTO toggleScreenTime(Long userId, Long callerId, boolean enabled) {
+        ScreenTimeBudget budget = getBudgetEntity(userId);
+        validateTogglePermission(budget, callerId);
+        
+        budget.setScreenTimeEnabled(enabled);
+        ScreenTimeBudget saved = screenTimeBudgetRepository.save(budget);
+        
+        log.info("SCREEN_TIME_AUDIT userId={} action=TOGGLE_ENABLED enabled={} calledBy={}", 
+                userId, enabled, callerId);
+                
+        return convertToDTO(saved);
+    }
+
+    @Override
+    @Transactional
+    public ScreenTimeBudgetDTO delegateControl(Long userId, Long controllerUserId) {
+        if (userId.equals(controllerUserId)) {
+            throw new IllegalArgumentException("Cannot delegate control to yourself");
+        }
+        
+        User controller = userRepository.findById(controllerUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Controller user not found"));
+                
+        ScreenTimeBudget budget = getBudgetEntity(userId);
+        budget.setScreenTimeControlledBy(controller);
+        budget.setScreenTimeControlLocked(true);
+        
+        ScreenTimeBudget saved = screenTimeBudgetRepository.save(budget);
+        log.info("SCREEN_TIME_AUDIT userId={} action=DELEGATE_CONTROL controllerId={}", userId, controllerUserId);
+        
+        return convertToDTO(saved);
+    }
+
+    @Override
+    @Transactional
+    public ScreenTimeBudgetDTO releaseControl(Long targetUserId, Long callerId) {
+        ScreenTimeBudget budget = getBudgetEntity(targetUserId);
+        
+        if (budget.getScreenTimeControlledBy() == null || !budget.getScreenTimeControlledBy().getId().equals(callerId)) {
+            throw new com.my.challenger.exception.UnauthorizedException("Only the current controller can release control");
+        }
+        
+        budget.setScreenTimeControlledBy(null);
+        budget.setScreenTimeControlLocked(false);
+        
+        ScreenTimeBudget saved = screenTimeBudgetRepository.save(budget);
+        log.info("SCREEN_TIME_AUDIT userId={} action=RELEASE_CONTROL targetUserId={} releasedBy={}", 
+                targetUserId, targetUserId, callerId);
+                
+        return convertToDTO(saved);
+    }
+
+    @Override
+    @Transactional
+    public ScreenTimeBudgetDTO toggleForControlledUser(Long targetUserId, Long callerId, boolean enabled) {
+        ScreenTimeBudget budget = getBudgetEntity(targetUserId);
+        
+        boolean isController = budget.getScreenTimeControlledBy() != null && budget.getScreenTimeControlledBy().getId().equals(callerId);
+        boolean isParent = false;
+        
+        var parentalSettings = parentalRepository.findByUserId(targetUserId).orElse(null);
+        if (parentalSettings != null && Boolean.TRUE.equals(parentalSettings.getIsChildAccount()) && callerId.equals(parentalSettings.getParentUserId())) {
+            isParent = true;
+        }
+        
+        if (!isController && !isParent) {
+            throw new com.my.challenger.exception.UnauthorizedException("Only the controller or parent can toggle screen time for this user");
+        }
+        
+        budget.setScreenTimeEnabled(enabled);
+        ScreenTimeBudget saved = screenTimeBudgetRepository.save(budget);
+        
+        log.info("SCREEN_TIME_AUDIT userId={} action=CONTROLLED_TOGGLE enabled={} calledBy={}", 
+                targetUserId, enabled, callerId);
+                
+        return convertToDTO(saved);
+    }
+
+    private void validateTogglePermission(ScreenTimeBudget budget, Long callerId) {
+        if (Boolean.TRUE.equals(budget.getScreenTimeControlLocked())) {
+            if (budget.getScreenTimeControlledBy() != null && !budget.getScreenTimeControlledBy().getId().equals(callerId)) {
+                // Also check if caller is parent
+                var parentalSettings = parentalRepository.findByUserId(budget.getUser().getId()).orElse(null);
+                if (parentalSettings != null && Boolean.TRUE.equals(parentalSettings.getIsChildAccount()) && callerId.equals(parentalSettings.getParentUserId())) {
+                    return; // Parent has permission
+                }
+                throw new com.my.challenger.exception.UnauthorizedException("Screen time control is locked. Only the controller or parent can change it.");
+            }
+        }
+    }
+
     private ScreenTimeBudget getBudgetEntity(Long userId) {
-        return screenTimeBudgetRepository.findByUserId(userId)
+        ScreenTimeBudget budget = screenTimeBudgetRepository.findByUserId(userId)
                 .orElseGet(() -> createDefaultBudget(userId));
+        
+        // Auto-unlock if controller is gone
+        if (Boolean.TRUE.equals(budget.getScreenTimeControlLocked()) && budget.getScreenTimeControlledBy() == null) {
+            // Check if it's a child account, if so we might need to find current parent
+            var parentalSettings = parentalRepository.findByUserId(userId).orElse(null);
+            if (parentalSettings != null && Boolean.TRUE.equals(parentalSettings.getIsChildAccount()) && parentalSettings.getParentUserId() != null) {
+                userRepository.findById(parentalSettings.getParentUserId()).ifPresent(parent -> {
+                    budget.setScreenTimeControlledBy(parent);
+                    screenTimeBudgetRepository.save(budget);
+                });
+            } else {
+                budget.setScreenTimeControlLocked(false);
+                screenTimeBudgetRepository.save(budget);
+                log.info("SCREEN_TIME_AUDIT userId={} action=AUTO_UNLOCK reason=CONTROLLER_NULL", userId);
+            }
+        }
+        
+        return budget;
     }
 
     private ScreenTimeBudget createDefaultBudget(Long userId) {
@@ -237,17 +335,19 @@ public class ScreenTimeBudgetServiceImpl implements ScreenTimeBudgetService {
                 .totalWonMinutes(0L)
                 .lastResetDate(LocalDate.now())
                 .timezone("UTC")
+                .screenTimeEnabled(true)
+                .screenTimeControlLocked(false)
                 .build();
         
         return screenTimeBudgetRepository.save(budget);
     }
 
     private void checkAndPerformDailyReset(ScreenTimeBudget budget) {
+        if (!Boolean.TRUE.equals(budget.getScreenTimeEnabled())) {
+            return;
+        }
+
         LocalDate today = LocalDate.now(); 
-        // Ideally use user's timezone for "today", but simple requirement implies daily reset logic.
-        // Requirement: "Budget resets daily at midnight (user's timezone or UTC)"
-        // Let's stick to UTC or server date for simplicity unless we do complex timezone logic here.
-        // Implementation:
         
         if (budget.getLastResetDate().isBefore(today)) {
             // Reset logic
@@ -255,21 +355,6 @@ public class ScreenTimeBudgetServiceImpl implements ScreenTimeBudgetService {
             budget.setLostTodayMinutes(0);
             budget.setWonTodayMinutes(0);
             budget.setLastResetDate(today);
-            // Locked minutes persist across days? Typically yes.
-            
-            // Note: If we just reset available to dailyBudget, we overwrite any carry-over debt.
-            // Requirement 4: "Lost time carries over as a 'debt' if user has insufficient available time"
-            // The loseTime implementation deducted from available (clamped at 0). 
-            // It didn't store negative available. 
-            // If we want debt, we should allow available < 0 or store debt separately.
-            // The entity `available_minutes` constraint `CHECK (available_minutes >= 0)` prevents negative.
-            // So "debt" must be implied or we need another field.
-            // Requirement says "Lost time carries over...". 
-            // For now, let's assume the daily reset wipes clean to the budget, 
-            // OR we reduce the new day's budget by previous day's unmet obligations.
-            // Given the complexity and current schema, I will stick to simple reset.
-            // If debt tracking is strictly required, I'd need a `debt_minutes` column.
-            // Since migration is already written without it, I will proceed with simple reset.
         }
     }
 
@@ -284,6 +369,10 @@ public class ScreenTimeBudgetServiceImpl implements ScreenTimeBudgetService {
                 .totalWonMinutes(budget.getTotalWonMinutes())
                 .totalLostMinutes(budget.getTotalLostMinutes())
                 .lastResetDate(budget.getLastResetDate().toString())
+                .screenTimeEnabled(Boolean.TRUE.equals(budget.getScreenTimeEnabled()))
+                .controlledBy(budget.getScreenTimeControlledBy() != null ? budget.getScreenTimeControlledBy().getId() : null)
+                .controllerUsername(budget.getScreenTimeControlledBy() != null ? budget.getScreenTimeControlledBy().getUsername() : null)
+                .controlLocked(Boolean.TRUE.equals(budget.getScreenTimeControlLocked()))
                 .createdAt(budget.getCreatedAt())
                 .updatedAt(budget.getUpdatedAt())
                 .build();

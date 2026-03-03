@@ -61,6 +61,39 @@ public class ScreenTimeController {
         return ResponseEntity.ok(screenTimeBudgetService.getStatus(user.getId()));
     }
 
+    @PutMapping("/budget/toggle")
+    public ResponseEntity<ScreenTimeBudgetDTO> toggleScreenTime(
+            @Valid @RequestBody ToggleScreenTimeRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        User user = getUserFromUserDetails(userDetails);
+        return ResponseEntity.ok(screenTimeBudgetService.toggleScreenTime(user.getId(), user.getId(), request.getEnabled()));
+    }
+
+    @PostMapping("/budget/delegate-control")
+    public ResponseEntity<ScreenTimeBudgetDTO> delegateControl(
+            @Valid @RequestBody DelegateControlRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        User user = getUserFromUserDetails(userDetails);
+        return ResponseEntity.ok(screenTimeBudgetService.delegateControl(user.getId(), request.getControllerUserId()));
+    }
+
+    @PostMapping("/budget/{userId}/release-control")
+    public ResponseEntity<ScreenTimeBudgetDTO> releaseControl(
+            @PathVariable Long userId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        User caller = getUserFromUserDetails(userDetails);
+        return ResponseEntity.ok(screenTimeBudgetService.releaseControl(userId, caller.getId()));
+    }
+
+    @PutMapping("/budget/{userId}/toggle")
+    public ResponseEntity<ScreenTimeBudgetDTO> toggleForControlledUser(
+            @PathVariable Long userId,
+            @Valid @RequestBody ToggleScreenTimeRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        User caller = getUserFromUserDetails(userDetails);
+        return ResponseEntity.ok(screenTimeBudgetService.toggleForControlledUser(userId, caller.getId(), request.getEnabled()));
+    }
+
     private User getUserFromUserDetails(UserDetails userDetails) {
         if (userDetails == null) {
             throw new IllegalArgumentException("User not authenticated");

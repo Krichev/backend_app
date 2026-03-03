@@ -21,6 +21,10 @@ public class ScreenTimeBudgetDTO {
     private Long totalWonMinutes;
     private Long totalLostMinutes;
     private String lastResetDate; // ISO date string
+    private boolean screenTimeEnabled;
+    private Long controlledBy;
+    private String controllerUsername;
+    private boolean controlLocked;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

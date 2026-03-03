@@ -65,6 +65,18 @@ public class ScreenTimeBudget {
     @Builder.Default
     private String timezone = "UTC";
 
+    @Column(name = "screen_time_enabled", nullable = false)
+    @Builder.Default
+    private Boolean screenTimeEnabled = true;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "screen_time_controlled_by")
+    private User screenTimeControlledBy;
+
+    @Column(name = "screen_time_control_locked", nullable = false)
+    @Builder.Default
+    private Boolean screenTimeControlLocked = false;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

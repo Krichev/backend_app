@@ -23,4 +23,12 @@ public interface ScreenTimeBudgetService {
     void winTime(Long userId, int minutes);
 
     void resetDailyBudgets();
+
+    ScreenTimeBudgetDTO toggleScreenTime(Long userId, Long callerId, boolean enabled);
+
+    ScreenTimeBudgetDTO delegateControl(Long userId, Long controllerUserId);
+
+    ScreenTimeBudgetDTO releaseControl(Long targetUserId, Long callerId);
+
+    ScreenTimeBudgetDTO toggleForControlledUser(Long targetUserId, Long callerId, boolean enabled);
 }

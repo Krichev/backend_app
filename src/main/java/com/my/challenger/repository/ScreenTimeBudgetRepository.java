@@ -23,13 +23,13 @@ public interface ScreenTimeBudgetRepository extends JpaRepository<ScreenTimeBudg
     @Modifying
     @Query("UPDATE ScreenTimeBudget s SET s.availableMinutes = s.dailyBudgetMinutes, " +
             "s.lostTodayMinutes = 0, s.wonTodayMinutes = 0, s.lastResetDate = :date " +
-            "WHERE s.lastResetDate < :date")
+            "WHERE s.lastResetDate < :date AND s.screenTimeEnabled = TRUE")
     void resetDailyBudgets(@Param("date") LocalDate date);
 
     /**
      * Find users by timezone who need reset (lastResetDate before given date)
      */
-    @Query("SELECT s FROM ScreenTimeBudget s WHERE s.timezone = :timezone AND s.lastResetDate < :today")
+    @Query("SELECT s FROM ScreenTimeBudget s WHERE s.timezone = :timezone AND s.lastResetDate < :today AND s.screenTimeEnabled = TRUE")
     List<ScreenTimeBudget> findByTimezoneNeedingReset(
         @Param("timezone") String timezone, 
         @Param("today") LocalDate today,
@@ -39,7 +39,7 @@ public interface ScreenTimeBudgetRepository extends JpaRepository<ScreenTimeBudg
     /**
      * Count users by timezone needing reset
      */
-    @Query("SELECT COUNT(s) FROM ScreenTimeBudget s WHERE s.timezone = :timezone AND s.lastResetDate < :today")
+    @Query("SELECT COUNT(s) FROM ScreenTimeBudget s WHERE s.timezone = :timezone AND s.lastResetDate < :today AND s.screenTimeEnabled = TRUE")
     long countByTimezoneNeedingReset(
         @Param("timezone") String timezone, 
         @Param("today") LocalDate today
@@ -48,7 +48,7 @@ public interface ScreenTimeBudgetRepository extends JpaRepository<ScreenTimeBudg
     /**
      * Get distinct timezones with users needing reset
      */
-    @Query("SELECT DISTINCT s.timezone FROM ScreenTimeBudget s WHERE s.lastResetDate < :today")
+    @Query("SELECT DISTINCT s.timezone FROM ScreenTimeBudget s WHERE s.lastResetDate < :today AND s.screenTimeEnabled = TRUE")
     List<String> findDistinctTimezonesNeedingReset(@Param("today") LocalDate today);
 
     /**
@@ -61,6 +61,6 @@ public interface ScreenTimeBudgetRepository extends JpaRepository<ScreenTimeBudg
            "s.wonTodayMinutes = 0, " +
            "s.lastResetDate = :today, " +
            "s.updatedAt = CURRENT_TIMESTAMP " +
-           "WHERE s.id IN :ids AND s.lastResetDate < :today")
+           "WHERE s.id IN :ids AND s.lastResetDate < :today AND s.screenTimeEnabled = TRUE")
     int bulkResetBudgets(@Param("ids") List<Long> ids, @Param("today") LocalDate today);
 }

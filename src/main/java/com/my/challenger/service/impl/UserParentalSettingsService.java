@@ -28,6 +28,7 @@ public class UserParentalSettingsService {
 
     private final UserParentalSettingsRepository parentalRepository;
     private final UserRepository userRepository;
+    private final com.my.challenger.repository.ScreenTimeBudgetRepository screenTimeBudgetRepository;
     private final PasswordEncoder passwordEncoder;
     private final ObjectMapper objectMapper;
 
@@ -139,6 +140,25 @@ public class UserParentalSettingsService {
         parentalRepository.save(childSettings);
         log.info("Successfully linked child {} to parent {}", request.getChildUserId(), parentUserId);
 
+        // Update screen time control
+        try {
+            var budget = screenTimeBudgetRepository.findByUserId(request.getChildUserId())
+                .orElseGet(() -> {
+                    var childUser = userRepository.findById(request.getChildUserId()).orElseThrow();
+                    return screenTimeBudgetRepository.save(com.my.challenger.entity.ScreenTimeBudget.builder()
+                        .user(childUser)
+                        .dailyBudgetMinutes(180)
+                        .availableMinutes(180)
+                        .lastResetDate(java.time.LocalDate.now())
+                        .build());
+                });
+            budget.setScreenTimeControlledBy(parent);
+            budget.setScreenTimeControlLocked(true);
+            screenTimeBudgetRepository.save(budget);
+        } catch (Exception e) {
+            log.error("Failed to set screen time control for linked child account: {}", e.getMessage());
+        }
+
         return toChildDTO(child, childSettings);
     }
 
@@ -165,6 +185,19 @@ public class UserParentalSettingsService {
 
         parentalRepository.save(childSettings);
         log.info("Successfully unlinked child {} from parent {}", childUserId, parentUserId);
+
+        // Release screen time control
+        try {
+            screenTimeBudgetRepository.findByUserId(childUserId).ifPresent(budget -> {
+                if (budget.getScreenTimeControlledBy() != null && budget.getScreenTimeControlledBy().getId().equals(parentUserId)) {
+                    budget.setScreenTimeControlledBy(null);
+                    budget.setScreenTimeControlLocked(false);
+                    screenTimeBudgetRepository.save(budget);
+                }
+            });
+        } catch (Exception e) {
+            log.error("Failed to release screen time control for unlinked child account: {}", e.getMessage());
+        }
     }
 
     /**
