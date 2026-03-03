@@ -44,6 +44,7 @@ public class QuestionResponseDTO {
     private Integer rhythmBpm;
     private String rhythmTimeSignature;
     private String audioChallengeConfig;
+    private Integer timeLimitSeconds;
 
     // User creation tracking
     private Boolean isUserCreated;

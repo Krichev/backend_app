@@ -1,5 +1,7 @@
 // QuizChallengeConfig.java
 package com.my.challenger.dto.quiz;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.my.challenger.entity.enums.GameMode;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import com.my.challenger.entity.enums.ResultSharingPolicy;
 import lombok.AllArgsConstructor;
@@ -14,6 +16,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class QuizChallengeConfig {
     // Existing fields
     private QuizDifficulty defaultDifficulty;
@@ -28,6 +31,8 @@ public class QuizChallengeConfig {
     private String teamName;  // Team name for quiz
     private List<String> teamMembers;  // List of team member names
     private Boolean teamBased;  // Whether it's team-based
+    private GameMode gameMode;          // e.g., STANDARD, BRAIN_RING
+    private Integer answerTimeSeconds;  // per-answer time limit (default 20 on frontend)
 
     // Participation settings
     private Integer maxParticipants;           // null = unlimited

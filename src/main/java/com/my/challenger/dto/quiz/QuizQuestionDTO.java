@@ -68,6 +68,8 @@ public class QuizQuestionDTO {
     private String rhythmTimeSignature;
     private String audioChallengeConfig;
 
+    private Integer timeLimitSeconds;
+
     // User creation tracking
     private Boolean isUserCreated;
     private Long creatorId;

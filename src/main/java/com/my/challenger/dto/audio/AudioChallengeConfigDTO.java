@@ -44,6 +44,11 @@ public class AudioChallengeConfigDTO {
     @Schema(description = "Time signature for rhythm challenges", example = "4/4")
     private String rhythmTimeSignature;
 
+    @Min(10)
+    @Max(600)
+    @Schema(description = "Per-question time limit in seconds", example = "120")
+    private Integer timeLimitSeconds;
+
     @Schema(description = "Additional JSON configuration")
     private String additionalConfig;
 }

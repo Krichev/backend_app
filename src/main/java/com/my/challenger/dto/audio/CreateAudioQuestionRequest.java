@@ -56,4 +56,9 @@ public class CreateAudioQuestionRequest {
 
     @Schema(description = "Time signature for rhythm challenges")
     private String rhythmTimeSignature;
+
+    @jakarta.validation.constraints.Min(10)
+    @jakarta.validation.constraints.Max(600)
+    @Schema(description = "Per-question time limit in seconds")
+    private Integer timeLimitSeconds;
 }

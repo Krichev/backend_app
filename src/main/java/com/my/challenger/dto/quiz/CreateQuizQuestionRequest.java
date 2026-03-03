@@ -53,6 +53,10 @@ public class CreateQuizQuestionRequest {
     @Builder.Default
     private QuestionVisibility visibility = QuestionVisibility.PRIVATE;
 
+    @jakarta.validation.constraints.Min(10)
+    @jakarta.validation.constraints.Max(600)
+    private Integer timeLimitSeconds;
+
     /**
      * For QUIZ_ONLY visibility, specify the quiz/challenge ID
      */

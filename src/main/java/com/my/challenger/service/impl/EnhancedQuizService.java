@@ -578,6 +578,8 @@ public class EnhancedQuizService extends QuizService {
                 .teamName(sessionConfig.getTeamName())
                 .teamMembers(String.join(",", sessionConfig.getTeamMembers()))
                 .difficulty(sessionConfig.getDifficulty())
+                .gameMode(sessionConfig.getGameMode() != null ? sessionConfig.getGameMode() : GameMode.STANDARD)
+                .answerTimeSeconds(sessionConfig.getAnswerTimeSeconds() != null ? sessionConfig.getAnswerTimeSeconds() : 20)
                 .roundTimeSeconds(sessionConfig.getRoundTimeSeconds())
                 .totalRounds(sessionConfig.getTotalRounds())
                 .enableAiHost(sessionConfig.getEnableAiHost())
@@ -983,6 +985,19 @@ public class EnhancedQuizService extends QuizService {
                 sessionConfig.setTeamName(challengeConfig.getTeamName());
                 sessionConfig.setTeamMembers(challengeConfig.getTeamMembers() != null ?
                         challengeConfig.getTeamMembers() : new ArrayList<>());
+                
+                // Map NEW fields
+                if (challengeConfig.getGameMode() != null) {
+                    sessionConfig.setGameMode(challengeConfig.getGameMode());
+                } else {
+                    sessionConfig.setGameMode(GameMode.STANDARD);
+                }
+                
+                if (challengeConfig.getAnswerTimeSeconds() != null) {
+                    sessionConfig.setAnswerTimeSeconds(challengeConfig.getAnswerTimeSeconds());
+                } else {
+                    sessionConfig.setAnswerTimeSeconds(20);
+                }
             }
         } catch (Exception e) {
             log.error("Failed to parse quiz config from challenge", e);

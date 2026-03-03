@@ -170,6 +170,9 @@ public class QuizQuestion {
     @JdbcTypeCode(SqlTypes.JSON)
     private String audioChallengeConfig;
 
+    @Column(name = "time_limit_seconds")
+    private Integer timeLimitSeconds;
+
     // User creation tracking
     @Column(name = "is_user_created")
     @Builder.Default

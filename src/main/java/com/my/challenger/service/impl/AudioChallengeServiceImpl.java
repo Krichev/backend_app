@@ -114,6 +114,7 @@ public class AudioChallengeServiceImpl implements AudioChallengeService {
                 .visibility(request.getVisibility())
                 .topic(topic)
                 .additionalInfo(request.getAdditionalInfo())
+                .timeLimitSeconds(request.getTimeLimitSeconds())
                 .creator(creator)
                 .isUserCreated(true)
                 .build();
@@ -172,6 +173,11 @@ public class AudioChallengeServiceImpl implements AudioChallengeService {
         }
         if (config.getRhythmTimeSignature() != null) {
             question.setRhythmTimeSignature(config.getRhythmTimeSignature());
+        }
+
+        // Update time limit
+        if (config.getTimeLimitSeconds() != null) {
+            question.setTimeLimitSeconds(config.getTimeLimitSeconds());
         }
 
         QuizQuestion saved = questionRepository.save(question);
@@ -475,6 +481,7 @@ public class AudioChallengeServiceImpl implements AudioChallengeService {
                 .rhythmTimeSignature(question.getRhythmTimeSignature())
                 .difficulty(question.getDifficulty() != null ? question.getDifficulty().name() : null)
                 .topic(question.getTopicName())
+                .timeLimitSeconds(question.getTimeLimitSeconds())
                 .creatorId(question.getCreatorId())
                 .build();
     }

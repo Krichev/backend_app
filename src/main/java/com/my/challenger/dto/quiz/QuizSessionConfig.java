@@ -1,5 +1,6 @@
 package com.my.challenger.dto.quiz;
 
+import com.my.challenger.entity.enums.GameMode;
 import com.my.challenger.entity.enums.QuestionSource;
 import com.my.challenger.entity.enums.QuizDifficulty;
 import lombok.AllArgsConstructor;
@@ -25,4 +26,6 @@ public class QuizSessionConfig {
     private Boolean enableAiHost;
     private Boolean enableAiAnswerValidation;
     private QuestionSource questionSource;
+    private GameMode gameMode;
+    private Integer answerTimeSeconds;
 }

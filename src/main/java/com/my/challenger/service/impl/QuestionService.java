@@ -154,6 +154,7 @@ public class QuestionService {
                 .answerVideoStartTime(request.getAnswerVideoStartTime())
                 .answerVideoEndTime(request.getAnswerVideoEndTime())
                 .answerTextVerification(request.getAnswerTextVerification())
+                .timeLimitSeconds(request.getTimeLimitSeconds())
                 .build();
 
         QuizQuestion saved = quizQuestionRepository.save(question);
@@ -242,6 +243,7 @@ public class QuestionService {
                 .answerVideoStartTime(request.getAnswerVideoStartTime())
                 .answerVideoEndTime(request.getAnswerVideoEndTime())
                 .answerTextVerification(request.getAnswerTextVerification())
+                .timeLimitSeconds(request.getTimeLimitSeconds())
                 .build();
 
         // Set original quiz if QUIZ_ONLY
@@ -813,9 +815,13 @@ public class QuestionService {
     // =============================================================================
 
     protected QuizQuestionDTO convertQuestionToDTO(QuizQuestion question) {
-        log.debug("Converting question {} - questionType={}, audioChallengeType={}",
+        log.info("Converting question {} - questionType={}, audioChallengeType={}",
                 question.getId(), question.getQuestionType(), question.getAudioChallengeType());
-        return dtoEnricher.enrichWithUrls(QuizQuestionMapper.INSTANCE.toDTO(question));
+        QuizQuestionDTO dto = QuizQuestionMapper.INSTANCE.toDTO(question);
+        log.info("DTO result for question {} - questionType={}, audioChallengeType={}, questionMediaUrl={}",
+                dto.getId(), dto.getQuestionType(), dto.getAudioChallengeType(),
+                dto.getQuestionMediaUrl() != null ? "SET" : "NULL");
+        return dtoEnricher.enrichWithUrls(dto);
     }
 
     QuizSessionDTO convertSessionToDTO(QuizSession session) {

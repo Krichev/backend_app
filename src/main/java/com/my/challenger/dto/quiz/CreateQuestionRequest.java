@@ -45,6 +45,10 @@ public class CreateQuestionRequest {
 
     private String source;
 
+    @jakarta.validation.constraints.Min(10)
+    @jakarta.validation.constraints.Max(600)
+    private Integer timeLimitSeconds;
+
     // Access control (defaults to PRIVATE)
     @Builder.Default
     private QuestionVisibility visibility = QuestionVisibility.PRIVATE;
