@@ -90,4 +90,6 @@ public interface TaskCompletionRepository extends JpaRepository<TaskCompletion, 
     @Query("SELECT tc FROM TaskCompletion tc WHERE tc.task.challenge.id = :challengeId AND tc.status = :status")
     List<TaskCompletion> findByTaskChallengeIdAndStatus(
             @Param("challengeId") Long challengeId, @Param("status") CompletionStatus status);
+
+    boolean existsByTaskIdAndUserId(Long taskId, Long userId);
 }

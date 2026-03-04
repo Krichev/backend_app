@@ -513,6 +513,7 @@ public class QuestionService {
         QuizSession updated = quizSessionRepository.save(session);
 
         // Update associated Task
+        // TODO: consolidate with EnhancedQuizService.onSessionCompleted()
         if (session.getChallenge() != null) {
             taskRepository.findFirstByChallengeIdAndAssignedToAndStatus(
                     session.getChallenge().getId(),

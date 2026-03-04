@@ -80,7 +80,7 @@ public class AuthController {
                 .map(refreshTokenService::verifyExpiration)
                 .map(RefreshToken::getUser)
                 .map(user -> {
-                    String newAccessToken = jwtTokenUtil.generateToken(user.getUsername());
+                    String newAccessToken = jwtTokenUtil.generateToken(user.getUsername(), user.getId());
 
                     // Optionally rotate refresh token (more secure)
                     RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user);

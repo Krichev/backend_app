@@ -73,8 +73,8 @@ public class UserController {
         UpdateUserProfileResponse response;
 
         if (usernameChanged) {
-            // Generate new JWT token with the new username
-            String newToken = jwtTokenUtil.generateToken(updateRequest.getUsername());
+            // Generate new JWT token with the new username and userId
+            String newToken = jwtTokenUtil.generateToken(updateRequest.getUsername(), userId);
             response = new UpdateUserProfileResponse(updatedProfile, newToken);
 
             log.info("Username updated from '{}' to '{}' for userId: {}. New token generated.",

@@ -521,9 +521,10 @@ public class QuizService {
                 .build();
     }
 
-    private void completeSession(QuizSession session) {
+    protected void completeSession(QuizSession session) {
         // Calculate score percentage before validation
         Double scorePercentage = calculateScorePercentage(session);
+        final boolean[] meetsScoreRequirement = {true}; // Using array for final effectively in lambda
 
         // Validate minimum score requirement if quest has audio config
         Challenge challenge = session.getChallenge();
@@ -539,12 +540,11 @@ public class QuizService {
                         if (scorePercentage < minScore) {
                             log.warn("❌ Score {}% is below minimum required {}% for quest ID: {}",
                                     scorePercentage, minScore, quest.getId());
-                            throw new IllegalStateException(
-                                    String.format("Score %.1f%% is below minimum required %d%% to complete this quest",
-                                            scorePercentage, minScore));
+                            meetsScoreRequirement[0] = false;
+                        } else {
+                            log.info("✅ Score {}% meets minimum requirement {}% for quest ID: {}",
+                                    scorePercentage, minScore, quest.getId());
                         }
-                        log.info("✅ Score {}% meets minimum requirement {}% for quest ID: {}",
-                                scorePercentage, minScore, quest.getId());
                     });
         }
 
@@ -559,6 +559,20 @@ public class QuizService {
 
         // Settle wagers
         settleWagersForSession(session);
+
+        // Call post-completion hook
+        onSessionCompleted(session, meetsScoreRequirement[0]);
+    }
+
+    /**
+     * Hook method called after quiz session is successfully completed.
+     * Override in subclasses to add post-completion logic (e.g., auto-complete challenge).
+     *
+     * @param session The completed quiz session
+     * @param meetsScoreRequirement Whether the score met the minimum quest requirement
+     */
+    protected void onSessionCompleted(QuizSession session, boolean meetsScoreRequirement) {
+        // No-op in base class. EnhancedQuizService overrides this.
     }
 
     private void settleWagersForSession(QuizSession session) {

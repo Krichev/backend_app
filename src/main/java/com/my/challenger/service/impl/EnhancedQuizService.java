@@ -8,7 +8,8 @@ import com.my.challenger.entity.Task;
 import com.my.challenger.entity.User;
 import com.my.challenger.entity.challenge.Challenge;
 import com.my.challenger.entity.enums.*;
-import com.my.challenger.entity.enums.TaskType;
+import com.my.challenger.entity.TaskCompletion;
+import com.my.challenger.entity.enums.*;
 import com.my.challenger.entity.quiz.QuizQuestion;
 import com.my.challenger.entity.quiz.QuizRound;
 import com.my.challenger.entity.quiz.QuizSession;
@@ -42,6 +43,7 @@ public class EnhancedQuizService extends QuizService {
 
     private final ObjectMapper objectMapper;
     private final TaskRepository taskRepository;
+    private final TaskCompletionRepository taskCompletionRepository;
     private final ChallengeProgressRepository challengeProgressRepository;
     private final ChallengeQuestionAssignmentRepository challengeQuestionAssignmentRepository;
 
@@ -57,6 +59,7 @@ public class EnhancedQuizService extends QuizService {
             MinioMediaStorageService mediaStorageService,
             ObjectMapper objectMapper,
             TaskRepository taskRepository,
+            TaskCompletionRepository taskCompletionRepository,
             TopicService topicService,
             ChallengeProgressRepository challengeProgressRepository,
             QuizQuestionDTOEnricher dtoEnricher,
@@ -70,8 +73,113 @@ public class EnhancedQuizService extends QuizService {
 
         this.objectMapper = objectMapper;
         this.taskRepository = taskRepository;
+        this.taskCompletionRepository = taskCompletionRepository;
         this.challengeProgressRepository = challengeProgressRepository;
         this.challengeQuestionAssignmentRepository = challengeQuestionAssignmentRepository;
+    }
+
+    @Override
+    protected void onSessionCompleted(QuizSession session, boolean meetsScoreRequirement) {
+        if (!meetsScoreRequirement) {
+            log.info("Score requirement not met for session {} — skipping challenge auto-completion", 
+                    session.getId());
+            return;
+        }
+        
+        Challenge challenge = session.getChallenge();
+        if (challenge == null) {
+            log.warn("No challenge linked to session {} — skipping auto-completion", session.getId());
+            return;
+        }
+        
+        User user = session.getHostUser();
+        if (user == null) {
+            log.warn("No host user on session {} — skipping auto-completion", session.getId());
+            return;
+        }
+        
+        try {
+            autoCompleteChallengeForUser(challenge, user, session);
+            log.info("✅ Auto-completed challenge {} for user {} after quiz session {}", 
+                    challenge.getId(), user.getId(), session.getId());
+        } catch (Exception e) {
+            log.error("Failed to auto-complete challenge {} for user {} — quiz session {} is still completed", 
+                    challenge.getId(), user.getId(), session.getId(), e);
+        }
+    }
+
+    private void autoCompleteChallengeForUser(Challenge challenge, User user, QuizSession session) {
+        // 1. Find or create Task for this challenge+user
+        Task task = taskRepository.findFirstByChallengeIdAndAssignedTo(
+                        challenge.getId(), user.getId())
+                .orElseGet(() -> createImplicitTask(challenge, user));
+
+        if (task.getStatus() != TaskStatus.COMPLETED) {
+            task.setStatus(TaskStatus.COMPLETED);
+            task.setUpdatedAt(LocalDateTime.now());
+            taskRepository.save(task);
+        }
+
+        // 2. Create TaskCompletion record
+        if (!taskCompletionRepository.existsByTaskIdAndUserId(task.getId(), user.getId())) {
+            TaskCompletion completion = new TaskCompletion();
+            completion.setTask(task);
+            completion.setTaskId(task.getId());
+            completion.setUser(user);
+            completion.setUserId(user.getId());
+            completion.setCompletionDate(LocalDateTime.now());
+            completion.setStatus(CompletionStatus.VERIFIED);
+            completion.setNotes("Auto-completed via quiz session " + session.getId());
+            taskCompletionRepository.save(completion);
+        }
+
+        // 3. Find or create ChallengeProgress
+        ChallengeProgress progress = challengeProgressRepository
+                .findByChallengeIdAndUserId(challenge.getId(), user.getId())
+                .orElseGet(() -> createImplicitProgress(challenge, user));
+
+        if (progress.getStatus() != ProgressStatus.COMPLETED) {
+            progress.setStatus(ProgressStatus.COMPLETED);
+            progress.setCompletionPercentage(session.getScorePercentage());
+            progress.setUpdatedAt(LocalDateTime.now());
+            challengeProgressRepository.save(progress);
+        }
+
+        // 4. Update Challenge status if appropriate (optional/logic dependent)
+        // For single player/host, we can mark challenge as COMPLETED
+        if (challenge.getStatus() != ChallengeStatus.COMPLETED) {
+            challenge.setStatus(ChallengeStatus.COMPLETED);
+            challenge.setUpdatedAt(LocalDateTime.now());
+            challengeRepository.save(challenge);
+        }
+    }
+
+    private Task createImplicitTask(Challenge challenge, User user) {
+        log.info("Creating implicit task for user {} on challenge {}", user.getId(), challenge.getId());
+        Task task = new Task();
+        task.setChallenge(challenge);
+        task.setTitle("Complete Quiz: " + challenge.getTitle());
+        task.setAssignedToUser(user);
+        task.setAssignedTo(user.getId());
+        task.setStatus(TaskStatus.IN_PROGRESS);
+        task.setType(challenge.getFrequency() != null ?
+                TaskType.valueOf(challenge.getFrequency().name()) : TaskType.ONE_TIME);
+        task.setVerificationMethod(VerificationMethod.QUIZ);
+        task.setCreatedAt(LocalDateTime.now());
+        task.setUpdatedAt(LocalDateTime.now());
+        return taskRepository.save(task);
+    }
+
+    private ChallengeProgress createImplicitProgress(Challenge challenge, User user) {
+        log.info("Creating implicit progress for user {} on challenge {}", user.getId(), challenge.getId());
+        ChallengeProgress progress = new ChallengeProgress();
+        progress.setChallenge(challenge);
+        progress.setUser(user);
+        progress.setStatus(ProgressStatus.IN_PROGRESS);
+        progress.setCompletionPercentage(0.0);
+        progress.setCreatedAt(LocalDateTime.now());
+        progress.setUpdatedAt(LocalDateTime.now());
+        return challengeProgressRepository.save(progress);
     }
 
 

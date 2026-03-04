@@ -14,7 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -29,7 +29,7 @@ import java.util.Map;
 @Slf4j
 public class JwtRequestFilter extends OncePerRequestFilter {
 
-    private final UserDetailsService userDetailsService;
+    private final CustomUserDetailsService userDetailsService;
     private final JwtTokenUtil jwtTokenUtil;
 
     private static final String BEARER_PREFIX = "Bearer ";
@@ -69,7 +69,22 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         // Validate token and set authentication
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
-                UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
+                UserDetails userDetails;
+                try {
+                    userDetails = this.userDetailsService.loadUserByUsername(username);
+                } catch (UsernameNotFoundException e) {
+                    // Fallback: try userId claim (handles username changes gracefully)
+                    Long userId = jwtTokenUtil.getUserIdFromToken(jwtToken);
+                    if (userId != null) {
+                        userDetails = this.userDetailsService.loadUserById(userId);
+                        log.info("JWT username '{}' not found, resolved by userId {} (username likely changed)",
+                                username, userId);
+                    } else {
+                        log.warn("User not found for JWT subject '{}' and no userId claim present. Returning 401.", username);
+                        sendUnauthorizedResponse(response, "User not found. Token may be stale - please refresh.");
+                        return;
+                    }
+                }
 
                 if (jwtTokenUtil.validateToken(jwtToken)) {
                     UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
@@ -83,7 +98,9 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                     log.warn("JWT Token validation failed for user: {}", username);
                 }
             } catch (Exception e) {
-                log.error("Error setting authentication", e);
+                log.error("Error setting authentication for user: {}", username, e);
+                sendUnauthorizedResponse(response, "Authentication failed");
+                return;
             }
         }
 
