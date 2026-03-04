@@ -1,6 +1,8 @@
 package com.my.challenger.service.integration;
 
+import com.my.challenger.config.StorageProperties;
 import com.my.challenger.entity.enums.AudioChallengeType;
+import com.my.challenger.service.impl.MinioMediaStorageService;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -18,26 +20,58 @@ import org.springframework.web.client.RestTemplate;
 public class KaraokeServiceClient {
 
     private final RestTemplate restTemplate;
+    private final MinioMediaStorageService mediaStorageService;
+    private final StorageProperties storageProperties;
 
     @Value("${karaoke.service.url:http://localhost:8081}")
     private String karaokeServiceUrl;
 
     /**
-     * Score audio recording against reference
+     * Score audio recording against reference using presigned URLs
      */
     public ScoringResult scoreAudio(
-            String userAudioPath,
-            String referenceAudioPath,
+            String userAudioS3Key,
+            String userAudioBucket,
+            String referenceAudioS3Key,
+            String referenceAudioBucket,
             AudioChallengeType challengeType,
             Integer rhythmBpm,
             String timeSignature) {
 
-        log.info("🎵 Calling Karaoke service for scoring: type={}", challengeType);
+        log.info("🎵 Preparing scoring request for type={}", challengeType);
 
         try {
+            // Generate presigned URLs
+            String defaultAudioBucket = storageProperties.getBucketForMediaType(
+                    com.my.challenger.entity.enums.MediaType.AUDIO);
+
+            String effectiveUserBucket = userAudioBucket != null ? userAudioBucket : defaultAudioBucket;
+            String userAudioUrl = mediaStorageService.generatePresignedUrl(effectiveUserBucket, userAudioS3Key);
+
+            if (userAudioUrl == null) {
+                log.error("❌ Failed to generate presigned URL for user audio: bucket={}, key={}",
+                        effectiveUserBucket, userAudioS3Key);
+                return zeroScoreResult("Failed to generate presigned URL for user audio");
+            }
+
+            String referenceAudioUrl = null;
+            if (referenceAudioS3Key != null) {
+                String effectiveRefBucket = referenceAudioBucket != null ? referenceAudioBucket : defaultAudioBucket;
+                referenceAudioUrl = mediaStorageService.generatePresignedUrl(effectiveRefBucket, referenceAudioS3Key);
+
+                if (referenceAudioUrl == null) {
+                    log.error("❌ Failed to generate presigned URL for reference audio: bucket={}, key={}",
+                            effectiveRefBucket, referenceAudioS3Key);
+                    return zeroScoreResult("Failed to generate presigned URL for reference audio");
+                }
+            }
+
+            log.info("🔗 Generated presigned URLs for scoring: hasUserUrl={}, hasRefUrl={}",
+                    userAudioUrl != null, referenceAudioUrl != null);
+
             ScoringRequest request = ScoringRequest.builder()
-                    .userAudioPath(userAudioPath)
-                    .referenceAudioPath(referenceAudioPath)
+                    .userAudioUrl(userAudioUrl)
+                    .referenceAudioUrl(referenceAudioUrl)
                     .challengeType(challengeType.name())
                     .rhythmBpm(rhythmBpm)
                     .timeSignature(timeSignature)
@@ -60,19 +94,22 @@ public class KaraokeServiceClient {
                 return response.getBody();
             }
 
-            throw new RuntimeException("Karaoke service returned unexpected response");
+            throw new RuntimeException("Karaoke service returned unexpected response: " + response.getStatusCode());
 
         } catch (Exception e) {
             log.error("❌ Error calling Karaoke service: {}", e.getMessage(), e);
-            // Return zero scores on failure
-            return ScoringResult.builder()
-                    .pitchScore(0.0)
-                    .rhythmScore(0.0)
-                    .voiceScore(0.0)
-                    .overallScore(0.0)
-                    .detailedMetrics("{\"error\": \"" + e.getMessage() + "\"}")
-                    .build();
+            return zeroScoreResult(e.getMessage());
         }
+    }
+
+    private ScoringResult zeroScoreResult(String errorMessage) {
+        return ScoringResult.builder()
+                .pitchScore(0.0)
+                .rhythmScore(0.0)
+                .voiceScore(0.0)
+                .overallScore(0.0)
+                .detailedMetrics("{\"error\": \"" + errorMessage + "\"}")
+                .build();
     }
 
     @Data
@@ -80,8 +117,8 @@ public class KaraokeServiceClient {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class ScoringRequest {
-        private String userAudioPath;
-        private String referenceAudioPath;
+        private String userAudioUrl;
+        private String referenceAudioUrl;
         private String challengeType;
         private Integer rhythmBpm;
         private String timeSignature;

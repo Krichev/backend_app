@@ -1,5 +1,6 @@
 package com.my.challenger.service.impl;
 
+import com.my.challenger.config.StorageProperties;
 import com.my.challenger.dto.audio.AudioChallengeConfigDTO;
 import com.my.challenger.dto.audio.AudioChallengeSubmissionDTO;
 import com.my.challenger.dto.audio.CreateAudioQuestionRequest;
@@ -44,6 +45,7 @@ public class AudioChallengeServiceImpl implements AudioChallengeService {
     private final TopicService topicService;
     private final MinioMediaStorageService mediaStorageService;
     private final KaraokeServiceClient karaokeClient;
+    private final StorageProperties storageProperties;
 
     @Override
     @Transactional
@@ -326,11 +328,24 @@ public class AudioChallengeServiceImpl implements AudioChallengeService {
         // Get scoring weights based on challenge type
         double[] weights = challengeType.getScoringWeights();
 
-        // Call Karaoke service for scoring
+        // Resolve buckets
+        String audioBucket = storageProperties.getBucketForMediaType(MediaType.AUDIO);
+
+        String refAudioBucket = null;
+        String refAudioKey = null;
+        if (question.getAudioReferenceMedia() != null) {
+            refAudioKey = question.getAudioReferenceMedia().getFilePath(); // S3 key
+            refAudioBucket = question.getAudioReferenceMedia().getBucketName() != null
+                ? question.getAudioReferenceMedia().getBucketName()
+                : audioBucket;
+        }
+
+        // Call Karaoke service for scoring using presigned URLs
         var scoringResult = karaokeClient.scoreAudio(
-                submission.getSubmissionAudioPath(),
-                question.getAudioReferenceMedia() != null ?
-                        question.getAudioReferenceMedia().getFilePath() : null,
+                submission.getSubmissionAudioPath(),   // user audio S3 key
+                audioBucket,                           // user audio bucket
+                refAudioKey,                           // reference audio S3 key (nullable)
+                refAudioBucket,                        // reference audio bucket (nullable)
                 challengeType,
                 question.getRhythmBpm(),
                 question.getRhythmTimeSignature()

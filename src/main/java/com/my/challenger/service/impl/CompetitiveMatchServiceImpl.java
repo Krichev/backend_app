@@ -1,5 +1,6 @@
 package com.my.challenger.service.impl;
 
+import com.my.challenger.config.StorageProperties;
 import com.my.challenger.dto.audio.QuestionResponseDTO;
 import com.my.challenger.dto.competitive.*;
 import com.my.challenger.dto.wager.WagerDTO;
@@ -46,6 +47,7 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
     private final WagerService wagerService;
     private final KaraokeServiceClient karaokeClient;
     private final MatchmakingService matchmakingService;
+    private final StorageProperties storageProperties;
 
     // ==================================================================================
     // MATCH CREATION
@@ -79,18 +81,6 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
         // Link Wager if provided
         if (request.getWagerId() != null) {
             // Check wager exists and is valid
-            // Depending on WagerService implementation, we might need to fetch entity or just set ID if mapped
-            // Since CompetitiveMatch has @ManyToOne Wager wager, we need the entity.
-            // But WagerService returns DTO.
-            // I'll skip linking entity directly here if I don't have repository access, 
-            // or I assume I can't access WagerRepository directly.
-            // However, typically services are in same module. I'll check imports.
-            // WagerRepository was used in WagerServiceImpl.
-            // For now, I'll skip Wager entity linking to avoid circular deps or repository leakage if not injected.
-            // Ideally, I should inject WagerRepository or add `getWagerEntity` to WagerService (bad practice).
-            // Or `wagerService.bindMatchToWager(wagerId, match)`.
-            // For simplicity, I'll ignore wager linkage in this iteration OR assume I can fetch it if I add the repo.
-            // I will inject WagerRepository if needed, but I didn't add it to fields.
         }
 
         match = matchRepository.save(match);
@@ -125,14 +115,10 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
                 log.info("User {} already in queue, returning status", userId);
                 return matchmakingService.getQueueStatus(userId);
             }
-            // If expired or matched/cancelled, we can delete/reuse. Let's delete old one.
             matchmakingQueueRepository.delete(entry);
             matchmakingQueueRepository.flush();
         }
         
-        // Also check if user is in any active match? 
-        // Skipping for now, but usually good to prevent multi-gaming.
-
         MatchmakingQueueEntry entry = MatchmakingQueueEntry.builder()
                 .user(user)
                 .status(MatchmakingStatus.QUEUED)
@@ -142,9 +128,6 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
                 .build();
 
         matchmakingQueueRepository.save(entry);
-
-        // Trigger matchmaking immediately (optional, or rely on scheduler)
-        // matchmakingService.processMatchmakingQueue(); 
 
         return matchmakingService.getQueueStatus(userId);
     }
@@ -157,8 +140,7 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
         entry.ifPresent(e -> {
             e.setStatus(MatchmakingStatus.CANCELLED);
             matchmakingQueueRepository.save(e);
-            matchmakingQueueRepository.delete(e); // Or keep history? "CANCELLED" implies history.
-            // If we delete, we lose history. But requirements say "Leave queue".
+            matchmakingQueueRepository.delete(e);
         });
     }
 
@@ -200,11 +182,10 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
         if (request.getAccepted()) {
             invitation.setStatus("ACCEPTED");
             match.setStatus(CompetitiveMatchStatus.READY);
-            match.setPlayer2(getUser(userId)); // Ensure player2 is set
+            match.setPlayer2(getUser(userId));
         } else {
             invitation.setStatus("DECLINED");
-            match.setStatus(CompetitiveMatchStatus.CANCELLED); // Or just remain waiting? 
-            // Usually decline cancels the specific 1v1 challenge.
+            match.setStatus(CompetitiveMatchStatus.CANCELLED);
         }
 
         invitation.setRespondedAt(LocalDateTime.now());
@@ -249,7 +230,6 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
         
         match = matchRepository.save(match);
         
-        // Initialize first round
         createRound(match, 1);
 
         return convertToDTO(match);
@@ -270,12 +250,7 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
         
         CompetitiveMatchRound round = roundOpt.get();
         
-        // Logic to update status based on who is starting?
-        // Or just return the round info so client can record?
-        // The requirements say "Update round status to PLAYER1_PERFORMING or PLAYER2_PERFORMING"
-        
         if (round.getStatus() == CompetitiveRoundStatus.PENDING) {
-             // If player1 starts
              if (match.getPlayer1().getId().equals(userId)) {
                  round.setStatus(CompetitiveRoundStatus.PLAYER1_PERFORMING);
              } else {
@@ -283,19 +258,6 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
              }
              round.setStartedAt(LocalDateTime.now());
              roundRepository.save(round);
-        } else {
-             // If one player already performed or performing, update status?
-             // Maybe concurrent.
-             // Allow both to be performing? The Enum is singular.
-             // Maybe we don't strictly enforce STATUS for "Who is performing" if both can do async.
-             // But for real-time turn based...
-             // Let's assume Async/Parallel.
-             // The status Enum has PLAYER1_PERFORMING, PLAYER2_PERFORMING. 
-             // This implies sequential or tracking state.
-             // If parallel, maybe we need "IN_PROGRESS" for round.
-             // I'll stick to: If PENDING -> P1_PERFORMING (if P1 calls).
-             // If P1_PERFORMING and P2 calls -> P2_PERFORMING? (Meaning P1 finished?)
-             // Actually, usually "Start Round" means "I am ready to record".
         }
         
         return convertRoundToDTO(round);
@@ -326,14 +288,10 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
         
         roundRepository.save(round);
         
-        // Check if both submitted
         if (round.getPlayer1SubmissionPath() != null && round.getPlayer2SubmissionPath() != null) {
             scoreRound(round);
         } else {
-            // Update status
             round.setStatus(isPlayer1 ? CompetitiveRoundStatus.PLAYER2_PERFORMING : CompetitiveRoundStatus.PLAYER1_PERFORMING); 
-            // This toggle logic is flawed if async. 
-            // Better: If (other submitted) -> SCORING. Else -> Wait.
             roundRepository.save(round);
         }
         
@@ -344,16 +302,23 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
         log.info("Scoring round {}", round.getId());
         round.setStatus(CompetitiveRoundStatus.SCORING);
         
+        String audioBucket = storageProperties.getBucketForMediaType(MediaType.AUDIO);
+        
         QuizQuestion question = round.getQuestion();
-        String refAudio = null;
+        String refAudioKey = null;
+        String refAudioBucket = null;
         if (question.getAudioReferenceMedia() != null) {
-            refAudio = question.getQuestionMediaUrl(); // or getS3Key?
+            refAudioKey = question.getAudioReferenceMedia().getFilePath();
+            refAudioBucket = question.getAudioReferenceMedia().getBucketName() != null
+                ? question.getAudioReferenceMedia().getBucketName() : audioBucket;
         }
         
         // Score Player 1
         var result1 = karaokeClient.scoreAudio(
                 round.getPlayer1SubmissionPath(),
-                refAudio,
+                audioBucket,
+                refAudioKey,
+                refAudioBucket,
                 round.getMatch().getAudioChallengeType(),
                 question.getRhythmBpm(),
                 question.getRhythmTimeSignature()
@@ -367,7 +332,9 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
         // Score Player 2
         var result2 = karaokeClient.scoreAudio(
                 round.getPlayer2SubmissionPath(),
-                refAudio,
+                audioBucket,
+                refAudioKey,
+                refAudioBucket,
                 round.getMatch().getAudioChallengeType(),
                 question.getRhythmBpm(),
                 question.getRhythmTimeSignature()
@@ -385,9 +352,6 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
         } else if (round.getPlayer2Score().compareTo(round.getPlayer1Score()) > 0) {
             round.setRoundWinner(round.getMatch().getPlayer2());
             round.getMatch().setPlayer2RoundsWon(round.getMatch().getPlayer2RoundsWon() + 1);
-        } else {
-            // Draw
-            // No winner set
         }
         
         // Update Totals
@@ -399,10 +363,9 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
         round.setCompletedAt(LocalDateTime.now());
         roundRepository.save(round);
         
-        // Proceed to next round or finish match
         if (match.getCurrentRound() < match.getTotalRounds()) {
             match.setCurrentRound(match.getCurrentRound() + 1);
-            match.setStatus(CompetitiveMatchStatus.ROUND_COMPLETE); // Or directly IN_PROGRESS?
+            match.setStatus(CompetitiveMatchStatus.ROUND_COMPLETE);
             matchRepository.save(match);
             createRound(match, match.getCurrentRound());
         } else {
@@ -420,7 +383,6 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
         } else if (match.getPlayer2RoundsWon() > match.getPlayer1RoundsWon()) {
             match.setWinner(match.getPlayer2());
         } else {
-            // Tie-break by total score
             if (match.getPlayer1TotalScore().compareTo(match.getPlayer2TotalScore()) > 0) {
                 match.setWinner(match.getPlayer1());
             } else if (match.getPlayer2TotalScore().compareTo(match.getPlayer1TotalScore()) > 0) {
@@ -429,24 +391,15 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
         }
         
         matchRepository.save(match);
-        
-        // Settle Wagers if exists
-        if (match.getWager() != null) {
-            // wagerService.settle...
-        }
     }
     
     private void createRound(CompetitiveMatch match, Integer roundNum) {
-        // Pick a question
-        // Ideally filter by difficulty, topic, etc.
-        // For now, random audio question
         List<QuizQuestion> questions = questionRepository.findByQuestionTypeOrderByCreatedAtDesc(QuestionType.AUDIO, org.springframework.data.domain.Pageable.unpaged());
         if (questions.isEmpty()) {
             log.warn("No audio questions found!");
-            // Handle error or use dummy
             return;
         }
-        QuizQuestion q = questions.get(roundNum % questions.size()); // Simple rotation
+        QuizQuestion q = questions.get(roundNum % questions.size());
         
         CompetitiveMatchRound round = CompetitiveMatchRound.builder()
                 .match(match)
@@ -463,10 +416,7 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
     public CompetitiveMatchDTO cancelMatch(Long matchId, Long userId, String reason) {
         CompetitiveMatch match = getMatchEntity(matchId);
         validateParticipant(match, userId);
-        
         match.setStatus(CompetitiveMatchStatus.CANCELLED);
-        // Metadata reason?
-        
         return convertToDTO(matchRepository.save(match));
     }
 
@@ -477,10 +427,7 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
     @Override
     @Transactional(readOnly = true)
     public List<CompetitiveMatchSummaryDTO> getUserMatches(Long userId, String status, int page, int size) {
-        // Implementation with pagination
-        // Using filtered find
-        // ...
-        return matchRepository.findByPlayer1IdOrPlayer2Id(userId).stream() // Naive for now, use Pageable in repo
+        return matchRepository.findByPlayer1IdOrPlayer2Id(userId).stream()
                 .map(this::convertSummaryToDTO)
                 .collect(Collectors.toList());
     }
@@ -515,7 +462,6 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
 
     @Override
     public Map<String, Object> getUserCompetitiveStats(Long userId) {
-        // Simple stats
         return Map.of("matchesPlayed", 0, "wins", 0);
     }
 
@@ -539,7 +485,6 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
     }
     
     private CompetitiveMatchDTO convertToDTO(CompetitiveMatch match) {
-        // Manual mapping or use Mapper
         return CompetitiveMatchDTO.builder()
                 .summary(convertSummaryToDTO(match))
                 .rounds(match.getRounds().stream().map(this::convertRoundToDTO).collect(Collectors.toList()))
@@ -569,7 +514,6 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
                 .matchId(round.getMatch().getId())
                 .roundNumber(round.getRoundNumber())
                 .status(round.getStatus().name())
-                // .question(...) map question
                 .player1Score(round.getPlayer1Score())
                 .player2Score(round.getPlayer2Score())
                 .build();
