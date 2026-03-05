@@ -245,7 +245,7 @@ public class QuizService {
                 .teamMembers(String.join(",", request.getTeamMembers()))
                 .enableAiHost(request.getEnableAiHost() != null ? request.getEnableAiHost() : false)
                 .enableAiAnswerValidation(request.getEnableAiAnswerValidation() != null ? request.getEnableAiAnswerValidation() : false)
-                .questionSource(request.getQuestionSource())
+                .questionSource(request.getQuestionSource() != null ? request.getQuestionSource() : QuestionSource.app)
                 .build();
 
         // Handle challenge linkage if provided

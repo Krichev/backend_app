@@ -19,7 +19,6 @@ import java.util.List;
 @AllArgsConstructor
 public class StartQuizSessionRequest {
     
-    @NotNull(message = "Challenge ID is required")
     private Long challengeId;
     
     @NotNull(message = "Team name is required")
@@ -49,7 +48,6 @@ public class StartQuizSessionRequest {
     
     private Boolean enableAiHost;
     
-    @NotNull(message = "Question source is required")
     private QuestionSource questionSource; // "app" or "user"
     
     // For user-selected questions

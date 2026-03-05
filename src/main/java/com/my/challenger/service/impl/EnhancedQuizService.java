@@ -9,7 +9,6 @@ import com.my.challenger.entity.User;
 import com.my.challenger.entity.challenge.Challenge;
 import com.my.challenger.entity.enums.*;
 import com.my.challenger.entity.TaskCompletion;
-import com.my.challenger.entity.enums.*;
 import com.my.challenger.entity.quiz.QuizQuestion;
 import com.my.challenger.entity.quiz.QuizRound;
 import com.my.challenger.entity.quiz.QuizSession;
@@ -994,48 +993,88 @@ public class EnhancedQuizService extends QuizService {
     /**
      * Override createQuizRounds to prioritize questions from the junction table
      * if the session is linked to a challenge.
+     * This is the SINGLE SOURCE OF TRUTH for challenge questions.
      */
     @Override
     protected void createQuizRounds(QuizSession session, StartQuizSessionRequest request) {
         if (request.getChallengeId() != null) {
-            log.info("Creating rounds for session {} using questions assigned to challenge {}",
+            log.info("📋 Creating rounds for session {} using questions assigned to challenge {}",
                     session.getId(), request.getChallengeId());
 
             // Get questions for this specific challenge via junction table
             List<QuizQuestion> assignedQuestions = challengeQuestionAssignmentRepository
                     .findQuestionsByChallengeId(request.getChallengeId());
 
-            if (!assignedQuestions.isEmpty()) {
-                log.info("Found {} assigned questions for challenge {}. Using them for session {}.",
-                        assignedQuestions.size(), request.getChallengeId(), session.getId());
-
-                // Create rounds using these questions
-                int roundsToCreate = Math.min(session.getTotalRounds(), assignedQuestions.size());
-                for (int i = 0; i < roundsToCreate; i++) {
-                    QuizRound round = QuizRound.builder()
-                            .quizSession(session)
-                            .question(assignedQuestions.get(i))
-                            .roundNumber(i + 1)
-                            .isCorrect(false)
-                            .hintUsed(false)
-                            .voiceRecordingUsed(false)
-                            .build();
-                    QuizRound savedRound = quizRoundRepository.save(round);
-
-                    // Initialize Brain Ring state if in BRAIN_RING mode
-                    if (session.getGameMode() == GameMode.BRAIN_RING) {
-                        brainRingService.initializeRoundState(savedRound);
-                    }
-
-                    // Increment usage count
-                    QuizQuestion q = assignedQuestions.get(i);
-                    q.setUsageCount(q.getUsageCount() + 1);
-                    quizQuestionRepository.save(q);
-                }
-                return;
+            if (assignedQuestions.isEmpty()) {
+                log.error("❌ Challenge {} has no linked questions. Cannot create session.", request.getChallengeId());
+                throw new IllegalArgumentException(
+                        "Challenge " + request.getChallengeId() + " has no linked questions. " +
+                        "Cannot create session.");
             }
-            log.warn("No questions assigned to challenge {} via junction table. Falling back to default logic.",
-                    request.getChallengeId());
+
+            // doc.md: customQuestionIds in the request MUST be IGNORED (log a warning if present)
+            if (request.getCustomQuestionIds() != null && !request.getCustomQuestionIds().isEmpty()) {
+                log.warn("⚠️ customQuestionIds provided for challenge-based session " +
+                         "(challengeId={}). IGNORING — using challenge_questions as source of truth.",
+                         request.getChallengeId());
+            }
+
+            // doc.md: If shuffleQuestions is enabled in quiz config, shuffle the order; otherwise use the saved order
+            boolean shuffle = false;
+            Challenge challenge = session.getChallenge();
+            if (challenge != null && challenge.getQuizConfig() != null) {
+                try {
+                    QuizChallengeConfig config = objectMapper.readValue(challenge.getQuizConfig(), QuizChallengeConfig.class);
+                    if (Boolean.TRUE.equals(config.getShuffleQuestions())) {
+                        shuffle = true;
+                        log.info("🔀 Shuffle enabled for challenge {}. Randomizing question order.", challenge.getId());
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to parse quiz config for challenge {}", challenge.getId(), e);
+                }
+            }
+
+            if (shuffle) {
+                java.util.Collections.shuffle(assignedQuestions);
+            }
+
+            // doc.md: totalRounds should be capped to the number of available challenge questions
+            int requestedRounds = session.getTotalRounds() != null ? session.getTotalRounds() : assignedQuestions.size();
+            int maxRounds = Math.min(requestedRounds, assignedQuestions.size());
+
+            if (session.getTotalRounds() == null || session.getTotalRounds() > maxRounds) {
+                log.info("📏 Adjusting session totalRounds from {} to {} to match available questions",
+                        session.getTotalRounds(), maxRounds);
+                session.setTotalRounds(maxRounds);
+                quizSessionRepository.save(session);
+            }
+
+            // Create rounds using these questions
+            for (int i = 0; i < maxRounds; i++) {
+                QuizQuestion q = assignedQuestions.get(i);
+                QuizRound round = QuizRound.builder()
+                        .quizSession(session)
+                        .question(q)
+                        .roundNumber(i + 1)
+                        .isCorrect(false)
+                        .hintUsed(false)
+                        .voiceRecordingUsed(false)
+                        .build();
+                QuizRound savedRound = quizRoundRepository.save(round);
+
+                // Initialize Brain Ring state if in BRAIN_RING mode
+                if (session.getGameMode() == GameMode.BRAIN_RING) {
+                    brainRingService.initializeRoundState(savedRound);
+                }
+
+                // Increment usage count
+                q.setUsageCount((q.getUsageCount() == null ? 0 : q.getUsageCount()) + 1);
+                quizQuestionRepository.save(q);
+
+                log.info("  Round {}: questionId={}, type={}", i + 1, q.getId(), q.getQuestionType());
+            }
+            log.info("✅ Successfully created {} rounds for challenge-based session {}", maxRounds, session.getId());
+            return;
         }
 
         // Default logic from parent QuizService
@@ -1043,11 +1082,12 @@ public class EnhancedQuizService extends QuizService {
     }
 
     /**
-     * Replay a quiz challenge by creating a new session
+     * Replay a quiz challenge by creating a new session.
+     * Refactored to use startQuizSession for common logic path.
      */
     @Transactional
     public QuizSessionDTO replayChallenge(Long challengeId, Long userId, ReplayChallengeRequest request) {
-        log.info("Replaying challenge: {} for user: {}", challengeId, userId);
+        log.info("🔄 Replaying challenge: {} for user: {}", challengeId, userId);
 
         // 1. Load the challenge, verify it exists and is QUIZ type
         Challenge challenge = challengeRepository.findById(challengeId)
@@ -1094,7 +1134,6 @@ public class EnhancedQuizService extends QuizService {
                 sessionConfig.setTeamMembers(challengeConfig.getTeamMembers() != null ?
                         challengeConfig.getTeamMembers() : new ArrayList<>());
                 
-                // Map NEW fields
                 if (challengeConfig.getGameMode() != null) {
                     sessionConfig.setGameMode(challengeConfig.getGameMode());
                 } else {
@@ -1109,7 +1148,6 @@ public class EnhancedQuizService extends QuizService {
             }
         } catch (Exception e) {
             log.error("Failed to parse quiz config from challenge", e);
-            // Fallback to defaults
             sessionConfig.setDifficulty(QuizDifficulty.MEDIUM);
             sessionConfig.setTotalRounds(10);
             sessionConfig.setRoundTimeSeconds(30);
@@ -1146,7 +1184,22 @@ public class EnhancedQuizService extends QuizService {
             }
         }
 
-        // 5. Create a new QuizSession using the merged config
-        return createQuizSessionForChallenge(challengeId, userId, sessionConfig);
+        // 5. Create a new QuizSession using the merged config via startQuizSession path
+        StartQuizSessionRequest startRequest = StartQuizSessionRequest.builder()
+                .challengeId(challengeId)
+                .teamName(sessionConfig.getTeamName() != null ? sessionConfig.getTeamName() : "Team Replay")
+                .teamMembers(sessionConfig.getTeamMembers() != null && !sessionConfig.getTeamMembers().isEmpty() ? 
+                        sessionConfig.getTeamMembers() : List.of("Player 1"))
+                .difficulty(sessionConfig.getDifficulty())
+                .totalRounds(sessionConfig.getTotalRounds())
+                .roundTimeSeconds(sessionConfig.getRoundTimeSeconds())
+                .gameMode(sessionConfig.getGameMode())
+                .answerTimeSeconds(sessionConfig.getAnswerTimeSeconds())
+                .enableAiHost(sessionConfig.getEnableAiHost())
+                .enableAiAnswerValidation(sessionConfig.getEnableAiAnswerValidation())
+                .questionSource(sessionConfig.getQuestionSource())
+                .build();
+        
+        return startQuizSession(startRequest, userId);
     }
 }
