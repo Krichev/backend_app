@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Schema(description = "Audio challenge submission with scoring results")
-public class AudioChallengeSubmissionDTO {
+public class AudioSubmissionDTO {
 
     @Schema(description = "Submission ID")
     private Long id;

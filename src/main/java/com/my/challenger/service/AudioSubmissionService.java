@@ -1,14 +1,14 @@
 package com.my.challenger.service;
 
 import com.my.challenger.dto.audio.AudioChallengeConfigDTO;
-import com.my.challenger.dto.audio.AudioChallengeSubmissionDTO;
+import com.my.challenger.dto.audio.AudioSubmissionDTO;
 import com.my.challenger.dto.audio.CreateAudioQuestionRequest;
 import com.my.challenger.dto.audio.QuestionResponseDTO;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
-public interface AudioChallengeService {
+public interface AudioSubmissionService {
 
     /**
      * Create a new audio challenge question
@@ -26,7 +26,7 @@ public interface AudioChallengeService {
     /**
      * Submit user recording for scoring
      */
-    AudioChallengeSubmissionDTO submitRecording(
+    AudioSubmissionDTO submitRecording(
             Long questionId,
             Long userId,
             MultipartFile audioFile);
@@ -34,17 +34,17 @@ public interface AudioChallengeService {
     /**
      * Get submission status and scores
      */
-    AudioChallengeSubmissionDTO getSubmissionStatus(Long submissionId);
+    AudioSubmissionDTO getSubmissionStatus(Long submissionId);
 
     /**
      * Get all submissions for a question by user
      */
-    List<AudioChallengeSubmissionDTO> getUserSubmissions(Long questionId, Long userId);
+    List<AudioSubmissionDTO> getUserSubmissions(Long questionId, Long userId);
 
     /**
      * Get best submission for a question by user
      */
-    AudioChallengeSubmissionDTO getBestSubmission(Long questionId, Long userId);
+    AudioSubmissionDTO getBestSubmission(Long questionId, Long userId);
 
     /**
      * Process pending submissions (called by scheduler)

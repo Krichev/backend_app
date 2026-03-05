@@ -1,7 +1,6 @@
 package com.my.challenger.service.integration;
 
 import com.my.challenger.config.StorageProperties;
-import com.my.challenger.entity.enums.AudioChallengeType;
 import com.my.challenger.service.impl.MinioMediaStorageService;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -17,14 +16,17 @@ import org.springframework.web.client.RestTemplate;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class KaraokeServiceClient {
+public class KaraokeScoringClient {
 
     private final RestTemplate restTemplate;
     private final MinioMediaStorageService mediaStorageService;
     private final StorageProperties storageProperties;
 
-    @Value("${karaoke.service.url:http://localhost:8081}")
-    private String karaokeServiceUrl;
+    @Value("${challenger.karaoke.base-url:http://localhost:8083}")
+    private String karaokeBaseUrl;
+
+    @Value("${challenger.karaoke.scoring-endpoint:/api/scoring/analyze}")
+    private String scoringEndpoint;
 
     /**
      * Score audio recording against reference using presigned URLs
@@ -34,7 +36,7 @@ public class KaraokeServiceClient {
             String userAudioBucket,
             String referenceAudioS3Key,
             String referenceAudioBucket,
-            AudioChallengeType challengeType,
+            String challengeType,
             Integer rhythmBpm,
             String timeSignature) {
 
@@ -42,27 +44,21 @@ public class KaraokeServiceClient {
 
         try {
             // Generate presigned URLs
-            String defaultAudioBucket = storageProperties.getBucketForMediaType(
-                    com.my.challenger.entity.enums.MediaType.AUDIO);
-
-            String effectiveUserBucket = userAudioBucket != null ? userAudioBucket : defaultAudioBucket;
-            String userAudioUrl = mediaStorageService.generatePresignedUrl(effectiveUserBucket, userAudioS3Key);
+            String userAudioUrl = mediaStorageService.generatePresignedUrl(userAudioBucket, userAudioS3Key);
 
             if (userAudioUrl == null) {
                 log.error("❌ Failed to generate presigned URL for user audio: bucket={}, key={}",
-                        effectiveUserBucket, userAudioS3Key);
+                        userAudioBucket, userAudioS3Key);
                 return zeroScoreResult("Failed to generate presigned URL for user audio");
             }
 
             String referenceAudioUrl = null;
             if (referenceAudioS3Key != null) {
-                String effectiveRefBucket = referenceAudioBucket != null ? referenceAudioBucket : defaultAudioBucket;
-                referenceAudioUrl = mediaStorageService.generatePresignedUrl(effectiveRefBucket, referenceAudioS3Key);
+                referenceAudioUrl = mediaStorageService.generatePresignedUrl(referenceAudioBucket, referenceAudioS3Key);
 
                 if (referenceAudioUrl == null) {
                     log.error("❌ Failed to generate presigned URL for reference audio: bucket={}, key={}",
-                            effectiveRefBucket, referenceAudioS3Key);
-                    return zeroScoreResult("Failed to generate presigned URL for reference audio");
+                            referenceAudioBucket, referenceAudioS3Key);
                 }
             }
 
@@ -72,7 +68,7 @@ public class KaraokeServiceClient {
             ScoringRequest request = ScoringRequest.builder()
                     .userAudioUrl(userAudioUrl)
                     .referenceAudioUrl(referenceAudioUrl)
-                    .challengeType(challengeType.name())
+                    .challengeType(challengeType)
                     .rhythmBpm(rhythmBpm)
                     .timeSignature(timeSignature)
                     .build();
@@ -82,8 +78,11 @@ public class KaraokeServiceClient {
 
             HttpEntity<ScoringRequest> entity = new HttpEntity<>(request, headers);
 
+            String url = karaokeBaseUrl + scoringEndpoint;
+            log.info("🚀 Calling Karaoke service at: {}", url);
+
             ResponseEntity<ScoringResult> response = restTemplate.exchange(
-                    karaokeServiceUrl + "/api/scoring/analyze",
+                    url,
                     HttpMethod.POST,
                     entity,
                     ScoringResult.class

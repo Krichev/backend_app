@@ -15,7 +15,7 @@ import com.my.challenger.exception.ResourceNotFoundException;
 import com.my.challenger.repository.*;
 import com.my.challenger.service.CompetitiveMatchService;
 import com.my.challenger.service.WagerService;
-import com.my.challenger.service.integration.KaraokeServiceClient;
+import com.my.challenger.service.integration.KaraokeScoringClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -45,7 +45,7 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
     private final QuizQuestionRepository questionRepository;
     private final UserRelationshipService userRelationshipService;
     private final WagerService wagerService;
-    private final KaraokeServiceClient karaokeClient;
+    private final KaraokeScoringClient karaokeClient;
     private final MatchmakingService matchmakingService;
     private final StorageProperties storageProperties;
 
@@ -319,7 +319,7 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
                 audioBucket,
                 refAudioKey,
                 refAudioBucket,
-                round.getMatch().getAudioChallengeType(),
+                round.getMatch().getAudioChallengeType().name(),
                 question.getRhythmBpm(),
                 question.getRhythmTimeSignature()
         );
@@ -335,7 +335,7 @@ public class CompetitiveMatchServiceImpl implements CompetitiveMatchService {
                 audioBucket,
                 refAudioKey,
                 refAudioBucket,
-                round.getMatch().getAudioChallengeType(),
+                round.getMatch().getAudioChallengeType().name(),
                 question.getRhythmBpm(),
                 question.getRhythmTimeSignature()
         );
