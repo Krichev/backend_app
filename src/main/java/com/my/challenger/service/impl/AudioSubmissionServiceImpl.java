@@ -20,7 +20,6 @@ import com.my.challenger.repository.MediaFileRepository;
 import com.my.challenger.repository.QuizQuestionRepository;
 import com.my.challenger.repository.UserRepository;
 import com.my.challenger.service.AudioSubmissionService;
-import com.my.challenger.service.TopicService;
 import com.my.challenger.service.processor.AudioScoringProcessor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
