@@ -48,9 +48,12 @@ public class StartQuizSessionRequest {
     
     private Boolean enableAiHost;
     
+    @Deprecated
     private QuestionSource questionSource; // "app" or "user"
     
     // For user-selected questions
+    /** @deprecated Use challengeId to manage questions via junction table */
+    @Deprecated
     private List<Long> customQuestionIds;
     private Boolean enableAiAnswerValidation;
 }

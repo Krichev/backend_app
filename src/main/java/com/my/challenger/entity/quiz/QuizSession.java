@@ -126,6 +126,13 @@ public class QuizSession {
     @Column(name = "paused_notes")
     private String pausedNotes;
 
+    @Column(name = "room_code", length = 10, unique = true)
+    private String roomCode;
+
+    @Column(name = "is_multiplayer")
+    @Builder.Default
+    private Boolean isMultiplayer = false;
+
     // Bi-directional relationship with quiz rounds
     @OneToMany(mappedBy = "quizSession", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<QuizRound> rounds = new ArrayList<>();

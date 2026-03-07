@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
        indexes = {
            @Index(name = "idx_cqa_challenge_id", columnList = "challenge_id"),
            @Index(name = "idx_cqa_question_id", columnList = "question_id"),
-           @Index(name = "idx_cqa_challenge_order", columnList = "challenge_id, sort_order")
+           @Index(name = "idx_cqa_challenge_order", columnList = "challenge_id, position")
        })
 @Data
 @Builder
@@ -44,9 +44,9 @@ public class ChallengeQuestionAssignment {
     @Builder.Default
     private AssignmentType assignmentType = AssignmentType.SELECTED;
 
-    @Column(name = "sort_order")
+    @Column(name = "position")
     @Builder.Default
-    private Integer sortOrder = 0;
+    private Integer position = 0;
 
     @Column(name = "assigned_at")
     @Builder.Default

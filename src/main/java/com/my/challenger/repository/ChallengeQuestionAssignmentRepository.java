@@ -13,20 +13,20 @@ import java.util.List;
 @Repository
 public interface ChallengeQuestionAssignmentRepository extends JpaRepository<ChallengeQuestionAssignment, Long> {
 
-    /** Get all assignments for a challenge, ordered by sort_order */
-    List<ChallengeQuestionAssignment> findByChallengeIdOrderBySortOrder(Long challengeId);
+    /** Get all assignments for a challenge, ordered by position */
+    List<ChallengeQuestionAssignment> findByChallengeIdOrderByPosition(Long challengeId);
 
     /** Get just the questions for a challenge (skipping the assignment wrapper) */
     @Query("SELECT cqa.question FROM ChallengeQuestionAssignment cqa " +
            "WHERE cqa.challenge.id = :challengeId " +
-           "ORDER BY cqa.sortOrder")
+           "ORDER BY cqa.position")
     List<QuizQuestion> findQuestionsByChallengeId(@Param("challengeId") Long challengeId);
 
     /** Get questions filtered by assignment type */
     @Query("SELECT cqa.question FROM ChallengeQuestionAssignment cqa " +
            "WHERE cqa.challenge.id = :challengeId " +
            "AND cqa.assignmentType = :type " +
-           "ORDER BY cqa.sortOrder")
+           "ORDER BY cqa.position")
     List<QuizQuestion> findQuestionsByChallengeIdAndType(
             @Param("challengeId") Long challengeId,
             @Param("type") AssignmentType type);

@@ -176,4 +176,6 @@ public interface QuizSessionRepository extends JpaRepository<QuizSession, Long> 
     // Find all sessions for a challenge by user, paginated
     Page<QuizSession> findByChallengeIdAndHostUserIdOrderByCreatedAtDesc(
             Long challengeId, Long userId, Pageable pageable);
+
+    Optional<QuizSession> findByRoomCode(String roomCode);
 }

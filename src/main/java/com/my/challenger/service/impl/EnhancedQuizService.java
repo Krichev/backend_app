@@ -469,7 +469,7 @@ public class EnhancedQuizService extends QuizService {
                         .challenge(challengeRepository.getReferenceById(challengeId))
                         .question(savedQuestion)
                         .assignmentType(AssignmentType.CREATED_INLINE)
-                        .sortOrder(questions.size()) // use current size as sort order
+                        .position(questions.size()) // use current size as position
                         .assignedBy(creator)
                         .build();
                 challengeQuestionAssignmentRepository.save(assignment);
@@ -512,7 +512,7 @@ public class EnhancedQuizService extends QuizService {
                     .challenge(challenge)
                     .question(existingQuestions.get(i))
                     .assignmentType(AssignmentType.SELECTED)
-                    .sortOrder(i)
+                    .position(i)
                     .assignedBy(assignedBy)
                     .build());
         }
@@ -1047,6 +1047,18 @@ public class EnhancedQuizService extends QuizService {
                         session.getTotalRounds(), maxRounds);
                 session.setTotalRounds(maxRounds);
                 quizSessionRepository.save(session);
+            }
+
+            // doc.md: Add defensive logging for the session questions
+            log.info("📋 Creating session for challenge={}, questions from challenge_questions: {} question(s), " +
+                     "rounds requested={}, rounds actual={}",
+                     request.getChallengeId(), assignedQuestions.size(),
+                     request.getTotalRounds(), maxRounds);
+
+            for (int i = 0; i < maxRounds; i++) {
+                QuizQuestion q = assignedQuestions.get(i);
+                log.info("  Round {}: questionId={}, type={}, audioChallengeType={}",
+                         i + 1, q.getId(), q.getQuestionType(), q.getAudioChallengeType());
             }
 
             // Create rounds using these questions
